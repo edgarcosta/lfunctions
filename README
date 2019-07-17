@@ -1,0 +1,23 @@
+Generic L-function calculator
+
+to build:-
+
+cd src
+edit makefile accordingly to point at installed Arb and primesieve
+make
+
+This should create a library in ./libs
+
+to test:-
+
+cd test
+edit makefile accordingly
+make
+./dir_test
+./dir_test1
+
+The interface is defined in include/glfunc.h
+
+Any issues please to Dave Platt dave.platt@bris.ac.uk
+
+
