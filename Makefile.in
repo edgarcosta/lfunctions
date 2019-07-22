@@ -57,7 +57,6 @@ $(EXECUTABLES) : %.exe : %.o $(OBJS)
 	$(CXX) $(CXXFLAGS) $(INCS) $^ -o $@ $(LIBS)
 
 build_dirs: $(BUILD_DIRS)
-#	$(foreach dir, $(BUILD_DIRS), mkdir -p $(dir) || exit $$?;)
 
 $(BUILD_DIRS): % :
 	mkdir -p $@
