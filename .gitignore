@@ -1,6 +1,9 @@
 # Makefile
 Makefile
 
+# g files
+g_*_*
+
 # Prerequisites
 *.d
 
