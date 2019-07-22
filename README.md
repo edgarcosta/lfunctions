@@ -34,6 +34,7 @@ cd lfunctions
 
 3. 
 If any of these libraries are installed in some other location than the default path `/usr/local`, pass `--with-arb=...`, `--with-primesieve=...`, `--with-gmp=...`, `--with-mpfr=...`, or `--with-flint=...` with the correct path to configure (type ./configure --help to show more options).
+
 Note that with exception of `primesieve`, all these libraries are already provided by [SageMath](http://www.sagemath.org/),
 and one can do `--with-arb=<SAGE_DIR>/local/`
 
