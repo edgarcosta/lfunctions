@@ -206,7 +206,7 @@ void complete_ftwiddle_error(Lfunc *L, int64_t prec)
 // we need to add the error for sum m>=m+1
 // returns 0 if no coefficients have been added in
 // then use F_hat_twiddle bound
-uint64_t inv_m(uint64_t hi_i, uint64_t n, uint64_t M0 __attribute__((unused)), double one_over_B, double dc)
+uint64_t inv_m(uint64_t hi_i, uint64_t n, double one_over_B, double dc)
 {
   return(exp(((double) hi_i-(double) n+0.5)*2.0*M_PI*one_over_B)*dc);
 }
@@ -467,7 +467,7 @@ error_t do_pre_iFFT_errors(Lfunc *L)
   arb_zero(x);
   for(i=0;i<=L->fft_N/2;i++)
   {
-    uint64_t M=inv_m(L->hi_i,i,L->M0,L->one_over_B,L->dc);
+    uint64_t M=inv_m(L->hi_i,i,L->one_over_B,L->dc);
     //printf("i=%" PRIu64 " => M=%" PRIu64 " ",i,M);
     if(M==0)
       break;

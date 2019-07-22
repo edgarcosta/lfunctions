@@ -597,7 +597,7 @@ extern "C"{
   // delta=n/A-t
   // sin_delta=sin(Pi*A*(n/A-t))
   // compute differential at t
-  void do_point_f_dash(arb_ptr res, Lfunc *L, int64_t n, arb_t t, arb_t delta, arb_t sin_delta, arb_t cos_delta, arb_t A __attribute__((unused)), uint64_t side, uint64_t prec) {
+  void do_point_f_dash(arb_ptr res, Lfunc *L, int64_t n, arb_t t, arb_t delta, arb_t sin_delta, arb_t cos_delta, uint64_t side, uint64_t prec) {
     static arb_t tmp,tmp1,tmp2,tmp3;
     static arb_t A_pi_delta;
     static bool init=false;
@@ -673,7 +673,7 @@ extern "C"{
     int64_t nn=n+L->u_N*L->u_stride*2,nn1=nn; // offset into values
 
     // do nearest point
-    do_point_f_dash(res,L,nn,t,diff,sin_diff,cos_diff,A,side,prec);
+    do_point_f_dash(res,L,nn,t,diff,sin_diff,cos_diff,side,prec);
     arb_set(this_diff,diff);
     // do Lu->N points to left of nearest
     for(uint64_t count=0;count<L->u_N;count++)
@@ -681,7 +681,7 @@ extern "C"{
       arb_sub(this_diff,this_diff,step,prec);
       arb_sub(t,t,t_delta,prec);
       nn-=L->u_stride;
-      do_point_f_dash(term,L,nn,t,this_diff,(count&1)?sin_diff:neg_sin_diff,(count&1)?cos_diff:neg_cos_diff,A,side,prec);
+      do_point_f_dash(term,L,nn,t,this_diff,(count&1)?sin_diff:neg_sin_diff,(count&1)?cos_diff:neg_cos_diff,side,prec);
       arb_add(res,res,term,prec);
     }
 
@@ -694,7 +694,7 @@ extern "C"{
       arb_add(this_diff,this_diff,step,prec);
       arb_add(t,t,t_delta,prec);
       nn+=L->u_stride;
-      do_point_f_dash(term,L,nn,t,this_diff,(count&1)?sin_diff:neg_sin_diff,(count&1)?cos_diff:neg_cos_diff,A,side,prec);
+      do_point_f_dash(term,L,nn,t,this_diff,(count&1)?sin_diff:neg_sin_diff,(count&1)?cos_diff:neg_cos_diff,side,prec);
       arb_add(res,res,term,prec);
     }
     // nothing rigorous about N-R

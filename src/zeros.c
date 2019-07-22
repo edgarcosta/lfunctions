@@ -47,7 +47,7 @@ extern "C"{
   }
 
   // binary chop
-  bool isolate_zero(arb_t res, arb_t tt0, arb_t tt1, arb_t ff0, arb_t ff1, int8_t s0, int8_t s1 __attribute__((unused)), Lfunc *L, uint64_t side, uint64_t prec, uint64_t op_acc)
+  bool isolate_zero(arb_t res, arb_t tt0, arb_t tt1, arb_t ff0, arb_t ff1, int8_t s0, Lfunc *L, uint64_t side, uint64_t prec, uint64_t op_acc)
   {
     static bool init=false;
     static arb_t tmp1, tmp2, tmp3, t0, t1, f0, f1;
@@ -249,7 +249,7 @@ extern "C"{
           arb_union(z2,t01,t1,prec);
           return ecode;
         }
-        if(!isolate_zero(tmp,t0,t01,f0,f01,s,s01,L,side,prec,L->target_prec))
+        if(!isolate_zero(tmp,t0,t01,f0,f01,s,L,side,prec,L->target_prec))
         {
           ecode|=ERR_ZERO_PREC;
           arb_set(z1,tmp);
@@ -261,7 +261,7 @@ extern "C"{
           if(!confirm_zero(z1,L,prec,L->zero_prec,side))
             return ecode|ERR_STAT_POINT;
         }
-        if(!isolate_zero(tmp,t01,t1,f01,f1,s01,s,L,side,prec,L->target_prec))
+        if(!isolate_zero(tmp,t01,t1,f01,f1,s01,L,side,prec,L->target_prec))
         {
           ecode|=ERR_ZERO_PREC;
           arb_set(z2,tmp);
@@ -303,7 +303,7 @@ extern "C"{
           arb_union(z2,t12,t2,prec);
           return ecode;
         }
-        if(!isolate_zero(tmp,t1,t12,f1,f12,s,s12,L,side,prec,L->target_prec))
+        if(!isolate_zero(tmp,t1,t12,f1,f12,s,L,side,prec,L->target_prec))
         {
           ecode|=ERR_ZERO_PREC;
           arb_set(z1,tmp);
@@ -315,7 +315,7 @@ extern "C"{
           if(!confirm_zero(z1,L,prec,L->zero_prec,side))
             return ecode|ERR_STAT_POINT;
         }
-        if(!isolate_zero(tmp,t12,t2,f12,f2,s12,s,L,side,prec,L->target_prec))
+        if(!isolate_zero(tmp,t12,t2,f12,f2,s12,L,side,prec,L->target_prec))
         {
           ecode|=ERR_ZERO_PREC;
           arb_set(z2,tmp);
@@ -423,7 +423,7 @@ extern "C"{
           if(!newton(tmp,tmp3,L,side,prec)||!snap_point(tmp3,tmp,prec,op_acc)||!confirm_zero(tmp3,L,prec,L->zero_prec,side))
           {
             if(verbose) printf("Resorting to binary chop.\n");
-            if(!isolate_zero(tmp,tmp1,tmp2,L->u_values_off[side][n-1],L->u_values_off[side][n],last_sign,this_sign,L,side,prec,op_acc))
+            if(!isolate_zero(tmp,tmp1,tmp2,L->u_values_off[side][n-1],L->u_values_off[side][n],last_sign,L,side,prec,op_acc))
             {
               if(verbose){printf("Setting zeros number %" PRIu64 " to ",count);arb_printd(tmp,20);printf("\n");}
               arb_set(L->zeros[side][count++],tmp);
