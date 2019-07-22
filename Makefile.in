@@ -35,7 +35,7 @@ test: $(TESTS)
 
 lib: build/liblfun.so
 
-build/liblfun.so: $(SOURCES) | build_dirs
+build/liblfun.so: $(SOURCES) $(HEADERS) | build_dirs
 	$(CC) $(CFLAGS) -fPIC -shared $(INCS) $(SOURCES) -o $@ $(LIBS)
 
 build/%.o: %.c $(HEADERS) | build_dirs

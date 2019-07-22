@@ -1,9 +1,9 @@
 #ifndef _GLFUNC_INCLUDE
 #define _GLFUNC_INCLUDE
 
-#include "inttypes.h"
-#include "acb_poly.h"
-#include "stdbool.h"
+#include <inttypes.h>
+#include <acb_poly.h>
+#include <stdbool.h>
 
 #define DK (-1) // don't know
 #define YES (0)
@@ -21,7 +21,7 @@
 // fatalities
 #define ERR_NO_DATA (1) // the first two Lambda(t) values contained zero. Totally fatal
 #define ERR_ZERO_ERROR (2) // some unexpected error isolating zeros
-#define ERR_BUT_ERROR (4) // Wf+Winf-Ws* must be negative (we cant find too many zeros) 
+#define ERR_BUT_ERROR (4) // Wf+Winf-Ws* must be negative (we cant find too many zeros)
 #define ERR_OOM (8) // out of memory error
 #define ERR_UPSAMPLE (16) // something bad happened trying to upsample
 #define ERR_MU_HALF (32) // mus should be 1/2 integers
@@ -38,7 +38,7 @@
 #define ERR_NO_RANK ((uint64_t) 1<<36) // could not determine rank of L
 #define ERR_CONFLICT_RANK ((uint64_t) 1<<37) // rank we computed did not agree with what we were told
 #define ERR_DBL_ZERO ((uint64_t) 1<<38) // stationary point failed to converge. Double zero?
-#define ERR_SPEC_PREC ((uint64_t) 1<<39) // could not achieve target error bound in special value  
+#define ERR_SPEC_PREC ((uint64_t) 1<<39) // could not achieve target error bound in special value
 #define ERR_G_OUTFILE ((uint64_t) 1<<40) // problem opening file to write g_data cache
 
 #ifdef __cplusplus
@@ -106,9 +106,9 @@ extern "C"{
   // otherwise zeros may be missing
   arb_srcptr Lfunc_zeros(Lfunc_t L, uint64_t side);
 
-  // return rank 
+  // return rank
   // rank=0,1 is rigorous.
-  // rank>1 isn't 
+  // rank>1 isn't
   int64_t Lfunc_rank(Lfunc_t L);
 
   // return the first non-zero Taylor coefficient
@@ -126,7 +126,7 @@ extern "C"{
   void Lfunc_clear_plot(Lplot_t *Lp);
 
   // compute L(re+i*im)
-  // warning, accuracy falls away rapidly as one moves away 
+  // warning, accuracy falls away rapidly as one moves away
   // from the critical line. Should return something sensible
   // for L(k) and L(0)
   error_t Lfunc_special_value(acb_t res, Lfunc_t LL, double re, double im);
