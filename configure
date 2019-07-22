@@ -319,7 +319,7 @@ if [ $OS = "Linux" ]; then
 fi
 
 #defaults for CFLAGS
-FLAGS="-pedantic -Wall -Wextra -O2 -funroll-loops -fopenmp"
+FLAGS="-pedantic -Wall -Wextra -O2 -funroll-loops -fPIC"
 if [ "$GDB" = "1" ]; then
     FLAGS="${FLAGS} -g";
 fi
@@ -335,28 +335,7 @@ if [ -z "$CXXFLAGS" ]; then
     CXXFLAGS="${FLAGS} -std=c++1z"
 fi
 
-#PIC flag
 
-if [ -z "$PIC_FLAG" ]; then
-   case "$OS" in
-      CYGWIN* | MINGW*)
-         ;;
-      *)
-         PIC_FLAG="-fPIC";;
-   esac
-fi
-
-
-#extension for executables
-
-if [ -z "$EXEEXT" ]; then
-   case "$OS" in
-      CYGWIN* | MINGW*)
-         EXEEXT=".exe";;
-      *)
-         EXEEXT="";;
-   esac
-fi
 
 
 JOBS=`python -c 'import multiprocessing as mp; print(mp.cpu_count() + 1)'`

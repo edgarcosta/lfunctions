@@ -35,8 +35,8 @@ test: $(TESTS)
 
 lib: build/liblfun.so
 
-build/liblfun.so: $(SOURCES) $(HEADERS) | build_dirs
-	$(CC) $(CFLAGS) -fPIC -shared $(INCS) $(SOURCES) -o $@ $(LIBS)
+build/liblfun.so: $(OBJS) $(HEADERS) | build_dirs
+	$(CC) $(CFLAGS) -fPIC -shared $(INCS) $(OBJS) -o $@ $(LIBS)
 
 build/%.o: %.c $(HEADERS) | build_dirs
 	$(CC) $(CFLAGS) $(INCS) -c $< -o $@;
