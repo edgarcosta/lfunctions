@@ -91,7 +91,7 @@ extern "C"{
   // subtract 2 Re(log(p)bm f(mlog p)/sqrt(p^m) from Wf
   // f(mlog(p))=sin(b mlog(p))/(Pi m log(p) cosh(h mlog(p)/2))
   // so we want 2 bm sin(b m log(p))/(Pi m cosh(h m log(p)/2))
-  void wf1(Lfunc *L, uint64_t p __attribute__((unused)), uint64_t m, uint64_t pm, arb_t bm, int64_t prec)
+  void wf1(Lfunc *L, uint64_t m, uint64_t pm, arb_t bm, int64_t prec)
   {
     if(arb_is_zero(bm)) // nothing to do
       return;
@@ -157,7 +157,7 @@ extern "C"{
         acb_mul_si(tmp1,tmp1,i,prec);
         acb_add(acm,acm,tmp1,prec);
       }
-      wf1(L,p,m,pm,acb_realref(acm),prec);
+      wf1(L,m,pm,acb_realref(acm),prec);
       pm*=p;
       m++;
     }
