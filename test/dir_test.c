@@ -1,16 +1,20 @@
 /*
-Same as dir_test1.c but use callback interface instead.
+   Same as dir_test1.c but use callback interface instead.
 */
 
+#include <inttypes.h>
 #include "acb_poly.h"
 #include "glfunc.h"
 
 // compute the Euler poly for p
 // with L the product of non-principal characters mod 5 and 7
-void lpoly_callback(acb_poly_t poly, uint64_t p, int d, int64_t prec, void *param)
+void lpoly_callback(acb_poly_t poly, uint64_t p, int d __attribute__((unused)), int64_t prec, void *param __attribute__((unused)))
 {
   // pretend we run out of polynomials at p>100
-  if(p>100) {acb_poly_zero(poly);return;}
+  if(p>100) {
+    acb_poly_zero(poly);
+    return;
+  }
   acb_poly_t p5;
   acb_poly_init(p5);
   acb_poly_one(p5);
@@ -34,7 +38,7 @@ void lpoly_callback(acb_poly_t poly, uint64_t p, int d, int64_t prec, void *para
 int main (int argc, char**argv)
 {
   printf("Command Line:- %s",argv[0]);
-  for(uint64_t i=1;i<argc;i++)
+  for(int i=1;i<argc;i++)
     printf(" %s",argv[i]);
   printf("\n");
 
@@ -45,28 +49,28 @@ int main (int argc, char**argv)
   // we have a degree 2 L-function with alg=anal so normalisation = 0.0
   L=Lfunc_init(2,5*7,0.0,mus,&ecode);
   if(fatal_error(ecode))
-    {
-      fprint_errors(stderr,ecode);
-      return 0;
-    }
+  {
+    fprint_errors(stderr,ecode);
+    return 0;
+  }
 
-  ecode|=Lfunc_use_all_lpolys(L, lpoly_callback, NULL);
+  ecode |= Lfunc_use_all_lpolys(L, lpoly_callback, NULL);
   if(fatal_error(ecode))
-    {
-      fprint_errors(stderr,ecode);
-      return 0;
-    }
+  {
+    fprint_errors(stderr, ecode);
+    return 0;
+  }
 
   // do the computation
   ecode|=Lfunc_compute(L);
   if(fatal_error(ecode))
-    {
-      fprint_errors(stderr,ecode);
-      return 0;
-    }
+  {
+    fprint_errors(stderr,ecode);
+    return 0;
+  }
 
   // now extract some information
-  printf("(Apparent) Rank = %lu\n",Lfunc_rank(L));
+  printf("(Apparent) Rank = %" PRIu64 "\n",Lfunc_rank(L));
   printf("Epsilon = ");acb_printd(Lfunc_epsilon(L),20);printf("\n");
   printf("First non-zero Taylor coeff = ");arb_printd(Lfunc_Taylor(L),20);printf("\n");
 
@@ -74,20 +78,20 @@ int main (int argc, char**argv)
   acb_init(ctmp);
   ecode|=Lfunc_special_value(ctmp,L,1.0,0.0);
   if(fatal_error(ecode))
-    {
-      fprint_errors(stderr,ecode);
-      return 0;
-    }
+  {
+    fprint_errors(stderr,ecode);
+    return 0;
+  }
   printf("L(1) = ");acb_printd(ctmp,20);printf("\n");
   acb_clear(ctmp);
 
   arb_srcptr zeros=Lfunc_zeros(L,0);
   for(uint64_t z=0;!arb_is_zero(zeros+z);z++)
-    {printf("Zero %lu = ",z);arb_printd(zeros+z,20);printf("\n");}
+  {printf("Zero %" PRIu64 " = ",z);arb_printd(zeros+z,20);printf("\n");}
 
   zeros=Lfunc_zeros(L,1);
   for(uint64_t z=0;!arb_is_zero(zeros+z);z++)
-    {printf("Zero %lu = ",z);arb_printd(zeros+z,20);printf("\n");}
+  {printf("Zero %" PRIu64 " = ",z);arb_printd(zeros+z,20);printf("\n");}
 
   Lplot_t *Lpp=Lfunc_plot_data(L,0,10.0,500);
   for(uint64_t i=0;i<Lpp->n_points;i++)

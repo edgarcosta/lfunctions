@@ -77,8 +77,12 @@ int double_comp(const void *a,const void *b)
 {
   double *x = (double *) a;
   double *y = (double *) b;
-  if (*x < *y) return -1;
-  else if (*x > *y) return 1; return 0;
+  if (*x < *y)
+    return -1;
+  else if (*x > *y)
+    return 1;
+  else
+    return 0;
 }
 
 Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, error_t *ecode)

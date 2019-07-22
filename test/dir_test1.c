@@ -5,6 +5,8 @@ less than 100 (no enough for full 100 bit results), compute the
 L-function and print some stuff out.
 
 */
+#include <assert.h>
+#include <inttypes.h>
 #include "acb_poly.h"
 #include "glfunc.h"
 #include "primesieve.h"
@@ -40,7 +42,7 @@ void lpoly(Lfunc_t L, uint64_t p, int64_t prec)
 int main (int argc, char**argv)
 {
   printf("Command Line:- %s",argv[0]);
-  for(uint64_t i=1;i<argc;i++)
+  for(int i = 1; i < argc; i++)
     printf(" %s",argv[i]);
   printf("\n");
 
@@ -57,6 +59,7 @@ int main (int argc, char**argv)
     }
 
   uint64_t target_M=Lfunc_nmax(L); // how many Euler polys does program want
+  assert(target_M > 100);
   primesieve_iterator it;
   primesieve_init(&it);
   uint64_t p;
@@ -75,7 +78,7 @@ int main (int argc, char**argv)
     }
 
   // now extract some information
-  printf("(Apparent) Rank = %lu\n",Lfunc_rank(L));
+  printf("(Apparent) Rank = %" PRIu64 "\n",Lfunc_rank(L));
   printf("Epsilon = ");acb_printd(Lfunc_epsilon(L),20);printf("\n");
   printf("First non-zero Taylor coeff = ");arb_printd(Lfunc_Taylor(L),20);printf("\n");
 
@@ -92,17 +95,16 @@ int main (int argc, char**argv)
 
   arb_srcptr zeros=Lfunc_zeros(L,0);
   for(uint64_t z=0;!arb_is_zero(zeros+z);z++)
-    {printf("Zero %lu = ",z);arb_printd(zeros+z,20);printf("\n");}
+    {printf("Zero %" PRIu64 " = ",z);arb_printd(zeros+z,20);printf("\n");}
 
   zeros=Lfunc_zeros(L,1);
   for(uint64_t z=0;!arb_is_zero(zeros+z);z++)
-    {printf("Zero %lu = ",z);arb_printd(zeros+z,20);printf("\n");}
+    {printf("Zero %" PRIu64 " = ",z);arb_printd(zeros+z,20);printf("\n");}
 
-  
+
   Lplot_t *Lpp=Lfunc_plot_data(L,0,10.0,500);
   for(uint64_t i=0;i<Lpp->n_points;i++)
     printf("%f %f\n",i*Lpp->spacing,Lpp->points[i]);
-  
 
   //free memory
   Lfunc_clear_plot(Lpp);

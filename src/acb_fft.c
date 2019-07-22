@@ -7,7 +7,7 @@ void acb_initfft(acb_t *w, uint64_t n, int64_t prec)
   arb_init(I);
   arb_init(IN);
   acb_one(w[0]);
-  for(uint64_t i=1;i<n/2;i++)
+  for(uint64_t i=1;i<n/2;++i)
     {
       arb_set_ui(I,2*i);
       arb_div_ui(IN,I,n,prec);
@@ -19,12 +19,11 @@ void acb_initfft(acb_t *w, uint64_t n, int64_t prec)
 
 // do inplace fft of x of length n a power of 2
 // w[i]=e(i/n) i=0..n/2-1
-void acb_fft(acb_t *x, uint64_t n, acb_t *w, int64_t prec)
-{
+void acb_fft(acb_t *x, uint64_t n, acb_t *w, int64_t prec) {
   acb_t tmp;
   acb_init(tmp);
 
-  int64_t i,j,k,l;
+  uint64_t i,j,k,l;
   acb_t *p,*xend=x+n;
 
   for(i=0,l=n>>1;i<l;++i)
@@ -59,7 +58,7 @@ void acb_fft(acb_t *x, uint64_t n, acb_t *w, int64_t prec)
 void acb_ifft(acb_t *x, uint64_t n, acb_t *w, uint64_t prec)
 {
   acb_fft(x,n,w,prec);
-  for(uint64_t i=1;i<n/2;i++)
+  for(uint64_t i=1;i<n/2;++i)
     acb_swap(x[i],x[n-i]);
 }
 
@@ -68,10 +67,10 @@ void acb_convolve(acb_t *res, acb_t *x, acb_t *y, uint64_t n, acb_t *w, uint64_t
 {
   acb_fft(x,n,w,prec);
   acb_fft(y,n,w,prec);
-  for(uint64_t i=0;i<n;i++)
+  for(uint64_t i=0;i<n;++i)
     acb_mul(res[i],x[i],y[i],prec);
   acb_ifft(res,n,w,prec);
-  for(uint64_t i=0;i<n;i++)
+  for(uint64_t i=0;i<n;++i)
     acb_div_ui(res[i],res[i],n,prec);
 }
 
@@ -80,22 +79,21 @@ void acb_convolve1(acb_t *res, acb_t *x, acb_t *y, uint64_t n, acb_t *w, uint64_
 {
   acb_fft(x,n,w,prec);
   //fft(y,n,w,prec);
-  for(uint64_t i=0;i<n;i++)
+  for(uint64_t i=0;i<n;++i)
     acb_mul(res[i],x[i],y[i],prec);
   acb_ifft(res,n,w,prec);
-  for(uint64_t i=0;i<n;i++)
+  for(uint64_t i=0;i<n;++i)
     acb_div_ui(res[i],res[i],n,prec);
 }
 
 // x and y have already been fft'd
-void acb_convolve2(acb_t *res, acb_t *x, acb_t *y, uint64_t n, acb_t *w, uint64_t prec)
-{ 
+void acb_convolve2(acb_t *res, acb_t *x, acb_t *y, uint64_t n, acb_t *w, uint64_t prec) {
   //acb_fft(x,n,w,prec);
   //fft(y,n,w,prec);
-  for(uint64_t i=0;i<n;i++)
+  for(uint64_t i=0;i<n;++i)
     acb_mul(res[i],x[i],y[i],prec);
   acb_ifft(res,n,w,prec);
-  for(uint64_t i=0;i<n;i++)
+  for(uint64_t i=0;i<n;++i)
     acb_div_ui(res[i],res[i],n,prec);
 }
 
