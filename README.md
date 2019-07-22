@@ -3,7 +3,7 @@
 A generic L-function calculator for motivic L-functions, originally written by Dave J. Platt.
 
 For details of the methods we refer to:
- - "Computing motivic $L$-functions", (under preparation) by Jonathan W. Bober, Andrew R. Booker, Edgar Costa, Min Lee, David J. Platt, and Andrew V. Sutherland.
+ - *Computing motivic L-functions*, (under preparation) by Jonathan W. Bober, Andrew R. Booker, Edgar Costa, Min Lee, David J. Platt, and Andrew V. Sutherland.
 
 
 ## Dependencies
