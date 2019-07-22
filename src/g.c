@@ -184,8 +184,7 @@ extern "C"{
     }
     arb_poly_exp_series(g,f,m,prec);
     for (j=0;j<m;j++)
-//FIXME!!
-      if (p=arb_poly_get_coeff_ptr(g,j))
+      if ((p = arb_poly_get_coeff_ptr(g,j)))
         arb_mul(p,p,c,prec);
 
     for (i=0;i<m;i++) {

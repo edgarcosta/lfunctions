@@ -1,0 +1,64 @@
+#  Copyright (C)  2016-2017 Edgar Costa
+#  See the file LICENSE for license details.
+
+MAKEFLAGS+=-j$(JOBS)
+
+SOURCE_DIRS = src
+BUILD_DIRS = $(patsubst %, build/%, $(SOURCE_DIRS)) build/test build/examples $(patsubst %, build/%/test, $(SOURCE_DIRS))
+AT=@
+define NEWLINE
+
+endef
+
+export
+
+HEADERS = $(wildcard include/*.h)
+SOURCES = $(wildcard $(patsubst %, %/*.c, $(SOURCE_DIRS)))
+OBJS = $(patsubst %.c, build/%.o, $(SOURCES))
+
+
+EXECUTABLES_SOURCES = $(wildcard examples/*.c)
+EXECUTABLES = $(patsubst %.c, build/%.exe, $(EXECUTABLES_SOURCES))
+
+TEST_SOURCES = $(wildcard test/*.c)
+TESTS = $(patsubst %.c, build/%.exe, $(TEST_SOURCES))
+
+all: $(OBJS) test executables
+
+clean:
+	rm -rf build
+
+
+executables: $(EXECUTABLES)
+
+test: $(TESTS)
+
+build/%.o: %.c $(HEADERS) | build_dirs
+	$(CC) $(CFLAGS) $(INCS) -c $< -o $@;
+
+build/%.o: %.cpp $(HEADERS) | build_dirs
+	$(CXX) $(CXXFLAGS) $(INCS) -c $< -o $@;
+
+$(TESTS) : %.exe : %.o $(OBJS)
+	$(CXX) $(CXXFLAGS) $(INCS) $^ -o $@ $(LIBS)
+
+build/%.valgrind : %.c $(SOURCES)
+	$(CC) $(CFLAGS) $(INCS) $^ -o $@ $(LIBS)
+
+build/%.valgrind : %.c $(SOURCES)
+	$(CXX) $(CXXFLAGS) $(INCS) $^ -o $@ $(LIBS)
+
+$(EXECUTABLES) : %.exe : %.o $(OBJS)
+	$(CXX) $(CXXFLAGS) $(INCS) $^ -o $@ $(LIBS)
+
+build_dirs: $(BUILD_DIRS)
+#	$(foreach dir, $(BUILD_DIRS), mkdir -p $(dir) || exit $$?;)
+
+$(BUILD_DIRS): % :
+	mkdir -p $@
+
+
+print-%:
+	@echo '$*=$($*)'
+
+.PHONY: clean
