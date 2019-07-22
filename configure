@@ -246,7 +246,7 @@ if [ -n "${PRIMESIEVE_DIR}" ]; then
        PRIMESIEVE_INC_DIR="${PRIMESIEVE_DIR}/include"
     elif [ -d "${PRIMESIEVE_DIR}/.libs" ]; then
        PRIMESIEVE_LIB_DIR="${PRIMESIEVE_DIR}/.libs"
-       PRIMESIEVE_INC_DIR="${PRIMESIEVE_DIR}"
+       PRIMESIEVE_INC_DIR="${PRIMESIEVE_DIR}/include"
     elif [ -d "${PRIMESIEVE_DIR}/src/.libs" ]; then
        PRIMESIEVE_LIB_DIR="${PRIMESIEVE_DIR}/src/.libs"
        PRIMESIEVE_INC_DIR="${PRIMESIEVE_DIR}/src"
