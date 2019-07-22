@@ -29,6 +29,7 @@
 #define ERR_STAT_POINT (128) // fatal error in stat_point
 #define ERR_SPEC_VALUE (256) // fatal error in Special Value
 #define ERR_G_INFILE ((uint64_t) 512) // fatal error reading g_data from cache
+#define ERR_BAD_DEGREE ((uint64_t) 1024) //fatal error when the degree is too low or too high
 
 // warnings
 #define ERR_SOME_DATA ((uint64_t) 1<<32) // We had some sensible data, but not to end of Turing Zone
