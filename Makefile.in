@@ -17,9 +17,8 @@ SOURCES = $(wildcard $(patsubst %, %/*.c, $(SOURCE_DIRS)))
 OBJS = $(patsubst %.c, build/%.o, $(SOURCES))
 
 
-EXECUTABLES_SOURCES = $(wildcard examples/*.c)
-EXECUTABLES = $(patsubst %.c, build/%.exe, $(EXECUTABLES_SOURCES))
-
+EXECUTABLES_SOURCES = $(wildcard examples/*.c) $(wildcard examples/*.cpp)
+EXECUTABLES = $(patsubst %.c, build/%.exe, $(wildcard examples/*.c)) $(patsubst %.cpp, build/%.exe, $(wildcard examples/*.cpp))
 TEST_SOURCES = $(wildcard test/*.c)
 TESTS = $(patsubst %.c, build/%.exe, $(TEST_SOURCES))
 
