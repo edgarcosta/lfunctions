@@ -23,7 +23,7 @@ EXECUTABLES = $(patsubst %.c, build/%.exe, $(EXECUTABLES_SOURCES))
 TEST_SOURCES = $(wildcard test/*.c)
 TESTS = $(patsubst %.c, build/%.exe, $(TEST_SOURCES))
 
-all: $(OBJS) test executables
+all: $(OBJS) test lib executables
 
 clean:
 	rm -rf build
@@ -32,6 +32,11 @@ clean:
 executables: $(EXECUTABLES)
 
 test: $(TESTS)
+
+lib: build/liblfun.so
+
+build/liblfun.so: $(SOURCES) | build_dirs
+	$(CC) $(CFLAGS) -fPIC -shared $(INCS) $(SOURCES) -o $@ $(LIBS)
 
 build/%.o: %.c $(HEADERS) | build_dirs
 	$(CC) $(CFLAGS) $(INCS) -c $< -o $@;
