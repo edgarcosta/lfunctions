@@ -21,12 +21,12 @@ void Q(acb_t res, acb_t s, Lfunc *L, uint64_t conductor, uint64_t prec)
   arb_set(acb_imagref(stmp2),acb_imagref(s));
   uint64_t j;
   for(j=0;j<L->degree;j++)
-    {
-      arb_set_d(tmp2,L->mus[j]);
-      arb_add(acb_realref(stmp2),acb_realref(s),tmp2,prec);
-      acb_mul(stmp3,stmp1,stmp2,prec);
-      acb_div_arb(stmp1,stmp3,two_pi,prec);
-    }
+  {
+    arb_set_d(tmp2,L->mus[j]);
+    arb_add(acb_realref(stmp2),acb_realref(s),tmp2,prec);
+    acb_mul(stmp3,stmp1,stmp2,prec);
+    acb_div_arb(stmp1,stmp3,two_pi,prec);
+  }
   //printf("Analytic conductor = ");acb_printd(stmp1,10);printf("\n");
   acb_set(res,stmp1);
   arb_clear(two_pi);arb_clear(tmp1);arb_clear(tmp2);
@@ -82,14 +82,13 @@ void abs_gamma(arb_t res, acb_t s, Lfunc *L, int64_t prec)
   arb_init(tmp);
 
   arb_set_ui(res,1);
-  uint64_t j;
-  for(uint64_t j=0;j<L->degree;j++)
-    {
-      arb_set_d(tmp,L->mus[j]);
-      acb_add_arb(tmp1,s,tmp,prec);
-      abs_gamma_r(tmp,tmp1,L,prec);
-      arb_mul(res,res,tmp,prec);
-    }
+  for(uint64_t j = 0; j < L->degree; j++)
+  {
+    arb_set_d(tmp,L->mus[j]);
+    acb_add_arb(tmp1,s,tmp,prec);
+    abs_gamma_r(tmp,tmp1,L,prec);
+    arb_mul(res,res,tmp,prec);
+  }
   //printf("abs_gamma returning ");arb_printd(res,10);printf("\n");
   acb_clear(tmp1);
   acb_clear(tmp2);
@@ -129,16 +128,16 @@ void init_ftwiddle_error(Lfunc *L, int64_t prec)
   abs_gamma(tmp1,s,L,prec);
   arb_mul(tmp3,tmp1,tmp2,prec);
   /*
-  arb_set(acb_imagref(s_plus_mu),acb_imagref(s));
-  for(uint64_t j=0;j<L->degree;j++)
-    {
-      arb_set_d(tmp1,L->mus[j]);
-      arb_add(acb_realref(s_plus_mu),acb_realref(s),tmp1,prec);
-      acb_abs(tmp2,s_plus_mu,prec);
-      arb_div(tmp1,tmp2,two_pi,prec);
-      arb_mul(E,E,tmp1,prec);
-    }
-  */
+     arb_set(acb_imagref(s_plus_mu),acb_imagref(s));
+     for(uint64_t j=0;j<L->degree;j++)
+     {
+     arb_set_d(tmp1,L->mus[j]);
+     arb_add(acb_realref(s_plus_mu),acb_realref(s),tmp1,prec);
+     acb_abs(tmp2,s_plus_mu,prec);
+     arb_div(tmp1,tmp2,two_pi,prec);
+     arb_mul(E,E,tmp1,prec);
+     }
+     */
   absQ(tmp1,s,L,1,prec);
   arb_sqrt(tmp2,tmp1,prec);
   arb_mul(E,tmp2,tmp3,prec);
@@ -153,22 +152,22 @@ void init_ftwiddle_error(Lfunc *L, int64_t prec)
   arb_mul_ui(beta,tmp1,L->degree,prec); // pi r/4
   uint64_t j;
   for(j=0;j<L->degree;j++)
-    {
-      arb_set_d(tmp1,0.5+L->mus[j]);
-      arb_div(tmp2,tmp1,L->B,prec);
-      arb_atan(tmp1,tmp2,prec);
-      arb_sub(beta,beta,tmp1,prec);
-    }
+  {
+    arb_set_d(tmp1,0.5+L->mus[j]);
+    arb_div(tmp2,tmp1,L->B,prec);
+    arb_atan(tmp1,tmp2,prec);
+    arb_sub(beta,beta,tmp1,prec);
+  }
 
   arb_mul(tmp2,L->B,L->B,prec);
   arb_zero(tmp4);
   for(j=0;j<L->degree;j++)
-    {
-      arb_set_d(tmp1,(0.5+L->mus[j])*(0.5+L->mus[j]));
-      arb_sub(tmp3,tmp2,tmp1,prec);
-      arb_inv(tmp1,tmp3,prec);
-      arb_add(tmp4,tmp4,tmp1,prec);
-    }
+  {
+    arb_set_d(tmp1,(0.5+L->mus[j])*(0.5+L->mus[j]));
+    arb_sub(tmp3,tmp2,tmp1,prec);
+    arb_inv(tmp1,tmp3,prec);
+    arb_add(tmp4,tmp4,tmp1,prec);
+  }
   arb_mul(tmp1,tmp4,four_by_pi2,prec);
   arb_sub(beta,beta,tmp1,prec);
 
@@ -180,7 +179,7 @@ void init_ftwiddle_error(Lfunc *L, int64_t prec)
   arb_div(L->pre_ftwiddle_error,E,tmp1,prec);
   //printf("pre F twiddle error set to ");arb_printd(L->pre_ftwiddle_error,10);
   //printf("\n");
-  
+
   acb_clear(s);
   acb_clear(s_plus_mu);
   arb_clear(tmp1);
@@ -212,7 +211,7 @@ uint64_t inv_m(uint64_t hi_i, uint64_t n, uint64_t M0, double one_over_B, double
   return(exp(((double) hi_i-(double) n+0.5)*2.0*M_PI*one_over_B)*dc);
 }
 
-  // see M_error1.tex Lemma 2
+// see M_error1.tex Lemma 2
 bool M_error(arb_t res, arb_t x, Lfunc *L, int64_t prec)
 {
   arb_t k1,tmp,tmp1,tmp2,tmp3,k0,rootNM2r,k2,k1k0,two_r;
@@ -271,33 +270,32 @@ bool M_error(arb_t res, arb_t x, Lfunc *L, int64_t prec)
   arb_add(tmp,tmp1,L->nu,prec);
   arb_div(tmp1,L->pi,tmp,prec);
   arb_mul_2exp_si(tmp1,tmp1,1);
-  if(!arb_ge(tmp1,rootNM2r))
-    {
-      //printf("Failed 2piM^(2/r)... test in M_error.\n");
-      //arb_printd(rootNM2r,20);printf("\n");
-      return false;
-    }
+  if(!arb_ge(tmp1, rootNM2r)) {
+    //printf("Failed 2piM^(2/r)... test in M_error.\n");
+    //arb_printd(rootNM2r,20);printf("\n");
+    return false;
+  }
 
   arb_mul(tmp,L->nu,x,prec);
   arb_exp(tmp1,tmp,prec);
   arb_mul(tmp,tmp1,k2,prec);
-  
+
   arb_div(acb_realref(ctmp1),k1,rootNM2r,prec);
   arb_set(acb_realref(ctmp2),k0);
   acb_hypgeom_gamma_upper(ctmp3,ctmp2,ctmp1,0,prec); // Gamma(k0,k1(M/sqrt(N))^(2/r))
   arb_mul(tmp1,tmp,acb_realref(ctmp3),prec);
 
   arb_mul(tmp,tmp1,k1k0,prec);
-  
+
   arb_mul_ui(tmp1,rootNM2r,L->degree,prec);
   arb_div(tmp3,tmp1,k1,prec);
-  for(uint64_t j=0;j<L->degree;j++)
-    {
-      arb_mul(tmp1,tmp3,L->nus[j],prec);
-      arb_add_ui(tmp2,tmp1,1,prec);
-      arb_pow(tmp1,tmp2,L->nus[j],prec);
-      arb_mul(tmp,tmp,tmp1,prec);
-    }
+  for(uint64_t j=0; j < L->degree; j++)
+  {
+    arb_mul(tmp1,tmp3,L->nus[j],prec);
+    arb_add_ui(tmp2,tmp1,1,prec);
+    arb_pow(tmp1,tmp2,L->nus[j],prec);
+    arb_mul(tmp,tmp,tmp1,prec);
+  }
   arb_set(res,tmp);
   //printf("M_error with M=%" PRIu64 " x=",L->M);arb_printd(x,20);printf(" returning ");arb_printd(res,20);printf("\n");
 
@@ -314,7 +312,7 @@ bool M_error(arb_t res, arb_t x, Lfunc *L, int64_t prec)
   arb_clear(rootNM2r); // (sqrt(N)/M)^(2/r)
   arb_clear(k2);
   arb_clear(k1k0);
-
+  return true;
 }
 
 // Lemma 5 of ARB's g.pdf
@@ -346,10 +344,10 @@ void F_hat_twiddle_error(arb_t res, arb_t x, Lfunc *L)
   arb_sub(tmp2,X,tmp1,prec);
   if(verbose){printf("X=");arb_printd(X,10);printf("\n");}
   if(!arb_is_positive(tmp2))
-    {
-      fprintf(stderr,"Fhat twiddle error failed X>r/2 test. Exiting.\n");
-      exit(0);
-    }
+  {
+    fprintf(stderr,"Fhat twiddle error failed X>r/2 test. Exiting.\n");
+    exit(0);
+  }
   // 2X/r
   arb_div_ui(twoXbyr,X,L->degree,prec);
   arb_mul_2exp_si(twoXbyr,twoXbyr,1);
@@ -372,13 +370,13 @@ void F_hat_twiddle_error(arb_t res, arb_t x, Lfunc *L)
   arb_pow_ui(tmp2,tmp1,L->degree,prec);
   arb_mul(res,tmp2,tmp3,prec);
   for(uint64_t j=0;j<L->degree;j++)
-    {
-      arb_mul_ui(tmp1,L->nus[j],L->degree,prec);
-      arb_div(tmp2,tmp1,X,prec);
-      arb_add_ui(tmp1,tmp2,1,prec);
-      arb_pow(tmp2,tmp1,L->nus[j],prec);
-      arb_mul(res,res,tmp2,prec);
-    }
+  {
+    arb_mul_ui(tmp1,L->nus[j],L->degree,prec);
+    arb_div(tmp2,tmp1,X,prec);
+    arb_add_ui(tmp1,tmp2,1,prec);
+    arb_pow(tmp2,tmp1,L->nus[j],prec);
+    arb_mul(res,res,tmp2,prec);
+  }
   //printf("F_hat_twiddle_error returning ");arb_printd(res,10);printf("\n");
   arb_clear(tmp1);
   arb_clear(tmp2);
@@ -395,13 +393,13 @@ void acb_reasonable_arg(arb_t out, acb_t in, arb_t pi, uint64_t prec)
 {
   acb_t tmp;
   acb_init(tmp);
-  
+
   if(arb_is_negative(acb_realref(in)) && arb_contains_zero(acb_imagref(in))) 
-    {
-      acb_neg(tmp, in);
-      acb_arg(out, tmp, prec);
-      arb_add(out,out,pi,prec);
-    }
+  {
+    acb_neg(tmp, in);
+    acb_arg(out, tmp, prec);
+    arb_add(out,out,pi,prec);
+  }
   else 
     acb_arg(out, in, prec);
   acb_clear(tmp);
@@ -427,17 +425,17 @@ void fix_epsilon(acb_t res, acb_t x, acb_t y, arb_t pi, uint64_t prec)
     arb_add(th2,th2,two_pi,prec);
 
   if(arb_gt(th1,th2))
-    {
-      arb_sub(ep,th1,th2,prec);
-      arb_mul_2exp_si(ep,ep,-1);
-      arb_add(ep,ep,th2,prec);
-    }
+  {
+    arb_sub(ep,th1,th2,prec);
+    arb_mul_2exp_si(ep,ep,-1);
+    arb_add(ep,ep,th2,prec);
+  }
   else
-    {
-      arb_sub(ep,th2,th1,prec);
-      arb_mul_2exp_si(ep,ep,-1);
-      arb_add(ep,ep,th1,prec);
-    }
+  {
+    arb_sub(ep,th2,th1,prec);
+    arb_mul_2exp_si(ep,ep,-1);
+    arb_add(ep,ep,th1,prec);
+  }
   arb_neg(ep,ep);
 
   arb_sin_cos(acb_imagref(res),acb_realref(res),ep,prec);
@@ -468,111 +466,111 @@ error_t do_pre_iFFT_errors(Lfunc *L)
   uint64_t i,n,j;
   arb_zero(x);
   for(i=0;i<=L->fft_N/2;i++)
+  {
+    uint64_t M=inv_m(L->hi_i,i,L->M0,L->one_over_B,L->dc);
+    //printf("i=%" PRIu64 " => M=%" PRIu64 " ",i,M);
+    if(M==0)
+      break;
+    if(M>L->M)
+      M=L->M;
+    if(!M_error(err,x,L,50))
+      return ERR_M_ERROR;
+    if(verbose&&((i%(L->fft_N/32))==0))
     {
-      uint64_t M=inv_m(L->hi_i,i,L->M0,L->one_over_B,L->dc);
-      //printf("i=%" PRIu64 " => M=%" PRIu64 " ",i,M);
-      if(M==0)
-	break;
-      if(M>L->M)
-	M=L->M;
-      if(!M_error(err,x,L,50))
-	return ERR_M_ERROR;
-      if(verbose&&((i%(L->fft_N/32))==0))
-	  {
-	    printf("M Error for n=%" PRIu64 " is ",i);
-	    arb_printd(err,10);
-	    printf("\n");
-	  }
-      arb_add_error(acb_realref(L->res[i]),err);
-      arb_add_error(acb_imagref(L->res[i]),err);
-      arb_add_error(acb_realref(L->res[L->fft_N-1]),err);
-      arb_add_error(acb_imagref(L->res[L->fft_N-1]),err);
-      arb_add(x,x,L->two_pi_by_B,prec);
+      printf("M Error for n=%" PRIu64 " is ",i);
+      arb_printd(err,10);
+      printf("\n");
     }
+    arb_add_error(acb_realref(L->res[i]),err);
+    arb_add_error(acb_imagref(L->res[i]),err);
+    arb_add_error(acb_realref(L->res[L->fft_N-1]),err);
+    arb_add_error(acb_imagref(L->res[L->fft_N-1]),err);
+    arb_add(x,x,L->two_pi_by_B,prec);
+  }
 
   // error sum k\neq 0 F_hat(x+2\pi k A)
   arb_sub(err,two_pi_A,x,prec);
   F_hat_twiddle_error(fhattwiddle,err,L);
   arb_mul_2exp_si(fhattwiddle,fhattwiddle,1);
   if(verbose)
-    {
-      printf("F_hat_twiddle error at n=%" PRIu64 " = ",i);
-      arb_printd(fhattwiddle,10);
-      printf("\n");
-    }
+  {
+    printf("F_hat_twiddle error at n=%" PRIu64 " = ",i);
+    arb_printd(fhattwiddle,10);
+    printf("\n");
+  }
 
   arb_mul(err,L->eq59,L->sum_ans,prec);
   if(verbose){printf("Adding eq 5-9 error = ");arb_printd(err,10);printf("\n");}
   for(j=0;j<i;j++)
-    {
-      arb_add_error(acb_realref(L->res[i]),fhattwiddle);
-      arb_add_error(acb_imagref(L->res[i]),fhattwiddle);
-      arb_add_error(acb_realref(L->res[i]),err);
-      arb_add_error(acb_imagref(L->res[i]),err);
-    }
+  {
+    arb_add_error(acb_realref(L->res[i]),fhattwiddle);
+    arb_add_error(acb_imagref(L->res[i]),fhattwiddle);
+    arb_add_error(acb_realref(L->res[i]),err);
+    arb_add_error(acb_imagref(L->res[i]),err);
+  }
 
   // figure out epsilon
   acb_abs(tmp,L->res[0],prec);
   arb_set_d(th,1e-20);
   arb_sub(tmp,tmp,th,prec);
-  
+
   if(!arb_is_positive(tmp)) // F_hat[0] too small to be useful
+  {
+    // first set the error terms for F_hat[-1]
+    arb_add_error(acb_realref(L->res[L->fft_N-1]),fhattwiddle);
+    arb_add_error(acb_imagref(L->res[L->fft_N-1]),fhattwiddle);
+    arb_add_error(acb_realref(L->res[L->fft_N-1]),err);
+    arb_add_error(acb_imagref(L->res[L->fft_N-1]),err);
+    if(verbose)
     {
-      // first set the error terms for F_hat[-1]
-      arb_add_error(acb_realref(L->res[L->fft_N-1]),fhattwiddle);
-      arb_add_error(acb_imagref(L->res[L->fft_N-1]),fhattwiddle);
-      arb_add_error(acb_realref(L->res[L->fft_N-1]),err);
-      arb_add_error(acb_imagref(L->res[L->fft_N-1]),err);
-      if(verbose)
-	{
-	  printf("F_hat[1]=");acb_printd(L->res[1],30);printf("\n");
-	  printf("F_hat[-1]=");acb_printd(L->res[L->fft_N-1],30);printf("\n");
-	  printf("Using F_hat[1] and F_hat[-1] to fix epsilon.\n");
-	}
-      fix_epsilon(L->epsilon,L->res[1],L->res[L->fft_N-1],L->pi,prec);
+      printf("F_hat[1]=");acb_printd(L->res[1],30);printf("\n");
+      printf("F_hat[-1]=");acb_printd(L->res[L->fft_N-1],30);printf("\n");
+      printf("Using F_hat[1] and F_hat[-1] to fix epsilon.\n");
     }
+    fix_epsilon(L->epsilon,L->res[1],L->res[L->fft_N-1],L->pi,prec);
+  }
   else // can use F_hat[0]
-    {  
-      if(verbose)
-	{
-	  printf("Using F_hat[0] to fix epsilon.\n");
-	  printf("F_hat[0]=");acb_printd(L->res[0],10);printf("\n");
-	}
-      if((arb_is_negative(acb_realref(L->res[0])))&&(arb_contains_zero(acb_imagref(L->res[0]))))
-	{
-	  if(verbose) printf("F_hat[0] straddles -ve real axis.\n");
-	  acb_neg(ctmp1,L->res[0]);
-	  acb_arg(th,ctmp1,prec);
-	  if(verbose) {printf("arg=");arb_printd(th,20);printf("\n");}
-	  arb_sin_cos(th1,th2,th,prec);
-	  arb_set(acb_realref(L->epsilon),th2);
-	  arb_set(acb_imagref(L->epsilon),th1);
-	}
-      else
-	{
-	  if(verbose) printf("F_hat[0] doesn't straddle -ve real axis.\n");
-	  acb_arg(th,L->res[0],prec);
-	  //acb_arg(th2,L->res[L->fft_N/2],prec);
-	  //arb_set(th,th1); //arb_intersect(th,th1,th2,prec);
-	  arb_neg(th,th);
-	  arb_sin_cos(th1,th2,th,prec);
-	  arb_set(acb_realref(L->epsilon),th2);
-	  arb_set(acb_imagref(L->epsilon),th1);
-	  //fix_epsilon(ctmp1,L->res[1],L->res[L->fft_N-1],prec);
-	  //printf("Or we could have used ");acb_printd(ctmp1,10);printf("\n");
-	}
+  {  
+    if(verbose)
+    {
+      printf("Using F_hat[0] to fix epsilon.\n");
+      printf("F_hat[0]=");acb_printd(L->res[0],10);printf("\n");
     }
+    if((arb_is_negative(acb_realref(L->res[0])))&&(arb_contains_zero(acb_imagref(L->res[0]))))
+    {
+      if(verbose) printf("F_hat[0] straddles -ve real axis.\n");
+      acb_neg(ctmp1,L->res[0]);
+      acb_arg(th,ctmp1,prec);
+      if(verbose) {printf("arg=");arb_printd(th,20);printf("\n");}
+      arb_sin_cos(th1,th2,th,prec);
+      arb_set(acb_realref(L->epsilon),th2);
+      arb_set(acb_imagref(L->epsilon),th1);
+    }
+    else
+    {
+      if(verbose) printf("F_hat[0] doesn't straddle -ve real axis.\n");
+      acb_arg(th,L->res[0],prec);
+      //acb_arg(th2,L->res[L->fft_N/2],prec);
+      //arb_set(th,th1); //arb_intersect(th,th1,th2,prec);
+      arb_neg(th,th);
+      arb_sin_cos(th1,th2,th,prec);
+      arb_set(acb_realref(L->epsilon),th2);
+      arb_set(acb_imagref(L->epsilon),th1);
+      //fix_epsilon(ctmp1,L->res[1],L->res[L->fft_N-1],prec);
+      //printf("Or we could have used ");acb_printd(ctmp1,10);printf("\n");
+    }
+  }
   //arb_one(acb_imagref(L->epsilon));arb_zero(acb_realref(L->epsilon));
   if(verbose)
-    {
-      printf("epsilon set to ");
-      acb_printd(L->epsilon,10);
-      printf("\n");
-    }
+  {
+    printf("epsilon set to ");
+    acb_printd(L->epsilon,10);
+    printf("\n");
+  }
   acb_sqr(L->epsilon_sqr,L->epsilon,prec);
   for(n=0;n<i;n++)
     acb_mul(L->res[n],L->res[n],L->epsilon,prec);
-  
+
   // the rest of the vector we just approximate with F_hat_twiddle error
 
   // error sum F_hat(x+2\pi k A)
@@ -581,18 +579,18 @@ error_t do_pre_iFFT_errors(Lfunc *L)
   // since x<\pi A we can just double this
   arb_mul_2exp_si(fhattwiddle,fhattwiddle,1);
   if(verbose) {
-      printf("F_hat_twiddle error beyond n=%" PRIu64 " (x = ",i);
-      arb_printd(x,10);
-      printf(" ) = ");
-      arb_printd(fhattwiddle,10);
-      printf("\n");
-    }
+    printf("F_hat_twiddle error beyond n=%" PRIu64 " (x = ",i);
+    arb_printd(x,10);
+    printf(" ) = ");
+    arb_printd(fhattwiddle,10);
+    printf("\n");
+  }
   for(;i<=L->fft_NN/2;i++)
-    {
-      acb_zero(L->res[i]);
-      arb_add_error(acb_realref(L->res[i]),fhattwiddle);
-      arb_add_error(acb_imagref(L->res[i]),fhattwiddle);
-    }
+  {
+    acb_zero(L->res[i]);
+    arb_add_error(acb_realref(L->res[i]),fhattwiddle);
+    arb_add_error(acb_imagref(L->res[i]),fhattwiddle);
+  }
   for(uint64_t n=L->fft_NN/2+1;n<L->fft_NN;n++)
     acb_conj(L->res[n],L->res[L->fft_NN-n]);
 
