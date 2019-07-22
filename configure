@@ -329,7 +329,7 @@ if [ "$ASSERT" = "0" ]; then
 fi
 
 if [ -z "$CFLAGS" ]; then
-    CFLAGS="${FLAGS} -std=c11"
+    CFLAGS="${FLAGS} -std=gnu11"
 fi
 if [ -z "$CXXFLAGS" ]; then
     CXXFLAGS="${FLAGS} -std=c++1z"

@@ -1,7 +1,6 @@
 /*
 Make up a degree 2 L-function by multiplying the quadratic character
 mod 5 and 7 together.
-
 */
 
 
