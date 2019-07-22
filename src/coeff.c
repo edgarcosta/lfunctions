@@ -29,9 +29,9 @@ uint64_t Lfunc_nmax(Lfunc_t Lf)
 
   L->dc=sqrt((double) L->conductor);
   L->M0=ceil(L->dc/100);
-  if(verbose)printf("M0 set to %lu.\n",L->M0);
+  if(verbose)printf("M0 set to %" PRIu64 ".\n",L->M0);
   L->M=L->dc*exp(2*M_PI*(L->hi_i+0.5)*L->one_over_B);
-  if(verbose)printf("M computed from hi_i = %lu\n",L->M);
+  if(verbose)printf("M computed from hi_i = %" PRIu64 "\n",L->M);
 
   /*
   // I think this attempt to reduce M empirically is not worth the effort
@@ -48,7 +48,7 @@ uint64_t Lfunc_nmax(Lfunc_t Lf)
       old_M=L->M;
     }
   L->M=old_M;
-  if(verbose)printf("M reduced to %lu.\n",L->M);
+  if(verbose)printf("M reduced to %" PRIu64 ".\n",L->M);
   */
 
   if(L->M>L->allocated_M)
@@ -91,7 +91,7 @@ void use_inv_lpoly(Lfunc *L, uint64_t p, acb_poly_t c, acb_poly_t f, uint64_t pr
 {
   acb_t tmp;
   acb_init(tmp);
-  //if(p==2) {printf("p=%lu 1/poly=",p);acb_poly_printd(c,20);printf("\npoly=");acb_poly_printd(f,20);printf("\n");}
+  //if(p==2) {printf("p=%" PRIu64 " 1/poly=",p);acb_poly_printd(c,20);printf("\npoly=");acb_poly_printd(f,20);printf("\n");}
   wf(L,p,c,f,prec); // do the Buthe bit, see buthe.c
   // use inverted poly to populate Dirichlet coefficients
   uint64_t pnn=p*p,pn=p,pow=1;
@@ -132,7 +132,7 @@ void use_lpoly(Lfunc *L, uint64_t p, const acb_poly_t f)
   arb_init(tmp2);
   acb_poly_init(n_poly);
   acb_poly_init(inv_poly);
-  //if(p<=2){printf("in use_lpoly pre-norm with p = %lu\n",p);acb_poly_printd(f,20);printf("\n");}
+  //if(p<=2){printf("in use_lpoly pre-norm with p = %" PRIu64 "\n",p);acb_poly_printd(f,20);printf("\n");}
   arb_log_ui(logp,p,prec);
   // normalise by multiplying each term by p^(-m norm)
   acb_poly_one(n_poly);
@@ -145,7 +145,7 @@ void use_lpoly(Lfunc *L, uint64_t p, const acb_poly_t f)
       acb_mul_arb(tmp,acb_poly_get_coeff_ptr(f,m),tmp2,prec);
       acb_poly_set_coeff_acb(n_poly,m,tmp);
     }
-  //if(p<=11){printf("in use_lpoly post-norm with p = %lu\n",p);acb_poly_printd(n_poly,20);printf("\n");}
+  //if(p<=11){printf("in use_lpoly post-norm with p = %" PRIu64 "\n",p);acb_poly_printd(n_poly,20);printf("\n");}
   uint64_t k=1,pk=p;
   while(pk<=L->M) {k++;pk*=p;}
 
@@ -205,7 +205,7 @@ error_t Lfunc_use_all_lpolys(Lfunc_t Lf, void (*lpoly_callback) (acb_poly_t lpol
       }
 
     //for(i=0;i<20;i++)
-    //{printf("Coefficient %lu set to ",i+1);acb_printd(L->ans[i],20);printf("\n");}
+    //{printf("Coefficient %" PRIu64 " set to ",i+1);acb_printd(L->ans[i],20);printf("\n");}
 
     primesieve_free_iterator(&it);
     acb_poly_clear(lp);

@@ -335,9 +335,14 @@ error_t init_upsampling(Lfunc *L)
   arb_mul(L->u_pi_by_H2,L->u_pi_by_H2,L->u_pi_by_H2,prec); // 1/H^2
   arb_mul(L->u_pi_by_H2,L->u_pi_by_H2,L->pi,prec);
   arb_neg(L->u_pi_by_H2,L->u_pi_by_H2); // -pi/H^2
-  if(verbose){printf("-pi/H^2 = ");arb_printd(L->u_pi_by_H2,20);printf("\n");}
+  if (verbose){
+    printf("-pi/H^2 = ");
+    arb_printd(L->u_pi_by_H2,20);
+    printf("\n");
+  }
 
-  if(verbose) printf("Upsampling N set to %lu\n",L->u_N);
+  if (verbose)
+    printf("Upsampling N set to %" PRIu64 "\n",L->u_N);
 
   L->u_no_values=L->fft_NN/OUTPUT_RATIO+L->fft_NN/TURING_RATIO+L->u_N*4*L->u_stride+1;
   L->u_values[0]=(arb_t *)malloc(sizeof(arb_t)*L->u_no_values);
@@ -450,7 +455,7 @@ bool upsample_stride(arb_ptr res, arb_ptr t0, Lfunc *L, uint64_t side, uint64_t 
   arb_mul(neg_sin_diff,diff,L->u_pi_A,prec);
   arb_sin(sin_diff,neg_sin_diff,prec);
   arb_neg(neg_sin_diff,sin_diff);
-  //printf("Nearest n = %ld\n",n);
+  //printf("Nearest n = %" PRId64 "\n",n);
   arb_mul_ui(t_delta,L->one_over_A,L->u_stride,prec);
   arb_mul_si(t1,L->one_over_A,n,prec);
   arb_set(t,t1);
@@ -526,7 +531,7 @@ bool new_upsample_stride(arb_ptr res, arb_ptr t0, Lfunc *L, uint64_t side, uint6
   arb_mul(neg_sin_diff,diff,L->u_pi_A,prec);
   arb_sin(sin_diff,neg_sin_diff,prec);
   arb_neg(neg_sin_diff,sin_diff);
-  //printf("Nearest n = %ld\n",n);
+  //printf("Nearest n = %" PRId64 "\n",n);
   arb_mul_ui(t_delta,L->one_over_A,L->u_stride,prec);
   arb_mul_si(t1,L->one_over_A,n,prec);
   arb_set(t,t1);
@@ -658,7 +663,7 @@ bool f_dash(arb_ptr res, arb_ptr t0, Lfunc *L, uint64_t side, uint64_t prec)
   int64_t n=left_n(diff,t0,L->arb_A,prec);
   if(n==BAD_64)
     return(false);
-  //printf("Nearest n = %ld diff = ",n);arb_printd(diff,10);printf("\n");
+  //printf("Nearest n = %" PRId64 " diff = ",n);arb_printd(diff,10);printf("\n");
   arb_mul(neg_sin_diff,diff,L->arb_A,prec);
   arb_sin_cos_pi(sin_diff,cos_diff,neg_sin_diff,prec);
   arb_neg(neg_sin_diff,sin_diff);

@@ -299,7 +299,7 @@ bool M_error(arb_t res, arb_t x, Lfunc *L, int64_t prec)
       arb_mul(tmp,tmp,tmp1,prec);
     }
   arb_set(res,tmp);
-  //printf("M_error with M=%lu x=",L->M);arb_printd(x,20);printf(" returning ");arb_printd(res,20);printf("\n");
+  //printf("M_error with M=%" PRIu64 " x=",L->M);arb_printd(x,20);printf(" returning ");arb_printd(res,20);printf("\n");
 
   acb_clear(ctmp1);
   acb_clear(ctmp2);
@@ -470,7 +470,7 @@ error_t do_pre_iFFT_errors(Lfunc *L)
   for(i=0;i<=L->fft_N/2;i++)
     {
       uint64_t M=inv_m(L->hi_i,i,L->M0,L->one_over_B,L->dc);
-      //printf("i=%lu => M=%lu ",i,M);
+      //printf("i=%" PRIu64 " => M=%" PRIu64 " ",i,M);
       if(M==0)
 	break;
       if(M>L->M)
@@ -479,7 +479,7 @@ error_t do_pre_iFFT_errors(Lfunc *L)
 	return ERR_M_ERROR;
       if(verbose&&((i%(L->fft_N/32))==0))
 	  {
-	    printf("M Error for n=%lu is ",i);
+	    printf("M Error for n=%" PRIu64 " is ",i);
 	    arb_printd(err,10);
 	    printf("\n");
 	  }
@@ -496,7 +496,7 @@ error_t do_pre_iFFT_errors(Lfunc *L)
   arb_mul_2exp_si(fhattwiddle,fhattwiddle,1);
   if(verbose)
     {
-      printf("F_hat_twiddle error at n=%lu = ",i);
+      printf("F_hat_twiddle error at n=%" PRIu64 " = ",i);
       arb_printd(fhattwiddle,10);
       printf("\n");
     }
@@ -580,9 +580,8 @@ error_t do_pre_iFFT_errors(Lfunc *L)
   // we have sum k\geq 0 F_hat(x+2\pi k A)
   // since x<\pi A we can just double this
   arb_mul_2exp_si(fhattwiddle,fhattwiddle,1);
-  if(verbose)
-    {
-      printf("F_hat_twiddle error beyond n=%lu (x = ",i);
+  if(verbose) {
+      printf("F_hat_twiddle error beyond n=%" PRIu64 " (x = ",i);
       arb_printd(x,10);
       printf(" ) = ");
       arb_printd(fhattwiddle,10);

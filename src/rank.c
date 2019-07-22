@@ -103,7 +103,7 @@ bool df_zero(arb_t res, uint64_t d, Lfunc *L, int64_t prec)
 
   if(d>MAX_L)
     {
-      printf("Can't compute F^(d)(0) for d>%lu.\n",MAX_L);
+      printf("Can't compute F^(d)(0) for d>%" PRIu64 ".\n",MAX_L);
       return false;
     }
   if(d==0)
@@ -138,7 +138,7 @@ bool df_zero(arb_t res, uint64_t d, Lfunc *L, int64_t prec)
 	    }
 	}
       arb_mul(term,term,a_pi_d[d],prec); // * (A pi)^d
-      //printf("term(%lu,%lu) = ",n,d);arb_printd(term,10);printf("\n");
+      //printf("term(%" PRIu64 ",%" PRIu64 ") = ",n,d);arb_printd(term,10);printf("\n");
       exp_term(tmp,n,L,prec); // n/A = z, t0=0
       arb_mul(tmp1,term,tmp,prec); // (A Pi)^d * exp(Pi*r*n/(4*A)-Pi*n^2/A^2H^2)
       arb_mul(tmp,L->u_values_off[0][n*L->u_stride],tmp1,prec); // * Lambda(n/A)

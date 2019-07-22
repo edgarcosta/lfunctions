@@ -69,7 +69,7 @@ int64_t s_left_n(acb_ptr z, arb_t A, uint64_t prec)
       arb_mul(res,L->u_values_off[0][k],tmp,prec); // *Lambda(k/A)
     else
       arb_mul(res,L->u_values_off[1][-k],tmp,prec);
-    //printf("W(%ld/A) = W(",k);arb_printd(ka,20);printf(") = ");;arb_printd(res,20);printf("\n");
+    //printf("W(%" PRId64 "/A) = W(",k);arb_printd(ka,20);printf(") = ");;arb_printd(res,20);printf("\n");
   }
 
 // W(n/A)sinc(Pi(Az-n))
@@ -92,7 +92,7 @@ int64_t s_left_n(acb_ptr z, arb_t A, uint64_t prec)
     W_k_A(tmp2,L,k,prec,acb_realref(z),pi_by_H2,A);
     acb_mul_arb(res,tmp,tmp2,prec);
     return ecode;
-    //printf("W(%ld/A)sinc(Pi(Az-(%ld))) = ",k,k);acb_printd(res,20);printf("\n");
+    //printf("W(%" PRId64 "/A)sinc(Pi(Az-(%" PRId64 "))) = ",k,k);acb_printd(res,20);printf("\n");
   }
 
 // estimate W(1/2+iz) by upsampling off Lu->u_values_off
@@ -122,7 +122,7 @@ error_t s_upsample_stride(acb_ptr res, acb_ptr z, Lfunc *L, int64_t prec, arb_t 
   acb_mul_arb(diff,diff,L->pi,prec);
   acb_sin(sin_diff,diff,prec);
   acb_neg(neg_sin_diff,sin_diff);
-  //printf("Nearest n = %ld\n",n);
+  //printf("Nearest n = %" PRId64 "\n",n);
   //printf("Pi(Az-k0) = ");acb_printd(diff,20);printf("\n");
   int64_t nn=n; // offset into values
 
@@ -284,7 +284,7 @@ void spec_gamma(acb_t res, acb_t s, Lfunc *L, int64_t prec)
       int64_t extra_bits=(int64_t)(M_PI*(dimz*dimz/(h*h)+fabs(dimz)*A)/M_LN2)+10;
       if(verbose) 
 	{
-	  printf("h=%f extra_bits=%ld\n",h,extra_bits);
+	  printf("h=%f extra_bits=%" PRId64 "\n", h, extra_bits);
 	  printf("arb_error now ");arb_printd(arb_err,20);printf("\n");
 	}
       arb_mul_2exp_si(tmp,arb_err,L->target_prec+extra_bits);
@@ -323,7 +323,7 @@ void spec_gamma(acb_t res, acb_t s, Lfunc *L, int64_t prec)
     }
   arb_clear(best_err);
   uint64_t iH=H;
-  if(verbose) printf("H = %lu h = %f\n",iH,h);
+  if(verbose) printf("H = %" PRIu64 " h = %f\n",iH,h);
   if(verbose) {printf("Upsample error set to ");arb_printd(arb_err,20);printf("\n");}
 
   arb_t pi_by_H2;

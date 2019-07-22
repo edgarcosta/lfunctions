@@ -106,7 +106,7 @@ void finalise_comp(Lfunc *L)
   L->offset=calc_m(1,two_pi_by_B,L->dc);
   if(L->offset<L->low_i)
     {
-      fprintf(stderr,"G values need to go down to %ld. We only have down to %ld. Exiting.\n",
+      fprintf(stderr,"G values need to go down to %" PRId64 ". We only have down to %" PRId64 ". Exiting.\n",
 	     L->offset,L->low_i);
       exit(0);
     }
@@ -123,10 +123,10 @@ void do_convolves(Lfunc *L)
   int64_t n,n2,prec=L->wprec;
   //int64_t n0=round(log(L->M0/Lfu->dc)/(Lf->one_over_B*2*M_PI));
   int64_t n0=L->low_i;
-  if(verbose)printf("Taking G values from %ld to %ld\n",n0,L->hi_i);
+  if(verbose)printf("Taking G values from %" PRId64 " to %" PRId64 "\n",n0,L->hi_i);
 
   // let's do k=0
-  //printf("Doing k=%lu\n",0);fflush(stdout);
+  //printf("Doing k=%" PRIu64 "\n",0);fflush(stdout);
   for(n=0;n<L->fft_N;n++)
     acb_zero(L->G[n]);
 
@@ -141,7 +141,7 @@ void do_convolves(Lfunc *L)
       //arb_zero(acb_imagref(L->G[n1]));
     }
   acb_convolve(L->res,L->skm[0],L->G,L->fft_N,L->w,prec);
-  if(verbose) printf("Convolve 1 out of %ld completed.\n",L->max_K);
+  if(verbose) printf("Convolve 1 out of %" PRId64 " completed.\n",L->max_K);
   uint64_t k;
   for(k=1;k<L->max_K;k++)
     {
@@ -153,7 +153,7 @@ void do_convolves(Lfunc *L)
 	  arb_set(acb_realref(L->G[n1]),L->Gs[k][n2]);
 	}
       acb_convolve(L->kres,L->skm[k],L->G,L->fft_N,L->w,prec);
-      if(verbose) printf("Convolve %lu out of %ld completed.\n",k+1,L->max_K);      
+      if(verbose) printf("Convolve %" PRIu64 " out of %" PRId64 " completed.\n",k+1,L->max_K);      
       for(n=0;n<=L->fft_N/2;n++)
 	acb_add(L->res[n],L->res[n],L->kres[n],prec);    
       // we need [N-1] to compute epsilon when F_hat(0)=0  
@@ -184,7 +184,7 @@ void finish_convolves(Lfunc *L)
   int64_t m,n;  
   for(m=0;m<L->M0-1;m++)
     {
-      //printf("Doing m=%lu\n",m);
+      //printf("Doing m=%" PRIu64 "\n",m);
       int64_t ms=calc_m(m+1,two_pi_by_B,L->dc);
       for(n=-1;;n++)
 	{
@@ -238,7 +238,7 @@ void final_ifft(Lfunc *L)
 {
   if(verbose)
     {
-      printf("Going to do length %lu iFFT.\n",L->fft_NN);
+      printf("Going to do length %" PRIu64 " iFFT.\n",L->fft_NN);
       fflush(stdout);
     }
   int64_t prec=L->wprec;
@@ -247,7 +247,7 @@ void final_ifft(Lfunc *L)
       printf("Pre-iFFT:-\n");
       for(uint64_t i=0;i<48;i++)
 	{
-	  printf("res[%lu] = ",i);
+	  printf("res[%" PRIu64 "] = ",i);
 	  acb_printd(L->res[i],20);
 	  printf("\n");
 	}
@@ -316,7 +316,7 @@ error_t Lfunc_compute(Lfunc_t Lf)
       //printf("sum |an| now ");arb_printd(L->sum_ans,10);printf("\n");
       acb_add(L->skm[0][b],L->skm[0][b],L->ans[m],prec); // a_m/sqrt(m)(log(m/sqrt(N))-u_m)^0
       comp_sks(sks,m,ms,L,prec);
-      //printf("m=%lu sks=",m);arb_printd(sks,20);printf("\n");
+      //printf("m=%" PRIu64 " sks=",m);arb_printd(sks,20);printf("\n");
       acb_mul_arb(ctmp,L->ans[m],sks,prec);
       acb_add(L->skm[1][b],L->skm[1][b],ctmp,prec); // a_m/sqrt(m)(log(m/sqrt(N))-u_m)^1
       arb_set(tmp1,sks);
