@@ -89,12 +89,12 @@ int double_comp(const void *a,const void *b)
 
 Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, error_t *ecode)
 {
-  ecode[0]=ERR_SUCCESS;
+  ecode[0] = ERR_SUCCESS;
   uint64_t i,j;
   arb_t tmp;
 
   if((Lp->degree<2)||(Lp->degree>MAX_DEGREE)) {
-    ecode[0]|=ERR_BAD_DEGREE;
+    ecode[0] |= ERR_BAD_DEGREE;
     return((Lfunc_t) NULL);
   }
 
@@ -107,7 +107,7 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, error_t *ecode)
   L->degree=Lp->degree;
   L->normalisation=Lp->normalisation;
   L->conductor=Lp->conductor;
-  L->mus=malloc(sizeof(double)*L->degree);
+  L->mus=(double*)malloc(sizeof(double)*L->degree);
   if(!L->mus)
   {
     ecode[0]|=ERR_OOM;
@@ -134,18 +134,19 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, error_t *ecode)
   arb_add_error(L->zero_error,L->zero_prec);
   arb_init(L->pi);
   if(Lp->wprec>0)
-    L->wprec=Lp->wprec;
+    L->wprec = Lp->wprec;
   else
   {
     arb_const_pi(L->pi,100); // for now, needed by decay()
     // allow enough bits so we will get target_prec at height 1/2+i*64/degree
-    L->wprec=L->target_prec+decay(L)+EXTRA_BITS;
+    L->wprec = L->target_prec + decay(L) + EXTRA_BITS;
     if(verbose) printf("working precision set to %" PRId64 "\n",L->wprec);
   }
   arb_const_pi(L->pi,L->wprec); // set it properly now we know what wprec is
-  L->cache_dir=Lp->cache_dir;
+  L->gprec = Lp->gprec;
   L->self_dual=Lp->self_dual;
   L->rank=Lp->rank;
+  L->cache_dir=Lp->cache_dir;
 
   // See Lemma 2 of M_error1.pdf, Lemma 5 of g.pdf
   // r is always >=2
@@ -216,9 +217,9 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, error_t *ecode)
   arb_clear(tmp1);
   */
 
-  ecode[0]|=compute_g(L);
+  ecode[0] |= compute_g(L);
   if(fatal_error(ecode[0]))
-    return (Lfunc_t) NULL;  
+    return (Lfunc_t) NULL;
   if(verbose)
   {
     printf("eq 5-9 error = ");arb_printd(L->eq59,20);printf("\n");
@@ -400,14 +401,14 @@ Lfunc_t Lfunc_init(uint64_t degree, uint64_t conductor, double normalisation, co
   uint64_t i;
   for(i=0;i<degree;i++)
     Lp.mus[i]=mus[i];
-  Lp.target_prec=DEFAULT_TARGET_PREC;
-  Lp.rank=DK;
-  Lp.self_dual=DK;
-  Lp.cache_dir=".";
-  Lp.gprec=0; // We will try to do something sensible
-  Lp.wprec=0; // ditto
+  Lp.target_prec = DEFAULT_TARGET_PREC;
+  Lp.rank = DK;
+  Lp.self_dual = DK;
+  Lp.cache_dir = ".";
+  Lp.gprec = 0; // We will try to do something sensible
+  Lp.wprec = 0; // ditto
 
-  return Lfunc_init_advanced(&Lp,ecode);
+  return Lfunc_init_advanced(&Lp, ecode);
 }
 
 

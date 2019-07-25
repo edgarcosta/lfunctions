@@ -43,7 +43,7 @@ double normalised(Lfunc *L, uint64_t side, uint64_t ptr, double t)
       arb_init(tmp1);
       arb_init(tmp2);
     }
- 
+
   arb_set_d(acb_realref(s),0.5);
   arb_set_d(acb_imagref(s),t);
   abs_gamma(tmp1,s,L,100);
