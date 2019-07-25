@@ -8,7 +8,7 @@ extern "C"{
 
   // We use Buthe's method to verify our list of zeros
   // we set h=4
-  // and use the zeros up to height 112/r to check the list to height buthe_b=64/r
+  // and use the zeros up to height 96/r to check the list to height buthe_b=64/r
   // This is probably huge overkill
 
 
