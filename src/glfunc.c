@@ -6,12 +6,12 @@
 extern "C"{
 #endif
 
-bool fatal_error(error_t ecode)
+bool fatal_error(Lerror_t ecode)
 {
   return ecode&0xFFFFFFFF;
 }
 
-void fprint_errors(FILE *f, error_t ecode)
+void fprint_errors(FILE *f, Lerror_t ecode)
 {
   // fatal errors
   if(ecode&ERR_OOM) fprintf(f,"Ran out of memory somewhere.\n");
@@ -87,7 +87,7 @@ int double_comp(const void *a,const void *b)
     return 0;
 }
 
-Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, error_t *ecode)
+Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode)
 {
   ecode[0] = ERR_SUCCESS;
   uint64_t i,j;
@@ -386,7 +386,7 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, error_t *ecode)
   return (Lfunc_t) L;
 }
 
-Lfunc_t Lfunc_init(uint64_t degree, uint64_t conductor, double normalisation, const double *mus, error_t *ecode)
+Lfunc_t Lfunc_init(uint64_t degree, uint64_t conductor, double normalisation, const double *mus, Lerror_t *ecode)
 {
   Lparams_t Lp;
   Lp.degree=degree;

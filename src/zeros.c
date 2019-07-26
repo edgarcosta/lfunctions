@@ -187,9 +187,9 @@ extern "C"{
 
   // called with suspected stationary point between m-1, m and m+1
   // if !isolate_p, just confirm the two zeros to minimal precision
-  error_t stat_point(arb_t z1, arb_t z2, uint64_t m, Lfunc *L, uint64_t side, uint64_t prec, bool isolate_p)
+  Lerror_t stat_point(arb_t z1, arb_t z2, uint64_t m, Lfunc *L, uint64_t side, uint64_t prec, bool isolate_p)
   {
-    error_t ecode=ERR_SUCCESS;
+    Lerror_t ecode=ERR_SUCCESS;
     static bool init=false;
     static arb_t t0,t1,f0,f1,t2,f2,t01,f01,t12,f12,tmp;
     if(!init)
@@ -353,7 +353,7 @@ extern "C"{
     return ecode;
   }
 
-  error_t find_zeros(Lfunc *L, uint64_t side)
+  Lerror_t find_zeros(Lfunc *L, uint64_t side)
   {
     static bool init=false;
     static arb_t tmp,tmp1,tmp2,tmp3,t0,z1,z2;
@@ -378,7 +378,7 @@ extern "C"{
     uint64_t n=0;
     sign_t this_sign,last_sign=sign(L->u_values_off[side][0]);
     direction_t this_dir,last_dir;
-    error_t ecode=ERR_SUCCESS;
+    Lerror_t ecode=ERR_SUCCESS;
     last_dir=direction(L->u_values_off[side][0],L->u_values_off[side][1],prec);
     if(last_dir==UNK)
     {

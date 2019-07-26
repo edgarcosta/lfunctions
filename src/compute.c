@@ -273,7 +273,7 @@ void final_ifft(Lfunc *L)
 // epsilon and epsilon_sqr
 // Lambda^(rank)(1/2) 
 // L^(rank)(1/2)/rank!
-error_t Lfunc_compute(Lfunc_t Lf)
+Lerror_t Lfunc_compute(Lfunc_t Lf)
 {
   static bool init=false;
   static arb_t tmp1,sks;
@@ -335,7 +335,7 @@ error_t Lfunc_compute(Lfunc_t Lf)
   finalise_comp(L);
   do_convolves(L);
   finish_convolves(L);
-  error_t ecode=do_pre_iFFT_errors(L);
+  Lerror_t ecode=do_pre_iFFT_errors(L);
   if(fatal_error(ecode))
     return ecode;
   final_ifft(L);

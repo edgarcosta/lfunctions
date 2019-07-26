@@ -44,7 +44,7 @@ int main (int argc, char**argv)
 
   Lfunc_t L;
   double mus[]={0,1};
-  error_t ecode;
+  Lerror_t ecode;
 
   // we have a degree 2 L-function with alg=anal so normalisation = 0.0
   L=Lfunc_init(2,5*7,0.0,mus,&ecode);

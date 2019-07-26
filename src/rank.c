@@ -150,7 +150,7 @@ extern "C"{
     return true;
   }
 
-  error_t do_rank(Lfunc *L)
+  Lerror_t do_rank(Lfunc *L)
   {
     if(!arb_contains_zero(L->u_values_off[0][0]))
     {

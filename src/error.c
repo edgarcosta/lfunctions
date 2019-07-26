@@ -447,7 +447,7 @@ void fix_epsilon(acb_t res, acb_t x, acb_t y, arb_t pi, uint64_t prec)
 }
 
 
-error_t do_pre_iFFT_errors(Lfunc *L)
+Lerror_t do_pre_iFFT_errors(Lfunc *L)
 {
   int64_t prec=L->wprec;
   arb_t err,x,fhattwiddle,two_pi_A,tmp,th,th1,th2;

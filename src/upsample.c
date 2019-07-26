@@ -159,9 +159,9 @@ extern "C"{
     arb_clear(tmp3);
   }
 
-  error_t arb_upsampling_error(arb_t res, double M,double H,double h,double A,double *mus,uint64_t r,uint64_t N,double T,arb_t imz, uint64_t l, arb_t pi, int64_t prec)
+  Lerror_t arb_upsampling_error(arb_t res, double M,double H,double h,double A,double *mus,uint64_t r,uint64_t N,double T,arb_t imz, uint64_t l, arb_t pi, int64_t prec)
   {  
-    error_t ecode=ERR_SUCCESS;
+    Lerror_t ecode=ERR_SUCCESS;
     if((!check_M(M))||(!check_H(H,h,A,mus,r))||(!check_l(M,H,A,l)))
     {
       arb_zero(res);
@@ -281,9 +281,9 @@ extern "C"{
     return ecode;
   }
 
-  error_t init_upsampling(Lfunc *L)
+  Lerror_t init_upsampling(Lfunc *L)
   {
-    error_t ecode=ERR_SUCCESS;
+    Lerror_t ecode=ERR_SUCCESS;
     int64_t prec=L->wprec;
 
     // we allow for sampling a less than every point

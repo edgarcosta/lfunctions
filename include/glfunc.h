@@ -46,7 +46,7 @@
 extern "C"{
 #endif
 
-  typedef uint64_t error_t;
+  typedef uint64_t Lerror_t;
 
   // keep details under wraps
   typedef void *Lfunc_t;
@@ -70,13 +70,13 @@ extern "C"{
     double *points;
   } Lplot_t;
 
-  bool fatal_error(error_t ecode); // are any errors in ecode considered fatal?
-  void fprint_errors(FILE *f, error_t ecode); // print all errors with newlines 
+  bool fatal_error(Lerror_t ecode); // are any errors in ecode considered fatal?
+  void fprint_errors(FILE *f, Lerror_t ecode); // print all errors with newlines 
 
   // return initialised Lfunc structure
-  Lfunc_t Lfunc_init(uint64_t degree, uint64_t conductor, double normalisation, const double *mus, error_t *ecode);
+  Lfunc_t Lfunc_init(uint64_t degree, uint64_t conductor, double normalisation, const double *mus, Lerror_t *ecode);
   // do the same but with more control
-  Lfunc_t Lfunc_init_advanced(Lparams_t *Lparams, error_t *ecode);
+  Lfunc_t Lfunc_init_advanced(Lparams_t *Lparams, Lerror_t *ecode);
 
   // for a given conductor, what is the max_p for which an Euler poly
   // will be expected.
@@ -87,13 +87,13 @@ extern "C"{
 
   // lpoly_callback will be called for each prime<=max_p
   // it will stop calling if poly is zet to zero and reset nmax accordingly
-  error_t Lfunc_use_all_lpolys(Lfunc_t L, void (*lpoly_callback) (acb_poly_t lpoly, uint64_t p, int d, int64_t prec, void *parm), void *param);
+  Lerror_t Lfunc_use_all_lpolys(Lfunc_t L, void (*lpoly_callback) (acb_poly_t lpoly, uint64_t p, int d, int64_t prec, void *parm), void *param);
 
   // you provide one Euler polynomial at a time
   void Lfunc_use_lpoly(Lfunc_t L, uint64_t p, const acb_poly_t poly); 
 
   // Once all polys have been provided, do the computation
-  error_t Lfunc_compute(Lfunc_t L);
+  Lerror_t Lfunc_compute(Lfunc_t L);
 
   // what working precsion did the computation use
   int64_t Lfunc_wprec(Lfunc_t L);
@@ -130,7 +130,7 @@ extern "C"{
   // warning, accuracy falls away rapidly as one moves away
   // from the critical line. Should return something sensible
   // for L(k) and L(0)
-  error_t Lfunc_special_value(acb_t res, Lfunc_t LL, double re, double im);
+  Lerror_t Lfunc_special_value(acb_t res, Lfunc_t LL, double re, double im);
 
   // reclaim memory from an Lfunc_t structure
   void Lfunc_clear(Lfunc_t L);

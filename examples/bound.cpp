@@ -30,7 +30,7 @@ int main (int argc, char**argv)
 
 
   Lfunc_t Lf;
-  error_t ecode;
+  Lerror_t ecode;
 
   //normalisation doesn't play a role
   Lf = Lfunc_init(d, 1, normalisation, mus, &ecode);

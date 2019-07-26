@@ -117,7 +117,7 @@ extern "C"{
   } Lfunc;
 
   // from glfunc_g.c
-  error_t compute_g(Lfunc *);
+  Lerror_t compute_g(Lfunc *);
 
   // from acb_fft.c
   void acb_initfft(acb_t *w, uint64_t n, uint64_t prec);
@@ -131,31 +131,31 @@ extern "C"{
   void abs_gamma(arb_t res, acb_t s, Lfunc *L, int64_t prec);
   void init_ftwiddle_error(Lfunc *L, int64_t prec);
   void complete_ftwiddle_error(Lfunc *L, int64_t prec);
-  error_t do_pre_iFFT_errors(Lfunc *L);
+  Lerror_t do_pre_iFFT_errors(Lfunc *L);
   bool M_error(arb_t res, arb_t x, Lfunc *L, int64_t prec);
 
   // from buthe.c
   void init_buthe(Lfunc *L, int64_t prec);
   void wf(Lfunc *L, uint64_t p, acb_poly_t fp1, acb_poly_t fp, int64_t prec);
   void buthe_Wf_error(Lfunc *L);
-  error_t buthe_check_RH(Lfunc *L);
+  Lerror_t buthe_check_RH(Lfunc *L);
 
   // from compute.c
   void lfunc_compute(Lfunc *L);
 
   //from upsample.c
   double upsample_error(long double M, long double H, long double h, long double A, double *mus, uint64_t r, uint64_t N, long double T, long double imz, uint64_t l);
-  error_t init_upsampling(Lfunc *L);
+  Lerror_t init_upsampling(Lfunc *L);
   bool newton(arb_ptr res, arb_ptr t0, Lfunc *L, uint64_t side, uint64_t prec);
   bool upsample_stride(arb_ptr res, arb_ptr t0, Lfunc *L, uint64_t side, uint64_t prec);
-  error_t arb_upsampling_error(arb_t res, double M,double H,double h,double A,double *mus,uint64_t r,uint64_t N,double T,arb_t imz, uint64_t l, arb_t pi, int64_t prec);
+  Lerror_t arb_upsampling_error(arb_t res, double M,double H,double h,double A,double *mus,uint64_t r,uint64_t N,double T,arb_t imz, uint64_t l, arb_t pi, int64_t prec);
 
   //from zeros.c
-  error_t find_zeros(Lfunc *L, uint64_t side);
+  Lerror_t find_zeros(Lfunc *L, uint64_t side);
 
   // from rank.c
   //uint64_t guess_rank(Lfunc *L, uint64_t side, uint64_t prec);
-  error_t do_rank(Lfunc *L);
+  Lerror_t do_rank(Lfunc *L);
 
 #ifdef __cplusplus
 }

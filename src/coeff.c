@@ -174,7 +174,7 @@ void use_lpoly(Lfunc *L, uint64_t p, const acb_poly_t f)
 
 // call lpoly_callback with every prime <=L->M
 // so we can populate ans, the Dirichlet coefficients
-error_t Lfunc_use_all_lpolys(Lfunc_t Lf, void (*lpoly_callback) (acb_poly_t lpoly, uint64_t p, int d, int64_t prec, void *parm), void *param)
+Lerror_t Lfunc_use_all_lpolys(Lfunc_t Lf, void (*lpoly_callback) (acb_poly_t lpoly, uint64_t p, int d, int64_t prec, void *parm), void *param)
   {
     Lfunc *L;
     L=(Lfunc *)Lf;
@@ -189,7 +189,7 @@ error_t Lfunc_use_all_lpolys(Lfunc_t Lf, void (*lpoly_callback) (acb_poly_t lpol
     primesieve_iterator it;
     primesieve_init(&it);
     uint64_t p=0;
-    error_t ecode=ERR_SUCCESS;
+    Lerror_t ecode=ERR_SUCCESS;
     while((p=primesieve_next_prime(&it)) <= L->M)
       {
 	lpoly_callback(lp,p,L->degree,L->wprec,param);

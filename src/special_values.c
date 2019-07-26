@@ -31,7 +31,7 @@ extern "C"{
 
   // sinc x = sin(pi x)/(pi x)
   // on entry sin_x = sin(pi x)
-  error_t s_sinc(acb_t res, acb_t pi_x, acb_t sin_pi_x, int64_t prec)
+  Lerror_t s_sinc(acb_t res, acb_t pi_x, acb_t sin_pi_x, int64_t prec)
   {
     if(acb_contains_zero(pi_x))
       return ERR_SPEC_VALUE;
@@ -71,7 +71,7 @@ extern "C"{
   }
 
   // W(n/A)sinc(Pi(Az-n))
-  error_t s_do_point(acb_ptr res, Lfunc *L, int64_t k, acb_t z, acb_t delta, acb_t sin_delta, arb_t A, int64_t prec, arb_t pi_by_H2)
+  Lerror_t s_do_point(acb_ptr res, Lfunc *L, int64_t k, acb_t z, acb_t delta, acb_t sin_delta, arb_t A, int64_t prec, arb_t pi_by_H2)
   {
     static acb_t tmp,tmp1;
     static arb_t tmp2;
@@ -84,7 +84,7 @@ extern "C"{
       arb_init(tmp2);
     }
 
-    error_t ecode=s_sinc(tmp,delta,sin_delta,prec);
+    Lerror_t ecode=s_sinc(tmp,delta,sin_delta,prec);
     if(fatal_error(ecode))
       return ecode;
     W_k_A(tmp2,L,k,prec,acb_realref(z),pi_by_H2,A);
@@ -94,7 +94,7 @@ extern "C"{
   }
 
   // estimate W(1/2+iz) by upsampling off Lu->u_values_off
-  error_t s_upsample_stride(acb_ptr res, acb_ptr z, Lfunc *L, int64_t prec, arb_t pi_by_H2, arb_t err, int64_t N, uint64_t stride)
+  Lerror_t s_upsample_stride(acb_ptr res, acb_ptr z, Lfunc *L, int64_t prec, arb_t pi_by_H2, arb_t err, int64_t N, uint64_t stride)
   {
     static arb_t A; // the A for upsampling = usual A / stride
     static acb_t diff,this_diff,term,sin_diff,neg_sin_diff;
@@ -125,7 +125,7 @@ extern "C"{
     int64_t nn=n; // offset into values
 
     // do nearest point
-    error_t ecode=s_do_point(res,L,n,z,diff,sin_diff,L->arb_A,prec,pi_by_H2);
+    Lerror_t ecode=s_do_point(res,L,n,z,diff,sin_diff,L->arb_A,prec,pi_by_H2);
     if(fatal_error(ecode))
       return ecode;
     if(verbose){printf("Nearest point contributed ");acb_printd(res,20);printf("\n");}
@@ -227,9 +227,9 @@ extern "C"{
   }
 
   // compute L(s) into res where s is given in algebraic normalisation
-  error_t Lfunc_special_value(acb_t res, Lfunc_t LL, double alg_res, double alg_ims)
+  Lerror_t Lfunc_special_value(acb_t res, Lfunc_t LL, double alg_res, double alg_ims)
   {
-    error_t ecode=ERR_SUCCESS;
+    Lerror_t ecode=ERR_SUCCESS;
     Lfunc *L=(Lfunc *) LL;
     int64_t prec=L->wprec;
     //printf("Algebraic s = %f + i%f\n",alg_res,alg_ims);

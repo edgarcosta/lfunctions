@@ -692,10 +692,10 @@ computeres:
 
   }  
 
-  error_t compute_g(Lfunc *L)
+  Lerror_t compute_g(Lfunc *L)
   {
 
-    error_t ecode=ERR_SUCCESS;
+    Lerror_t ecode=ERR_SUCCESS;
     bool op = false; // true if we are going to write a cache file
     FILE *ofile = NULL; // file to write to
 
