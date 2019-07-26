@@ -1,3 +1,4 @@
+#define __STDC_FORMAT_MACROS
 #include "assert.h"
 #include "acb_poly.h"
 #include "glfunc.h"
