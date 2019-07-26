@@ -6,7 +6,7 @@
  *
  * python function to generate input provided at the bottom with an example
  */
-
+#define __STDC_FORMAT_MACROS
 #include <algorithm>
 #include <cassert>
 #include <chrono>
