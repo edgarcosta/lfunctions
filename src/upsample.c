@@ -31,6 +31,7 @@ extern "C"{
     return H>s;
   }
 
+  /*
   double zeta(double s)
   {
     const double precision = 1e-7;
@@ -60,7 +61,8 @@ extern "C"{
     res*=expl((long double)r*logl(zeta(s+0.5l)));
     return res;
   }
-
+  */
+  
   int check_l(double M, double H, double A, uint64_t l)
   {
     double tmp=M*A;
@@ -68,6 +70,7 @@ extern "C"{
     return l<M_PI*tmp;
   }
 
+  /*
   // upsample error.
   double upsample_error(long double M, long double H, long double h, long double A, double *mus, uint64_t r, uint64_t N, long double T, long double imz, uint64_t l)
   {
@@ -88,7 +91,7 @@ extern "C"{
     long double E2=E(1,(H+1)/A,h,mus,r,N,T);
     return 2.0l*coshl(M_PIl*A*imz)*expl((long double)l*logl(M_PIl*A))*(A*h*expl(M_PIl/(h*h)*(M*M+(delta*T)*(delta*T)/(long double)1-delta)-M_PIl*M*A)/((M_PIl*M*A-(long double)l)*sqrtl((long double)1-delta))*E0+expl(0.75l*(long double)r0*logl(3.0l))*E1*E1/((M_PIl*H-(long double)l)*(E1-E2)));
   }
-
+*/
   void delta_term(arb_t delta,double M,double T, double mu, int64_t prec)
   {
     arb_t tmp,tmp1,tmp2,T2;
