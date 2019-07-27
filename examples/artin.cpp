@@ -1135,8 +1135,12 @@ int main (int argc, char**argv)
       output << AR << endl;
       // print any warnings collected along the way
       if( ecode != ERR_SUCCESS )
+      {
+        cerr << "Begin warnings for " << AR.label << endl;
+        fprint_errors(stderr, ecode);
+        cerr << "End warnings for " << AR.label << endl;
         r++;
-      fprint_errors(stderr, ecode);
+      }
 
       SystemTime end(std::chrono::system_clock::now());
       std::time_t endt = std::chrono::system_clock::to_time_t(end);
