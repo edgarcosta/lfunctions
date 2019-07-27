@@ -6,7 +6,7 @@
  *
  * python function to generate input provided at the bottom with an example
  */
-
+#define __STDC_FORMAT_MACROS
 #include <algorithm>
 #include <cassert>
 #include <chrono>
@@ -798,7 +798,7 @@ typedef struct {
   double* mus;
 
   // L-function
-  error_t ecode;
+  Lerror_t ecode;
   Lfunc_t L;
 
   // the local factors are written in terms of zeta_n
@@ -957,7 +957,7 @@ istream & operator>>(istream & is, artin_rep &o)
 
 ostream& operator<<(ostream &s, artin_rep &AR) {
   Lfunc_t &L = AR.L;
-  error_t &ecode = AR.ecode;
+  Lerror_t &ecode = AR.ecode;
 
   s << AR.label <<":";
   // root number
@@ -1082,7 +1082,7 @@ int main (int argc, char**argv)
       cout << "Date:   \t" <<  std::put_time(std::localtime(&startt), "%F %T") << endl;
 
       artin_rep AR;
-      error_t &ecode = AR.ecode;
+      Lerror_t &ecode = AR.ecode;
       Lfunc_t &L = AR.L;
 
 

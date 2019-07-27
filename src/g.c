@@ -692,19 +692,19 @@ computeres:
 
   }  
 
-  error_t compute_g(Lfunc *L)
+  Lerror_t compute_g(Lfunc *L)
   {
 
-    error_t ecode=ERR_SUCCESS;
+    Lerror_t ecode=ERR_SUCCESS;
     bool op = false; // true if we are going to write a cache file
     FILE *ofile = NULL; // file to write to
 
     // are we in default mode and do we have a cache directory
     if((L->gprec == 0) && (L->target_prec==DEFAULT_TARGET_PREC) && (L->cache_dir)) {
-      char fname[1024];
-      sprintf(fname,"%s/g",L->cache_dir);
+      char fname[1337],fname1[1024];
+      sprintf(fname1,"%s/g",L->cache_dir);
       for(uint64_t r=0;r<L->degree;r++)
-        sprintf(fname,"%s_%.1f",fname,L->mus[r]);
+        sprintf(fname,"%s_%.1f",fname1,L->mus[r]);
       FILE *infile=fopen(fname,"r");
       if(infile) // we already have this G file in cache
       {

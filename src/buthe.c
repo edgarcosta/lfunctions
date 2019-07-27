@@ -362,7 +362,7 @@ extern "C"{
     //if(verbose) {printf("Winf = ");arb_printd(res,20);printf("\n");}
   }
 
-  error_t buthe_check_RH(Lfunc *L)
+  Lerror_t buthe_check_RH(Lfunc *L)
   {
     static bool init=false;
     static arb_t sum,two_zeros;
