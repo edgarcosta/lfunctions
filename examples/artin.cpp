@@ -1075,6 +1075,8 @@ int main (int argc, char**argv)
 
     primesieve::iterator ps;
 
+    int r = 0;
+
 
     while(std::getline(input, line)) {
       SystemTime start(std::chrono::system_clock::now());
@@ -1132,6 +1134,8 @@ int main (int argc, char**argv)
 
       output << AR << endl;
       // print any warnings collected along the way
+      if( ecode != ERR_SUCCESS )
+        r++;
       fprint_errors(stderr, ecode);
 
       SystemTime end(std::chrono::system_clock::now());
@@ -1144,7 +1148,7 @@ int main (int argc, char**argv)
       //free memory
       artin_rep_clear(AR);
     }
-    return 0;
+    return r;
   } catch( const std::exception & ex ) {
      cerr << "Uncaught exception: " <<ex.what() << endl;
      std::abort();
