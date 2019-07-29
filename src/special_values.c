@@ -165,8 +165,8 @@ extern "C"{
     return ecode;
   }
 
-
-  void acb_gamma_r(acb_t res, acb_t s, Lfunc *L, uint64_t prec)
+  //1/gamma_r(s)
+  void acb_rgamma_r(acb_t res, acb_t s, Lfunc *L, uint64_t prec)
   {
     acb_t s_by_2,lg,ctmp,ctmp1;
     arb_t log_pi;
@@ -178,12 +178,11 @@ extern "C"{
     arb_log(log_pi,L->pi,prec);
     //printf("in abs_gamma_r with s = ");acb_printd(s,10);printf("\n");
     acb_mul_2exp_si(s_by_2,s,-1); // s/2
-    acb_lgamma(lg,s_by_2,prec);
-    //printf("loggamma(s/2) = ");acb_printd(lg,10);printf("\n");
 
     acb_mul_arb(ctmp,s_by_2,log_pi,prec); 
-    acb_sub(ctmp1,lg,ctmp,prec); // log gamma s/2 - s/2 log pi
-    acb_exp(res,ctmp1,prec);
+    acb_exp(ctmp1,ctmp,prec);
+    acb_rgamma(ctmp,s_by_2,prec);
+    acb_mul(res,ctmp,ctmp1,prec);
     //printf("gamma_r returning ");acb_printd(res,20);printf("\n");
     acb_clear(s_by_2);
     acb_clear(lg);
@@ -194,7 +193,7 @@ extern "C"{
 
 
   // gamma(s) per l.pdf with epsilon and N^1/2(s-1/2)
-  void spec_gamma(acb_t res, acb_t s, Lfunc *L, int64_t prec)
+  void spec_rgamma(acb_t res, acb_t s, Lfunc *L, int64_t prec)
   {
     acb_t tmp1,tmp2,tmp3;
     acb_init(tmp1);
@@ -207,7 +206,7 @@ extern "C"{
     for(uint64_t j=0;j<L->degree;j++) {
       arb_set_d(tmp,L->mus[j]);
       acb_add_arb(tmp1,s,tmp,prec);
-      acb_gamma_r(tmp2,tmp1,L,prec);
+      acb_rgamma_r(tmp2,tmp1,L,prec);
       acb_mul(res,res,tmp2,prec);
     }
     arb_set_d(tmp,0.5);
@@ -215,10 +214,11 @@ extern "C"{
     acb_mul_2exp_si(tmp1,tmp1,-1); // (s-1/2)/2
     arb_log_ui(tmp,L->conductor,prec);
     acb_mul_arb(tmp2,tmp1,tmp,prec);
+    acb_neg(tmp2,tmp2);
     acb_exp(tmp1,tmp2,prec);
-    //printf("N^((s-1/2)/2) = ");acb_printd(tmp1,20);printf("\n");
+    //printf("N^(-(s-1/2)/2) = ");acb_printd(tmp1,20);printf("\n");
     acb_mul(res,res,tmp1,prec);
-    acb_mul(res,res,L->epsilon_sqr,prec);
+    acb_div(res,res,L->epsilon_sqr,prec);
     //printf("spec_gamma returning ");acb_printd(res,10);printf("\n");
     acb_clear(tmp1);
     acb_clear(tmp2);
@@ -354,9 +354,9 @@ extern "C"{
     acb_div(res,res,s,prec);
 
     // go from Lam->L by dividing out gamma(s)
-    spec_gamma(ctmp,an_s,L,prec);
-    if(verbose){printf("going from Lambda to L by dividing by ");acb_printd(ctmp,20);printf("\n");}
-    acb_div(res,res,ctmp,prec);
+    spec_rgamma(ctmp,an_s,L,prec);
+    if(verbose){printf("going from Lambda to L by multiplying by ");acb_printd(ctmp,20);printf("\n");}
+    acb_mul(res,res,ctmp,prec);
 
     acb_abs(tmp,res,prec);
     arb_get_rad_arb(tmp,tmp);
