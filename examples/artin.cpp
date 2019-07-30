@@ -1125,7 +1125,9 @@ int main (int argc, char**argv)
       printf("L(1) = ");acb_printd(ctmp,20);printf("\n");
       ecode|=Lfunc_special_value(ctmp, L, 2,0.0);
       if(fatal_error(ecode)) {
-        fprint_errors(stderr,ecode);
+        cerr << "Computation for " << AR.label << " failed"<<endl;
+        fprint_errors(stderr, ecode);
+        cerr << "End " << AR.label << " failed "<<endl;
         std::abort();
       }
       printf("L(2) = ");acb_printd(ctmp,20);printf("\n");
