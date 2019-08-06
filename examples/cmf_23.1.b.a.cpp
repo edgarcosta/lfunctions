@@ -19,27 +19,9 @@
 #include <acb_poly.h>
 #include "glfunc.h"
 
-using std::cerr;
-using std::cout;
-using std::endl;
-using std::exception;
-using std::int8_t;
 using std::int64_t;
-using std::ifstream;
-using std::istream;
-using std::iswspace;
-using std::getline;
-using std::lexicographical_compare;
-using std::make_pair;
 using std::map;
-using std::ostream;
-using std::ofstream;
-using std::pair;
-using std::runtime_error;
-using std::set;
 using std::size_t;
-using std::string;
-using std::stringstream;
 using std::vector;
 
 
