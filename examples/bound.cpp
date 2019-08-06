@@ -4,21 +4,30 @@
 #include "glfunc.h"
 #include "glfunc_internals.h"
 
+int message(int argc, char **argv) {
+  fprintf(stderr, "Usage:\n %s <degree> <normalisation> <mu_0> <mu_1> ... <mu_degree>\n with <degree> between 1 and 10\n", argv[0]);
+  if(argc >= 2) {
+    fprintf(stderr, "Arguments given:\n");
+    fprintf(stderr, "\t<degree> = %s\n", argv[1]);
+  }
+  if(argc >= 3)
+    fprintf(stderr, "\t<normalisation> = %s\n", argv[2]);
 
+  for(int i = 0; i < argc - 3; ++i)
+    fprintf(stderr, "\t<mu_%d> = %s\n", i, argv[2]);
+  return false;
+}
 
-int main (int argc, char**argv)
-{
-  printf("Command Line:- %s",argv[0]);
-  for(int i = 1; i < argc; i++)
-    printf(" %s",argv[i]);
-  printf("\n");
+int parse_arg(uint64_t &d, double &normalisation, double *mus, int argc, char **argv) {
+  if(argc < 5)
+    return message(argc, argv);
 
-  uint64_t d = atoi(argv[1]);
-  assert( d > 0 );
-  assert((uint64_t)argc == d + 3);
-  double normalisation = atof(argv[2]);
+  d = atoi(argv[1]);
+  if( (uint64_t)argc != d + 3 )
+    return message(argc, argv);
+
+  normalisation = atof(argv[2]);
   printf("%" PRIu64 ":%.2f:[", d, normalisation);
-  double * mus = new double[d];
   for(size_t i = 0; i < d; ++i) {
     mus[i] = atof(argv[3 + i]);
     printf("%f", mus[i]);
@@ -28,12 +37,21 @@ int main (int argc, char**argv)
       printf("]");
     }
   }
+  return true;
+}
 
+int main (int argc, char**argv)
+{
+
+  uint64_t d;
+  double normalisation;
+  double *mus = new double[MAX_DEGREE];
+  if( not parse_arg(d, normalisation, mus, argc, argv) )
+    return 1;
 
   Lfunc_t Lf;
   Lerror_t ecode;
 
-  //normalisation doesn't play a role
   Lf = Lfunc_init(d, 1, normalisation, mus, &ecode);
   if( fatal_error(ecode) ) {
     fprint_errors(stderr,ecode);
