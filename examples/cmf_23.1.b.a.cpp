@@ -49,6 +49,7 @@ Z-plot in [0, 10]:
 10.28	zero	                              Z
  */
 #define __STDC_FORMAT_MACROS
+#define DIGITS 20
 #include <chrono>
 #include <cstdint>
 #include <cwctype>
@@ -150,8 +151,8 @@ int main ()
 
   // now extract some information
   printf("Order of vanishing = %" PRIu64 "\n",Lfunc_rank(L));
-  printf("Epsilon = ");acb_printd(Lfunc_epsilon(L),20);printf("\n");
-  printf("First non-zero Taylor coeff = ");arb_printd(Lfunc_Taylor(L),20);printf("\n");
+  printf("Epsilon = ");acb_printd(Lfunc_epsilon(L),DIGITS);printf("\n");
+  printf("First non-zero Taylor coeff = ");arb_printd(Lfunc_Taylor(L),DIGITS);printf("\n");
 
 
   acb_t ctmp;
@@ -161,13 +162,13 @@ int main ()
     fprint_errors(stderr,ecode);
     std::abort();
   }
-  printf("L(1) = ");acb_printd(ctmp,20);printf("\n");
+  printf("L(1) = ");acb_printd(ctmp, DIGITS);printf("\n");
   ecode|=Lfunc_special_value(ctmp, L, 2,0.0);
   if(fatal_error(ecode)) {
     fprint_errors(stderr, ecode);
     std::abort();
   }
-  printf("L(2) = ");acb_printd(ctmp,20);printf("\n");
+  printf("L(2) = ");acb_printd(ctmp, DIGITS);printf("\n");
   acb_clear(ctmp);
 
   printf("First 10 zeros\n");
@@ -175,7 +176,7 @@ int main ()
   arb_srcptr zeros=Lfunc_zeros(L, 0);
   for(int i  = 0; i < 10; ++i) {
     printf("Zero %d = ", i);
-    arb_printd(zeros+i,20);
+    arb_printd(zeros+i, DIGITS);
     printf("\n");
   }
 
