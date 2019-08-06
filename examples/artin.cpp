@@ -28,7 +28,7 @@
 #include <flint/ulong_extras.h>
 #include <flint/perm.h>
 #include <primesieve.hpp>
-#include "acb_poly.h"
+#include <acb_poly.h>
 #include "glfunc.h"
 
 using std::cerr;
