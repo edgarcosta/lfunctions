@@ -6,10 +6,10 @@
  *
  * Change the following two lines, to modify the number of decimal digits printed, or to print raw format (not human friendly)
  */
-#define DIGITS 30
+#define DIGITS 20
 #define RAW false
 /*
- * with DIGITS = 3 and RAW = False, running this file should generate something
+ * with DIGITS = 20 and RAW = False, running this file should generate something
  * comparable to:
 Order of vanishing = 0
 Epsilon = (1 + 0j)  +/-  (1.1e-117, 4.7e-59j)
