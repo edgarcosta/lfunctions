@@ -4,7 +4,13 @@
  * Make up a degree 2 L-function associated to the classical modular form 23.1.b.a
  * http://www.lmfdb.org/L/ModularForm/GL2/Q/holomorphic/23/1/b/a/
  *
- * Running this file should generate something comparable to:
+ * Change the following two lines, to modify the number of decimal digits printed, or to print raw format (not human friendly)
+ */
+#define DIGITS 30
+#define RAW false
+/*
+ * with DIGITS = 3 and RAW = False, running this file should generate something
+ * comparable to:
 Order of vanishing = 0
 Epsilon = (1 + 0j)  +/-  (1.1e-117, 4.7e-59j)
 First non-zero Taylor coeff = 0.1740363269879341835 +/- 8.2317e-59
@@ -49,7 +55,6 @@ Z-plot in [0, 10]:
 10.28	zero	                              Z
  */
 #define __STDC_FORMAT_MACROS
-#define DIGITS 20
 #include <chrono>
 #include <cstdint>
 #include <cwctype>
@@ -61,11 +66,17 @@ Z-plot in [0, 10]:
 #include <sstream>
 #include <string>
 #include <vector>
+#include <flint/fmpz.h>
+#include <flint/fmpzxx.h>
 #include <acb_poly.h>
 #include "glfunc.h"
 
+using flint::fmpzxx;
+using std::cout;
+using std::endl;
 using std::int64_t;
 using std::map;
+using std::ostream;
 using std::size_t;
 using std::vector;
 
@@ -118,6 +129,35 @@ void lpoly_callback(acb_poly_t poly, uint64_t p, int d __attribute__((unused)), 
   }
 }
 
+template<class T>
+ostream& operator<<(ostream& s, const vector<T>& a)
+{
+  size_t n = a.size();
+  s <<"[";
+  for(size_t i = 0; i < n; ++i) {
+    s << a[i];
+    if(i < n - 1) s<<", ";
+  }
+  s << "]";
+  return s;
+}
+
+// retuns the interval [a*2^e, b*2^e] as [a, b, e]
+ostream& operator<<(ostream& s, const arb_t x) {
+  vector<fmpzxx> tmp(3);
+  fmpzxx &a = tmp[0];
+  fmpzxx &b = tmp[1];
+  fmpzxx &e = tmp[2];
+  arb_get_interval_fmpz_2exp(a._fmpz(), b._fmpz(), e._fmpz(), x);
+  s << tmp;
+  return s;
+}
+
+ostream& operator<<(ostream &s, const acb_t z) {
+  s << "[" << acb_realref(z) <<", "<< acb_imagref(z) << "]";
+  return s;
+}
+
 
 int main ()
 {
@@ -151,8 +191,14 @@ int main ()
 
   // now extract some information
   printf("Order of vanishing = %" PRIu64 "\n",Lfunc_rank(L));
-  printf("Epsilon = ");acb_printd(Lfunc_epsilon(L),DIGITS);printf("\n");
-  printf("First non-zero Taylor coeff = ");arb_printd(Lfunc_Taylor(L),DIGITS);printf("\n");
+  printf("Epsilon = ");
+  acb_printd(Lfunc_epsilon(L),DIGITS);
+  printf("\n");
+  if (RAW) cout<<"RAW: "<<Lfunc_epsilon(L) << endl;
+  printf("First non-zero Taylor coeff = ");
+  arb_printd(Lfunc_Taylor(L),DIGITS);
+  printf("\n");
+  if (RAW) cout<<"RAW: "<<Lfunc_Taylor(L) << endl;
 
 
   acb_t ctmp;
@@ -163,12 +209,12 @@ int main ()
     std::abort();
   }
   printf("L(1) = ");acb_printd(ctmp, DIGITS);printf("\n");
+  if (RAW) cout<<"RAW: "<<ctmp << endl;
   ecode|=Lfunc_special_value(ctmp, L, 2,0.0);
   if(fatal_error(ecode)) {
     fprint_errors(stderr, ecode);
     std::abort();
   }
-  printf("L(2) = ");acb_printd(ctmp, DIGITS);printf("\n");
   acb_clear(ctmp);
 
   printf("First 10 zeros\n");
@@ -178,6 +224,7 @@ int main ()
     printf("Zero %d = ", i);
     arb_printd(zeros+i, DIGITS);
     printf("\n");
+    if (RAW) cout<<"RAW: "<<zeros + i<< endl;
   }
 
   printf("Z-plot in [0, 10]:\n");
