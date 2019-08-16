@@ -1093,7 +1093,6 @@ int main (int argc, char**argv)
       uint64_t target_M = Lfunc_nmax(L);
 
       cout <<"using p <= " << target_M << endl;
-      print(((Lfunc*)L)->target_prec);
 
       // populate local factors
       ps.skipto(0);
