@@ -690,7 +690,7 @@ computeres:
     }
     return read_Gs(infile,L);
 
-  }  
+  }
 
   Lerror_t compute_g(Lfunc *L)
   {
@@ -702,13 +702,14 @@ computeres:
     // are we in default mode and do we have a cache directory
     if((L->gprec == 0) && (L->target_prec==DEFAULT_TARGET_PREC) && (L->cache_dir)) {
       char fname[1337],fname1[1024];
-      sprintf(fname1,"%s/g",L->cache_dir);
+      sprintf(fname1, "");
       for(uint64_t r=0;r<L->degree;r++)
-        sprintf(fname,"%s_%.1f",fname1,L->mus[r]);
-      FILE *infile=fopen(fname,"r");
+        sprintf(fname1, "%s_%.1f", fname1, L->mus[r]);
+      sprintf(fname, "%s/g%s", L->cache_dir, fname1);
+      FILE *infile = fopen(fname, "r");
       if(infile) // we already have this G file in cache
       {
-        bool res=read_gfile(infile,L); // so read it
+        bool res = read_gfile(infile, L); // so read it
         fclose(infile);
         if(res) // everything worked
           return ecode;
@@ -724,15 +725,15 @@ computeres:
       }
     }
 
-    if(L->gprec==0) // user hasn't told us what to use
+    if( L->gprec == 0) // user hasn't told us what to use
     {
-      double gfac=0.0;
-      for(uint64_t d=0;d<L->degree;d++)
-        gfac+=lgamma(0.25+L->mus[d]/2.0);
-      gfac/=M_LN2;
-      L->gprec=L->target_prec+ceil(gfac)+EXTRA_BITS;
-      if(L->gprec<L->wprec)
-        L->gprec=L->wprec;
+      double gfac = 0.0;
+      for(uint64_t d=0; d < L->degree; d++)
+        gfac += lgamma(0.25 + L->mus[d]/2.0);
+      gfac /= M_LN2;
+      L->gprec = L->target_prec + ceil(gfac) + EXTRA_BITS;
+      if(L->gprec < L->wprec)
+        L->gprec = L->wprec;
     }
     if(verbose)
       printf("g precision set to %" PRId64 " bits\n", L->gprec);
