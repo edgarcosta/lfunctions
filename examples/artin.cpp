@@ -720,6 +720,7 @@ void conv(vector<acb_poly_struct> &local_factors, const vector< vector< vector< 
   for(auto &elt : z)
     acb_clear(&elt);
   acb_clear(tmp);
+
 }
 
 
@@ -901,7 +902,7 @@ istream & operator>>(istream & is, artin_rep &o)
           o.mus = new double[o.dimension];
           for(size_t i = 0; i < buf.size(); ++i)
             o.mus[i] = buf[i];
-          // alg=anal so normalisation = 0.0
+          // alg = anal so normalisation = 0.0
           o.L = Lfunc_init(o.dimension, o.conductor, 0.0, o.mus, &o.ecode);
           if(fatal_error(o.ecode)) {
             fprint_errors(stderr, o.ecode);
@@ -1048,11 +1049,6 @@ void lpoly(const int64_t &p, artin_rep &AR) {
       fq_nmod_ctx_clear(ctx);
     }
   }
-  //print(p);
-  //print(c);
-  //cout<<"Lp = ";
-  //acb_poly_printd(&AR.local_factors[c], 3);
-  //cout<<endl;
   Lfunc_use_lpoly(AR.L, p, &AR.local_factors[c]);
 }
 
@@ -1089,14 +1085,15 @@ int main (int argc, char**argv)
 
 
       // read a line
-      stringstream   linestream(line);
+      stringstream linestream(line);
       linestream >> AR;
       cout << "Starting:\t"<<AR.label<<endl;
 
       // we need all the local factors p <= target_M
-      uint64_t target_M=Lfunc_nmax(L);
+      uint64_t target_M = Lfunc_nmax(L);
 
       cout <<"using p <= " << target_M << endl;
+      print(((Lfunc*)L)->target_prec);
 
       // populate local factors
       ps.skipto(0);
@@ -1113,17 +1110,17 @@ int main (int argc, char**argv)
 
       printf("Rank = %" PRIu64 "\n",Lfunc_rank(L));
       printf("Epsilon = ");acb_printd(Lfunc_epsilon(L),20);printf("\n");
-      printf("First non-zero Taylor coeff = ");arb_printd(Lfunc_Taylor(L),20);printf("\n");
+      printf("First non-zero Taylor coeff = ");arb_printd(Lfunc_Taylor(L), 20);printf("\n");
 
       acb_t ctmp;
       acb_init(ctmp);
-      ecode|=Lfunc_special_value(ctmp, L,1.0,0.0);
+      ecode |= Lfunc_special_value(ctmp, L, 1, 0);
       if(fatal_error(ecode)) {
         fprint_errors(stderr,ecode);
         std::abort();
       }
       printf("L(1) = ");acb_printd(ctmp,20);printf("\n");
-      ecode|=Lfunc_special_value(ctmp, L, 2,0.0);
+      ecode |= Lfunc_special_value(ctmp, L, 2, 0);
       if(fatal_error(ecode)) {
         cerr << "Computation for " << AR.label << " failed"<<endl;
         fprint_errors(stderr, ecode);
