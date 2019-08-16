@@ -701,8 +701,8 @@ computeres:
 
     // are we in default mode and do we have a cache directory
     if((L->gprec == 0) && (L->target_prec==DEFAULT_TARGET_PREC) && (L->cache_dir)) {
-      char fname[1337],fname1[1024];
-      sprintf(fname1, "");
+      char fname[1337];
+      char fname1[1024] = "";
       for(uint64_t r=0;r<L->degree;r++)
         sprintf(fname1, "%s_%.1f", fname1, L->mus[r]);
       sprintf(fname, "%s/g%s", L->cache_dir, fname1);
