@@ -19,8 +19,8 @@ OBJS = $(patsubst %.c, build/%.o, $(SOURCES))
 
 EXECUTABLES_SOURCES = $(wildcard examples/*.c) $(wildcard examples/*.cpp)
 EXECUTABLES = $(patsubst %.c, build/%.exe, $(wildcard examples/*.c)) $(patsubst %.cpp, build/%.exe, $(wildcard examples/*.cpp))
-TEST_SOURCES = $(wildcard test/*.c)
-TESTS = $(patsubst %.c, build/%.exe, $(TEST_SOURCES))
+TEST_SOURCES = $(wildcard test/*.c) $(wildcard test/*.cpp)
+TESTS = $(patsubst %.c, build/%.exe, $(wildcard test/*.c)) $(patsubst %.cpp, build/%.exe, $(wildcard test/*.cpp))
 
 all: $(OBJS) test lib executables
 
