@@ -54,7 +54,7 @@ extern "C"{
   typedef struct{
     uint64_t degree;
     uint64_t conductor;
-    double normalisation;
+    double normalisation; 
     double *mus;
     int64_t target_prec;
     int64_t wprec;
@@ -74,6 +74,14 @@ extern "C"{
   void fprint_errors(FILE *f, Lerror_t ecode); // print all errors with newlines 
 
   // return initialised Lfunc structure
+  /* Input:
+   *  - degree, the degree of the L-function
+   *  - conductor, the conductor of the L-function
+   *  - normalisation, the shift on s axis to go from the algebraic normalization to the analytic one, i.e., if an is the Dirichlet in the algebraic normalization, then an/n^{normalisation} is the Dirichlet coefficient of in the analytic normalization
+   *  - mus, the shifts of Gamma_R
+   *    Note: mu[i] + normalisation must be half integers
+   *  - ecode, where we keep track of errors and warnings
+   */
   Lfunc_t Lfunc_init(uint64_t degree, uint64_t conductor, double normalisation, const double *mus, Lerror_t *ecode);
   // do the same but with more control
   Lfunc_t Lfunc_init_advanced(Lparams_t *Lparams, Lerror_t *ecode);
