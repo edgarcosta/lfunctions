@@ -6,6 +6,13 @@
 
 int message(int argc, char **argv) {
   fprintf(stderr, "Usage:\n %s <degree> <normalisation> <mu_0> <mu_1> ... <mu_degree>\n with <degree> between 1 and 10\n", argv[0]);
+  fprintf(stderr, "For example:\n");
+  fprintf(stderr, "\t- L-function of an Elliptic curve over Q:\n");
+  fprintf(stderr, "\t\t# %s 2 0.5 0 1\n", argv[0]);
+  fprintf(stderr, "\t or\t# %s 2 0 0.5 1.5\n", argv[0]);
+  fprintf(stderr, "\t- L-function of a classical modular form of weight 13:\n");
+  fprintf(stderr, "\t\t# %s 2 12.5 0 1\n", argv[0]);
+  fprintf(stderr, "\t or\t# %s 2 0 12.5 13.5\n", argv[0]);
   if(argc >= 2) {
     fprintf(stderr, "Arguments given:\n");
     fprintf(stderr, "\t<degree> = %s\n", argv[1]);
