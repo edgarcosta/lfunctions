@@ -92,31 +92,26 @@ void use_inv_lpoly(Lfunc *L, uint64_t p, acb_poly_t c, acb_poly_t f, uint64_t pr
   acb_t tmp;
   acb_init(tmp);
   //if(p==2) {printf("p=%" PRIu64 " 1/poly=",p);acb_poly_printd(c,20);printf("\npoly=");acb_poly_printd(f,20);printf("\n");}
-  wf(L,p,c,f,prec); // do the Buthe bit, see buthe.c
+  wf(L, p, c, f, prec); // do the Buthe bit, see buthe.c
   // use inverted poly to populate Dirichlet coefficients
-  uint64_t pnn=p*p,pn=p,pow=1;
-  while(pn<=L->M)
-    {
-      acb_poly_get_coeff_acb(tmp,c,pow);
-      uint64_t ptr=pn,count=1;
-      while(ptr<=L->M)
-	{
-	  if(count<p) // its not a higher prime power
-	    {
-	      acb_mul(L->ans[ptr-1],L->ans[ptr-1],tmp,prec);
-	      count++;
-	      ptr+=pn;
-	    }
-	  else // it is higher prime power, so skip it
-	    {
-	      ptr+=pn;
-	      count=1;
-	    }
-	}
-      pn*=p;
-      pnn*=p;
-      pow++;
+  uint64_t pnn=p*p, pn=p,pow=1;
+  while(pn<=L->M) {
+    acb_poly_get_coeff_acb(tmp, c, pow);
+    uint64_t ptr = pn, count = 1;
+    while(ptr<=L->M) {
+      if(count<p) {// its not a higher prime power
+        acb_mul(L->ans[ptr-1], L->ans[ptr-1], tmp, prec);
+        count++;
+        ptr += pn;
+      } else {// it is higher prime power, so skip it
+        ptr += pn;
+        count = 1;
+      }
     }
+    pn *= p;
+    pnn *= p;
+    pow++;
+  }
   acb_clear(tmp);
 }
 
