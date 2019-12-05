@@ -78,9 +78,19 @@ extern "C"{
    *  - degree, the degree of the L-function
    *  - conductor, the conductor of the L-function
    *  - normalisation, the shift on s axis to go from the algebraic normalization to the analytic one, i.e., if an is the Dirichlet in the algebraic normalization, then an/n^{normalisation} is the Dirichlet coefficient of in the analytic normalization
-   *  - mus, the shifts of Gamma_R
-   *    Note: mu[i] + normalisation must be half integers
+   *  - mus, the shifts of Gamma_R, mu[i] + normalisation must be half integers
    *  - ecode, where we keep track of errors and warnings
+   *
+   *  Example:
+   *    - EC/Q:
+   *        mus = [0, 1] and normalisation = 0.5
+   *      or
+   *        mus = [0.5, 1.5] and normalisation = 0.5
+   *
+   *    - Classical modular form of weight 13
+   *        mus = [0, 1] and normalisation = 12.5
+   *      or
+   *        mus = [12.5, 13.5] and normalisation = 0
    */
   Lfunc_t Lfunc_init(uint64_t degree, uint64_t conductor, double normalisation, const double *mus, Lerror_t *ecode);
   // do the same but with more control
