@@ -95,11 +95,11 @@ void use_inv_lpoly(Lfunc *L, uint64_t p, acb_poly_t c, acb_poly_t f, uint64_t pr
   wf(L, p, c, f, prec); // do the Buthe bit, see buthe.c
   // use inverted poly to populate Dirichlet coefficients
   uint64_t pnn=p*p, pn=p,pow=1;
-  while(pn<=L->M) {
+  while(pn <= L->M) {
     acb_poly_get_coeff_acb(tmp, c, pow);
     uint64_t ptr = pn, count = 1;
-    while(ptr<=L->M) {
-      if(count<p) {// its not a higher prime power
+    while(ptr <= L->M) {
+      if(count < p) {// its not a higher prime power
         acb_mul(L->ans[ptr-1], L->ans[ptr-1], tmp, prec);
         count++;
         ptr += pn;
