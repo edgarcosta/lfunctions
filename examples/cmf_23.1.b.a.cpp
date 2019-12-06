@@ -70,6 +70,7 @@ Z-plot in [0, 10]:
 #include <flint/fmpzxx.h>
 #include <acb_poly.h>
 #include "glfunc.h"
+#include "examples_tools.h"
 
 using flint::fmpzxx;
 using std::cout;
@@ -129,34 +130,7 @@ void lpoly_callback(acb_poly_t poly, uint64_t p, int d __attribute__((unused)), 
   }
 }
 
-template<class T>
-ostream& operator<<(ostream& s, const vector<T>& a)
-{
-  size_t n = a.size();
-  s <<"[";
-  for(size_t i = 0; i < n; ++i) {
-    s << a[i];
-    if(i < n - 1) s<<", ";
-  }
-  s << "]";
-  return s;
-}
 
-// retuns the interval [a*2^e, b*2^e] as [a, b, e]
-ostream& operator<<(ostream& s, const arb_t x) {
-  vector<fmpzxx> tmp(3);
-  fmpzxx &a = tmp[0];
-  fmpzxx &b = tmp[1];
-  fmpzxx &e = tmp[2];
-  arb_get_interval_fmpz_2exp(a._fmpz(), b._fmpz(), e._fmpz(), x);
-  s << tmp;
-  return s;
-}
-
-ostream& operator<<(ostream &s, const acb_t z) {
-  s << "[" << acb_realref(z) <<", "<< acb_imagref(z) << "]";
-  return s;
-}
 
 
 int main ()
@@ -203,7 +177,7 @@ int main ()
 
   acb_t ctmp;
   acb_init(ctmp);
-  ecode|=Lfunc_special_value(ctmp, L,1.0,0.0);
+  ecode|=Lfunc_special_value(ctmp, L, 1.0, 0.0);
   if(fatal_error(ecode)) {
     fprint_errors(stderr,ecode);
     std::abort();
