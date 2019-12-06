@@ -137,8 +137,6 @@ istream & operator>>(istream &is, curve &o)
       case 3:
         if(!(ss >> o.bad_factors))
           throw_line("bad input for bad local factors"s);
-        for(auto &elt : o.bad_factors){
-          cout << elt.first <<" : "<< elt.second <<endl;
         }
         break;
       default:
@@ -210,10 +208,6 @@ int smalljac_callback(
   }
   Lfunc_use_lpoly(C->L, q, local_factor);
   acb_poly_clear(local_factor);
-  if(q < 20) {
-    print(q);
-    print(local_factor_zz);
-  }
   return int(local_factor_zz.size()) - 1;
 }
 
