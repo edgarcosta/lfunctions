@@ -11,6 +11,8 @@ GMP_DIR="" #"/usr/local"
 PRIMESIEVE_DIR="" #"/usr/local"
 ARB_DIR="" #"/usr/local"
 MPFR_DIR="" #"/usr/local"
+SMALLJAC_DIR="" #"/usr/local"
+FF_POLY_DIR="" #"/usr/local"
 
 if [  -z ${CC+word} ]; then
     CC="gcc"
@@ -23,6 +25,7 @@ fi;
 LIBS="m"
 ASSERT=1
 GDB=1
+FLAGS=""
 
 
 # disable unnecessary libs and options
@@ -32,6 +35,8 @@ unset PREFIX
 #unset PRIMESIEVE_DIR
 #unset ARB_DIR
 #unset MPFR_DIR
+#unset SMALLJAC_DIR
+#unset FF_POLY_DIR
 #CC=""
 #CXX=""
 
@@ -67,6 +72,14 @@ usage()
 
     if [ ! -z ${MPFR_DIR+word} ]; then
         echo "     --with-mpfr=<path>    Specify location of MPFR (default: $MPFR_DIR)"
+    fi;
+
+    if [ ! -z ${FF_POLY_DIR+word} ]; then
+        echo "     --with-ff_poly=<path>    Specify location of FF_POLY (optional, only required for examples) (default: $FF_POLY_DIR)"
+    fi;
+
+    if [ ! -z ${SMALLJAC_DIR+word} ]; then
+        echo "     --with-smalljac=<path>    Specify location of SMALLJAC (optional, only required for examples) (default: $SMALLJAC_DIR)"
     fi;
 
     if [ -n "$CC" ]; then
@@ -128,6 +141,16 @@ while [ "$1" != "" ]; do
         --with-mpfr)
             if [ ! -z ${MPFR_DIR+word} ]; then
                 MPFR_DIR=$(absolute_path "$VALUE")
+            fi
+            ;;
+        --with-ff_poly)
+            if [ ! -z ${FF_POLY_DIR+word} ]; then
+                FF_POLY_DIR=$(absolute_path "$VALUE")
+            fi
+            ;;
+        --with-smalljac)
+            if [ ! -z ${SMALLJAC_DIR+word} ]; then
+                SMALLJAC_DIR=$(absolute_path "$VALUE")
             fi
             ;;
         --prefix)
@@ -203,14 +226,13 @@ if [ -n "${GMP_DIR}" ]; then
        echo "Invalid GMP directory"
        exit 1
     fi
-
-
     LIB_DIRS="${LIB_DIRS} ${GMP_LIB_DIR}"
     INC_DIRS="${INC_DIRS} ${GMP_INC_DIR}"
 fi;
 if [ ! -z ${GMP_DIR+word} ]; then
     LIBS="${LIBS} gmp gmpxx"
 fi;
+
 
 if [ -n "${ARB_DIR}" ]; then
     if [ -d "${ARB_DIR}/lib" ]; then
@@ -286,6 +308,79 @@ if [ ! -z ${MPFR_DIR+word} ]; then
 fi;
 
 
+OPTIONAL_LIB_DIRS=""
+OPTIONAL_INC_DIRS=""
+OPTIONAL_LIBS=""
+
+if [ -n "${FF_POLY_DIR}" ]; then
+    if [ -d "${FF_POLY_DIR}/lib" ]; then
+       FF_POLY_LIB_DIR="${FF_POLY_DIR}/lib"
+       FF_POLY_INC_DIR="${FF_POLY_DIR}/include"
+    elif [ -d "${FF_POLY_DIR}/lib64" ]; then
+       FF_POLY_LIB_DIR="${FF_POLY_DIR}/lib64"
+       FF_POLY_INC_DIR="${FF_POLY_DIR}/include"
+    elif [ -d "${FF_POLY_DIR}/.libs" ]; then
+       FF_POLY_LIB_DIR="${FF_POLY_DIR}/.libs"
+       FF_POLY_INC_DIR="${FF_POLY_DIR}"
+    elif [ -d "${FF_POLY_DIR}/src/.libs" ]; then
+       FF_POLY_LIB_DIR="${FF_POLY_DIR}/src/.libs"
+       FF_POLY_INC_DIR="${FF_POLY_DIR}/src"
+    else
+       echo "Invalid FF_POLY directory"
+       exit 1
+    fi
+    OPTIONAL_LIB_DIRS="${OPTIONAL_LIB_DIRS} ${FF_POLY_LIB_DIR}"
+    OPTIONAL_INC_DIRS="${OPTIONAL_INC_DIRS} ${FF_POLY_INC_DIR}"
+fi;
+
+if [ ! -z ${FF_POLY_DIR+word} ]; then
+    OPTIONAL_LIBS="${OPTIONAL_LIBS} ff_poly"
+fi;
+if [ -n "${SMALLJAC_DIR}" ]; then
+    if [ -d "${SMALLJAC_DIR}/lib" ]; then
+       SMALLJAC_LIB_DIR="${SMALLJAC_DIR}/lib"
+       SMALLJAC_INC_DIR="${SMALLJAC_DIR}/include"
+    elif [ -d "${SMALLJAC_DIR}/lib64" ]; then
+       SMALLJAC_LIB_DIR="${SMALLJAC_DIR}/lib64"
+       SMALLJAC_INC_DIR="${SMALLJAC_DIR}/include"
+    elif [ -d "${SMALLJAC_DIR}/.libs" ]; then
+       SMALLJAC_LIB_DIR="${SMALLJAC_DIR}/.libs"
+       SMALLJAC_INC_DIR="${SMALLJAC_DIR}"
+    elif [ -d "${SMALLJAC_DIR}/src/.libs" ]; then
+       SMALLJAC_LIB_DIR="${SMALLJAC_DIR}/src/.libs"
+       SMALLJAC_INC_DIR="${SMALLJAC_DIR}/src"
+    else
+       echo "Invalid SMALLJAC directory"
+       exit 1
+    fi
+    OPTIONAL_LIB_DIRS="${OPTIONAL_LIB_DIRS} ${SMALLJAC_LIB_DIR}"
+    OPTIONAL_INC_DIRS="${OPTIONAL_INC_DIRS} ${SMALLJAC_INC_DIR}"
+fi;
+if [ ! -z ${SMALLJAC_DIR+word} ]; then
+    OPTIONAL_LIBS="${OPTIONAL_LIBS} smalljac"
+fi;
+
+
+OPTIONAL_LLIBS=""
+for LIB_DIR in ${OPTIONAL_LIB_DIRS}; do
+   OPTIONAL_LLIBS="${OPTIONAL_LLIBS} -L${LIB_DIR}"
+done
+OPTIONAL_lLIBS=""
+for LIB in ${OPTIONAL_LIBS}; do
+   OPTIONAL_lLIBS="${OPTIONAL_lLIBS} -l${LIB}"
+done
+echo "int main(){}" | gcc -o /dev/null -x c - $OPTIONAL_LLIBS $OPTIONAL_lLIBS
+if [ $? ]; then
+  echo "smalljac linking enabled"
+  LIBS="$LIBS $OPTIONAL_LIBS"
+  LIB_DIRS="$LIB_DIRS $OPTIONAL_LIB_DIRS"
+  INC_DIRS="$INC_DIRS $OPTIONAL_INC_DIRS"
+else
+  echo "smalljac linking disabled"
+  FLAGS="$FLAGS -DNOSMALLJAC"
+fi
+
+
 
 # include paths
 
@@ -297,7 +392,7 @@ done
 # library paths
 
 LLIBS="-L\$(CURDIR)"
-for LIB_DIR in ${LIB_DIRS} ${EXTRA_LIB_DIRS}; do
+for LIB_DIR in ${LIB_DIRS}; do
    LLIBS="${LLIBS} -L${LIB_DIR}"
 done
 
@@ -319,7 +414,7 @@ if [ $OS = "Linux" ]; then
 fi
 
 #defaults for CFLAGS
-FLAGS="-pedantic -Wall -Wextra -O2 -funroll-loops -fPIC"
+FLAGS="$FLAGS -pedantic -Wall -Wextra -O2 -funroll-loops -fPIC"
 if [ "$GDB" = "1" ]; then
     FLAGS="${FLAGS} -g";
 fi
