@@ -288,6 +288,13 @@ Lerror_t Lfunc_compute(Lfunc_t Lf)
 
   Lfunc *L=(Lfunc *) Lf;
 
+  if(verbose) {
+    for(int i=0;i<20;i++) {
+      printf("Coefficient %" PRIu64 " set to ",i+1);
+      acb_printd(L->ans[i],20);printf("\n");
+    }
+  }
+
   int64_t prec=L->wprec;
 
   buthe_Wf_error(L); // add the error for the missing tail
