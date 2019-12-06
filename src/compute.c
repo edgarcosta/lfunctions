@@ -287,6 +287,7 @@ Lerror_t Lfunc_compute(Lfunc_t Lf)
   }
 
   Lfunc *L=(Lfunc *) Lf;
+
   int64_t prec=L->wprec;
 
   buthe_Wf_error(L); // add the error for the missing tail
