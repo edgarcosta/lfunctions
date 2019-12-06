@@ -108,7 +108,7 @@ extern "C"{
   Lerror_t Lfunc_use_all_lpolys(Lfunc_t L, void (*lpoly_callback) (acb_poly_t lpoly, uint64_t p, int d, int64_t prec, void *parm), void *param);
 
   // you provide one Euler polynomial at a time
-  void Lfunc_use_lpoly(Lfunc_t L, uint64_t p, const acb_poly_t poly); 
+  void Lfunc_use_lpoly(Lfunc_t L, uint64_t p, const acb_poly_t poly);
 
   // Once all polys have been provided, do the computation
   Lerror_t Lfunc_compute(Lfunc_t L);
