@@ -137,7 +137,6 @@ istream & operator>>(istream &is, curve &o)
       case 3:
         if(!(ss >> o.bad_factors))
           throw_line("bad input for bad local factors"s);
-        }
         break;
       default:
         throw_line("too many fields in the line!"s);
@@ -208,12 +207,13 @@ int smalljac_callback(
   }
   Lfunc_use_lpoly(C->L, q, local_factor);
   acb_poly_clear(local_factor);
-  return int(local_factor_zz.size()) - 1;
+  return true;
 }
 
 // what does this return?
 long populate_local_factors(curve &C) {
-  return smalljac_Lpolys(C.sj_curve, 0, Lfunc_nmax(C.L), 0, &smalljac_callback, &C);
+  print(Lfunc_nmax(C.L));
+  return smalljac_Lpolys(C.sj_curve, 1, Lfunc_nmax(C.L), 0, smalljac_callback, &C);
 }
 
 
