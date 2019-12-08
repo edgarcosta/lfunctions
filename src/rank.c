@@ -68,18 +68,17 @@ extern "C"{
   }
 
 
-  // compute Lambda^(d)(1/2)
-  // assumes Lambda^(k)(1/2)=0 for all k in [0,d-1]
   /*
-   * Set
-   *  W(z) = Lambda(1/2 + i z) exp(...)
-   *  W^(d)(0) can be approximated by
+   * computes W^(d)(0)
+   * where W(z) = Lambda(1/2 + i z) exp(...)
+   * by computing
    *  (pi A)^d \sum |k| <= H W(k/A) sinc^(d)(-pi k)
+   * assumes W^(d)(0)=0 for all k in [0,d-1] // EC: Only assumes for d = 0, no?
   */
   bool df_zero(arb_t res, uint64_t d, Lfunc *L, int64_t prec) {
     static int64_t init_prec=0;
     static bool init=false;
-    static arb_t a_pi_d[MAX_L+1], d_bang_pi[MAX_L+1], tmp, tmp1, an,term;
+    static arb_t a_pi_d[MAX_L+1], d_bang_pi[MAX_L+1], tmp, tmp1, an, term;
     if(!init)
     {
       init=true;
@@ -87,11 +86,12 @@ extern "C"{
       arb_init(tmp1);
       arb_init(term);
       arb_init(an);
-      for(uint64_t i=0;i<=MAX_L;i++)
-      {arb_init(a_pi_d[i]);arb_init(d_bang_pi[i]);}
+      for(uint64_t i=0;i<=MAX_L;i++) {
+        arb_init(a_pi_d[i]);
+        arb_init(d_bang_pi[i]);
+      }
     }
-    if(prec>init_prec) // precision has increased
-    {
+    if(prec > init_prec) { // precision has increased
       init_prec=prec;
       // a_pi_d[i] = (pi A)^i
       arb_set_ui(a_pi_d[0],1);
@@ -118,8 +118,7 @@ extern "C"{
     }
     // do the n=0 term. We know L(1/2)=0
     arb_zero(res);
-    for(uint64_t n = 1; n <= L->u_N; ++n)
-    {
+    for(int64_t n = 1; n <= L->u_N; ++n) {
       /*
        * Sinc(d)(t) = \sum_{i = 0}^d binomial(d,i) Sin^(i)(t) (1/t)^(d - i)
        *
@@ -188,7 +187,7 @@ extern "C"{
       //term  = sinc^(d)(-n Pi)
       if(d%2 == 0) // if d even, sinc^(d)(-n Pi) = sinc^(d)(n Pi)
         arb_neg(term, term);
-      // printf("term(%" PRIu64 ",%" PRIu64 ") = ",n,d);arb_printd(term,10);printf("\n");
+      // if(n < 10) printf("term(%" PRIu64 ",%" PRIu64 ") = ",n,d);arb_printd(term,20);printf("\n");
       // term = -sinc^(d)(n Pi) * (A pi)^d
       arb_mul(term, term, a_pi_d[d] ,prec);
       // tmp = exp(Pi*r*n/(4*A)-Pi*n^2/A^2H^2)
@@ -197,10 +196,11 @@ extern "C"{
       arb_mul(tmp1, term, tmp, prec);
       // res = -Lambda(n/A) * sinc^(d)(n Pi) * (A pi)^d * exp(Pi*r*n/(4*A)-Pi*n^2/A^2H^2)
       //     = -W(n/A) * sinc^(d)(n Pi) * (A pi)^d
-      arb_mul(tmp, L->u_values_off[0][n*L->u_stride], tmp1,prec); // * Lambda(n/A)
+      arb_mul(tmp, L->u_values_off[0][n*L->u_stride], tmp1, prec); // * Lambda(n/A)
       arb_add(res, res,tmp,prec);
       // tmp = -W(-n/A) * sinc^(d)(n Pi) * (A pi)^d
-      arb_mul(tmp, L->u_values_off[0][-n*L->u_stride], tmp1,prec); // * Lambda(-n/A)
+      arb_mul(tmp, L->u_values_off[0][-n*L->u_stride], tmp1, prec); // * Lambda(-n/A)
+
       if(d&1) // if d odd, sinc^(d)(-n Pi) = - sinc^(d)(n Pi)
         // tmp = -W(-n/A) * sinc^(d)(-n Pi) * (A pi)^d
         arb_neg(tmp,tmp);
