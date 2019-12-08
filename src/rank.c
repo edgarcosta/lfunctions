@@ -70,6 +70,12 @@ extern "C"{
 
   // compute Lambda^(d)(1/2)
   // assumes Lambda^(k)(1/2)=0 for all k in [0,d-1]
+  /*
+   * Set
+   *  W(z) = Lambda(1/2 + i z) exp(...)
+   *  W^(d)(0) can be approximated by
+   *  (pi A)^d \sum |k| <= H W(k/A) sinc^(d)(-pi k)
+  */
   bool df_zero(arb_t res, uint64_t d, Lfunc *L, int64_t prec) {
     static int64_t init_prec=0;
     static bool init=false;
@@ -87,45 +93,88 @@ extern "C"{
     if(prec>init_prec) // precision has increased
     {
       init_prec=prec;
+      // a_pi_d[i] = (pi A)^i
       arb_set_ui(a_pi_d[0],1);
       arb_set(a_pi_d[1],L->u_pi_A);
       for(uint64_t i=2;i<=MAX_L;i++)
         arb_mul(a_pi_d[i],a_pi_d[i-1],L->u_pi_A,prec);
+      // d_bang_pi[i] = i!/Pi^i
       arb_set_ui(d_bang_pi[0],1);
-      arb_inv(d_bang_pi[1],L->pi,prec); // d!/Pi^d
-      for(uint64_t i=2;i<=MAX_L;i++)
-      {
-        arb_mul_ui(d_bang_pi[i],d_bang_pi[i-1],i,prec);
+      arb_inv(d_bang_pi[1],L->pi,prec); // 1/Pi
+      for(uint64_t i=2;i<=MAX_L;i++) {
+        // i!/Pi^i = (i-1)!/Pi^(i-1) * i / Pi
+        arb_mul_ui(d_bang_pi[i], d_bang_pi[i-1], i,prec);
         arb_div(d_bang_pi[i],d_bang_pi[i],L->pi,prec);
       }
     }
 
-    if(d>MAX_L) {
+    if(d > MAX_L) {
       printf("Can't compute F^(d)(0) for d>%d.\n",MAX_L);
       return false;
     }
-    if(d==0)
-    {
+    if(d==0) {
       arb_set(res,L->u_values_off[0][0]);
       return true;
     }
     // do the n=0 term. We know L(1/2)=0
     arb_zero(res);
-    for(uint64_t n = 1; n <= L->u_N; n++)
+    for(uint64_t n = 1; n <= L->u_N; ++n)
     {
-      arb_set_ui(an,n);
+      /*
+       * Sinc(d)(t) = \sum_{i = 0}^d binomial(d,i) Sin^(i)(t) (1/t)^(d - i)
+       *
+       * Sin^(i)(t) = | (-1)^(i/2) Sin(t),     if i%2 ==0
+       *              | (-1)^((i-1)/2) Cos(t), if i%2 ==1
+       * thus Sin^(i)(n Pi) = (-1)^n Sin(i Pi/2)
+       *                    = | (-1)^(n + (i-1)/2) if i%2 == 1
+       *                      | 0 if i%2
+       *
+       * (1/t)^(i) = (-1)^(i) t^(-1 - i) i!
+       *
+       * thus, the sum simplifies to
+       *   (-1)^(n + d) \sum_{i=1; i <= d; i+=2}
+       *                    (-1)^((i+1)/2) d! / i!  1/(n Pi)^(d + i - i)
+       */
+
+      /* an alternative for loop to compute sinc^(d)(n Pi)
+      arb_set_ui(an, n);
       arb_zero(term);
-      bool neg_me;
-      if(n&1)
+      if((n + d + 1)&1) // deals with (-1)^(n + d)
         neg_me=false;
       else
         neg_me=true;
-      for(int64_t D=d;D>0;D-=2)
-      {
-        arb_pow_ui(tmp,an,D,prec);
-        arb_div(tmp1,d_bang_pi[D],tmp,prec); // D!/(Pi n)^D
-        if(neg_me)
-        {
+      for(size_t i = 0; i <= d; i+=2) {
+        arb_mul(tmp, an, L->pi, prec);
+        arb_pow_ui(tmp1, tmp, d + i - i, prec);
+        // tmp1 = (n Pi)^(d + i - i)
+        //assert(d <= 20);
+        uint64_t di = 1;
+        for(size_t j = i + 1; j <= d; ++j)
+          di *= j;
+        arb_set_ui(tmp, di); // d!/i!
+        arb_div(tmp, tmp, tmp1, prec);
+        if(neg_me) {
+          arb_sub(term,term,tmp,prec);
+          neg_me=false;
+        } else {
+          arb_add(term,term,tmp,prec);
+          neg_me=true;
+        }
+      }
+      printf("term(%" PRIu64 ",%" PRIu64 ") = ",n,d);arb_printd(term,10);printf("\n");
+      */
+      bool neg_me;
+      arb_set_ui(an, n);
+      arb_zero(term);
+      if(n&1) // deals with (-1)^n
+        neg_me=false;
+      else
+        neg_me=true;
+
+      for(int64_t D = d; D > 0; D -= 2) {
+        arb_pow_ui(tmp, an, D, prec);
+        arb_div(tmp1, d_bang_pi[D], tmp, prec); // D!/(Pi n)^D
+        if(neg_me) {
           arb_sub(term,term,tmp1,prec);
           neg_me=false;
         }
@@ -134,18 +183,30 @@ extern "C"{
           arb_add(term,term,tmp1,prec);
           neg_me=true;
         }
+        //term  = -sinc^(d)(n Pi)
       }
-      arb_mul(term,term,a_pi_d[d],prec); // * (A pi)^d
-      //printf("term(%" PRIu64 ",%" PRIu64 ") = ",n,d);arb_printd(term,10);printf("\n");
-      exp_term(tmp,n,L,prec); // n/A = z, t0=0
-      arb_mul(tmp1,term,tmp,prec); // (A Pi)^d * exp(Pi*r*n/(4*A)-Pi*n^2/A^2H^2)
-      arb_mul(tmp,L->u_values_off[0][n*L->u_stride],tmp1,prec); // * Lambda(n/A)
-      arb_add(res,res,tmp,prec);
-      arb_mul(tmp,L->u_values_off[0][-n*L->u_stride],tmp1,prec); // * Lambda(-n/A)
-      if(d&1)
+      //term  = sinc^(d)(-n Pi)
+      if(d%2 == 0) // if d even, sinc^(d)(-n Pi) = sinc^(d)(n Pi)
+        arb_neg(term, term);
+      // printf("term(%" PRIu64 ",%" PRIu64 ") = ",n,d);arb_printd(term,10);printf("\n");
+      // term = -sinc^(d)(n Pi) * (A pi)^d
+      arb_mul(term, term, a_pi_d[d] ,prec);
+      // tmp = exp(Pi*r*n/(4*A)-Pi*n^2/A^2H^2)
+      exp_term(tmp, n, L, prec); // n/A = z, t0=0
+      // tmp1 =  -sinc^(d)(n Pi) * (A pi)^d * exp(Pi*r*n/(4*A)-Pi*n^2/A^2H^2)
+      arb_mul(tmp1, term, tmp, prec);
+      // res = -Lambda(n/A) * sinc^(d)(n Pi) * (A pi)^d * exp(Pi*r*n/(4*A)-Pi*n^2/A^2H^2)
+      //     = -W(n/A) * sinc^(d)(n Pi) * (A pi)^d
+      arb_mul(tmp, L->u_values_off[0][n*L->u_stride], tmp1,prec); // * Lambda(n/A)
+      arb_add(res, res,tmp,prec);
+      // tmp = -W(-n/A) * sinc^(d)(n Pi) * (A pi)^d
+      arb_mul(tmp, L->u_values_off[0][-n*L->u_stride], tmp1,prec); // * Lambda(-n/A)
+      if(d&1) // if d odd, sinc^(d)(-n Pi) = - sinc^(d)(n Pi)
+        // tmp = -W(-n/A) * sinc^(d)(-n Pi) * (A pi)^d
         arb_neg(tmp,tmp);
       arb_add(res,res,tmp,prec);
     }
+    //  res = - \sum_{|k| < n} W(k/A) * sinc^(d)(-k Pi) * (A pi)^d
     arb_add_error(res,L->upsampling_error);
     return true;
   }
