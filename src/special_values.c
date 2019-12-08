@@ -53,7 +53,8 @@ extern "C"{
     }
     //printf("t0 = ");arb_printd(t0,20);printf("\n");
     arb_set_si(tmp,k);
-    arb_div(ka,tmp,A,prec); // k/A
+    // ka = // k/A
+    arb_div(ka,tmp,A,prec);
     arb_sub(tmp,ka,t0,prec);
     arb_mul(tmp1,tmp,tmp,prec);
     arb_mul(tmp,tmp1,pi_by_H2,prec); // -pi (k/A-t0)^2/h^2
@@ -61,6 +62,7 @@ extern "C"{
     arb_mul(tmp2,tmp1,L->pi,prec);
     arb_mul_2exp_si(tmp2,tmp2,-2); // pi r k/(4A)
     arb_add(tmp1,tmp,tmp2,prec);
+    // tmp = exp((k pi r)/(4 A) - (pi (k/A - t0)^2)/h^2)
     arb_exp(tmp,tmp1,prec);
     //printf("factor = ");arb_printd(tmp,20);printf("\n");
     if(k>=0)
@@ -277,7 +279,7 @@ extern "C"{
     while(true)
     {
       int64_t extra_bits=(int64_t)(M_PI*(dimz*dimz/(h*h)+fabs(dimz)*A)/M_LN2)+10;
-      if(verbose) 
+      if(verbose)
       {
         printf("h=%f extra_bits=%" PRId64 "\n", h, extra_bits);
         printf("arb_error now ");arb_printd(arb_err,20);printf("\n");
@@ -374,7 +376,7 @@ extern "C"{
     arb_clear(arb_err);
 
     return ecode;
-  }    
+  }
 
 #ifdef __cplusplus
 }
