@@ -370,7 +370,7 @@ for LIB in ${OPTIONAL_LIBS}; do
    OPTIONAL_lLIBS="${OPTIONAL_lLIBS} -l${LIB}"
 done
 echo "int main(){}" | gcc -o /dev/null -x c - $OPTIONAL_LLIBS $OPTIONAL_lLIBS
-if [ $? ]; then
+if [ $? = 0 ]; then
   echo "smalljac linking enabled"
   LIBS="$LIBS $OPTIONAL_LIBS"
   LIB_DIRS="$LIB_DIRS $OPTIONAL_LIB_DIRS"
