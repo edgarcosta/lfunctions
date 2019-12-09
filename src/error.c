@@ -43,6 +43,7 @@ void absQ(arb_t res, acb_t s, Lfunc *L, uint64_t conductor, uint64_t prec)
   acb_clear(tmp1);
 }
 
+// returns |Pi^(-s/2) Gamma[s/2]|
 void abs_gamma_r(arb_t res, acb_t s, Lfunc *L, uint64_t prec)
 {
   acb_t s_by_2,lg;
@@ -72,6 +73,7 @@ void abs_gamma_r(arb_t res, acb_t s, Lfunc *L, uint64_t prec)
 
 
 // |gamma(s)| per top col 2 pg 387 without N^1/2(s-1/2)
+// returns \prod |Gamma_R(s + u_j)|
 void abs_gamma(arb_t res, acb_t s, Lfunc *L, int64_t prec)
 {
   acb_t tmp1,tmp2,tmp3;
