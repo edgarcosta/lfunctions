@@ -885,6 +885,7 @@ int main (int argc, char**argv)
       //free memory
       artin_rep_clear(AR);
     }
+    flint_cleanup();
     return r;
   } catch( const std::exception & ex ) {
      cerr << "Uncaught exception: " <<ex.what() << endl;

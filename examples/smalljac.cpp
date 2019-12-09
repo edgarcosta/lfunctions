@@ -318,6 +318,7 @@ int main (int argc, char**argv)
       //free memory
       curve_clear(C);
     }
+    flint_cleanup();
     return r;
   } catch( const std::exception & ex ) {
      cerr << "Uncaught exception: " <<ex.what() << endl;
