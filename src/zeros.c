@@ -10,7 +10,7 @@ extern "C"{
 
 #define POS (1)
 #define NEG (2)
-#define UNK (3)  
+#define UNK (3)
 #define UP (1)
 #define DOWN (2)
 #define BOTH (3)
