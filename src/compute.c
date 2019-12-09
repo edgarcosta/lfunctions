@@ -271,7 +271,7 @@ void final_ifft(Lfunc *L)
 // the zeros up to height 112/degree
 // the (apparent) rank
 // epsilon and epsilon_sqr
-// Lambda^(rank)(1/2) 
+// Lambda^(rank)(1/2)
 // L^(rank)(1/2)/rank!
 Lerror_t Lfunc_compute(Lfunc_t Lf)
 {
@@ -302,7 +302,7 @@ Lerror_t Lfunc_compute(Lfunc_t Lf)
   if(verbose){printf("Buthe Wf = ");arb_printd(L->buthe_Wf,20);printf("\n");fflush(stdout);}
 
   // when we get here, the normalised L->M dirichlet coefficients are in L->ans[0]..[M-1]
-  // use the first M0 of them 
+  // use the first M0 of them
   arb_zero(L->sum_ans);
   for(uint64_t m=0;m<L->M0-1;m++) // we need to divide by sqrt(n) NOT a normalisation
   {
@@ -335,7 +335,7 @@ Lerror_t Lfunc_compute(Lfunc_t Lf)
     arb_set(tmp1,sks);
     for(uint64_t k=2;k<L->max_K;k++)
     {
-      arb_mul(tmp1,tmp1,sks,prec);		
+      arb_mul(tmp1,tmp1,sks,prec);
       acb_mul_arb(ctmp,L->ans[m],tmp1,prec);
       acb_add(L->skm[k][b],L->skm[k][b],ctmp,prec); // a_m/sqrt(m)(log(m/sqrt(N))-u_m)^k
     }
