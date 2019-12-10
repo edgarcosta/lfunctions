@@ -290,7 +290,7 @@ Lerror_t Lfunc_compute(Lfunc_t Lf)
 
   if(verbose) {
     for(int i = 0; i < 100; i++) {
-      printf("a[%" PRIu64 "] = ", i + 1);
+      printf("a[%d] = ", i + 1);
       acb_printd(L->ans[i], 20);
       printf("\n");
     }
