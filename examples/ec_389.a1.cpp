@@ -13,8 +13,7 @@
  * comparable to:
 Order of vanishing = 2
 Epsilon = (1 + 0j)  +/-  (4.13e-115, 9.09e-58j)
-First non-zero Taylor coeff = 0.76166049729152378659 +/- 2.1386e-51
-WRONG! The value should be 0.75931650028842677023019260789472201907809751649492435158580509...
+First non-zero Taylor coeff = 0.75931650028842677023 +/- 2.115e-51
 First 10 zeros
 Zero 0 = 2.8760990712604652018 +/- 3.9443e-31
 Zero 1 = 4.4168960836652578292 +/- 3.9443e-31
@@ -235,7 +234,12 @@ int main ()
   arb_printd(Lfunc_Taylor(L),DIGITS);
   printf("\n");
   if (RAW) cout<<"RAW: "<<Lfunc_Taylor(L) << endl;
-  printf("WRONG! The value should be 0.75931650028842677023019260789472201907809751649492435158580509...\n");
+  arb_t bsd;
+  char bsd_str[] = "0.759316500288426770230192607894722019078097516494924351585805092547991072747780552440215935002328859166877149206819857682526013110483564490284990627405";
+  arb_init(bsd);
+  arb_set_str(bsd, bsd_str, 400);
+  assert(arb_overlaps(Lfunc_Taylor(L), bsd));
+  arb_clear(bsd);
 
 
 

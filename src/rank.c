@@ -46,10 +46,10 @@ extern "C"{
   */
 
   // exp(Pi(r*n/(4*A)-n^2/(A^2*H^2)))
-  void exp_term(arb_t res,int64_t n,Lfunc *L,int64_t prec)
+  void exp_term(arb_t res, int64_t n, Lfunc *L, int64_t prec)
   {
     static bool init=false;
-    static arb_t tmp1,tmp2,tmp3;
+    static arb_t tmp1, tmp2, tmp3;
     if(!init)
     {
       init=true;
@@ -69,21 +69,21 @@ extern "C"{
 
 
   /*
-   * computes W^(d)(0)
+   * computes W^(d)(0) (= Lambda(d)(1/2) if W^(k)(0)=0 for all k in [0,d-1])
    * where W(z) = Lambda(1/2 + i z) exp(...)
    * by computing
    *  (pi A)^d \sum |k| <= H W(k/A) sinc^(d)(-pi k)
-   * assumes W^(d)(0)=0 for all k in [0,d-1] // EC: Only assumes for d = 0, no?
   */
   bool df_zero(arb_t res, uint64_t d, Lfunc *L, int64_t prec) {
     static int64_t init_prec=0;
     static bool init=false;
-    static arb_t a_pi_d[MAX_L+1], d_bang_pi[MAX_L+1], tmp, tmp1, an, term;
-    if(!init)
-    {
+    static arb_t a_pi_d[MAX_L+1], d_bang_pi[MAX_L+1], tmp, tmp1, tmp2, an, term;
+    bool neg_me;
+    if(!init) {
       init=true;
       arb_init(tmp);
       arb_init(tmp1);
+      arb_init(tmp2);
       arb_init(term);
       arb_init(an);
       for(uint64_t i=0;i<=MAX_L;i++) {
@@ -118,7 +118,7 @@ extern "C"{
     }
     // do the n=0 term. We know L(1/2)=0
     arb_zero(res);
-    for(int64_t n = 1; n <= L->u_N; ++n) {
+    for(int64_t n = 1; n <= (int64_t)L->u_N; ++n) {
       /*
        * Sinc(d)(t) = \sum_{i = 0}^d binomial(d,i) Sin^(i)(t) (1/t)^(d - i)
        *
@@ -134,8 +134,8 @@ extern "C"{
        *   (-1)^(n + d) \sum_{i=1; i <= d; i+=2}
        *                    (-1)^((i+1)/2) d! / i!  1/(n Pi)^(d + i - i)
        */
-
-      /* an alternative for loop to compute sinc^(d)(n Pi)
+      /*
+      // an alternative for loop to compute sinc^(d)(n Pi)
       arb_set_ui(an, n);
       arb_zero(term);
       if((n + d + 1)&1) // deals with (-1)^(n + d)
@@ -156,13 +156,14 @@ extern "C"{
           arb_sub(term,term,tmp,prec);
           neg_me=false;
         } else {
-          arb_add(term,term,tmp,prec);
+          arb_add(term,term, tmp, prec);
           neg_me=true;
         }
       }
-      printf("term(%" PRIu64 ",%" PRIu64 ") = ",n,d);arb_printd(term,10);printf("\n");
       */
-      bool neg_me;
+
+
+      //term  = -sinc^(d)( -n Pi)
       arb_set_ui(an, n);
       arb_zero(term);
       if(n&1) // deals with (-1)^n
@@ -182,32 +183,40 @@ extern "C"{
           arb_add(term,term,tmp1,prec);
           neg_me=true;
         }
-        //term  = -sinc^(d)(n Pi)
       }
-      //term  = sinc^(d)(-n Pi)
-      if(d%2 == 0) // if d even, sinc^(d)(-n Pi) = sinc^(d)(n Pi)
-        arb_neg(term, term);
-      // if(n < 10) printf("term(%" PRIu64 ",%" PRIu64 ") = ",n,d);arb_printd(term,20);printf("\n");
-      // term = -sinc^(d)(n Pi) * (A pi)^d
+      //printf("{%lld, ", n); arb_printn(term, 100, ARB_STR_NO_RADIUS);printf("}, \n");
+      // term = sinc^(d)(-n Pi) * (A pi)^d
       arb_mul(term, term, a_pi_d[d] ,prec);
-      // tmp = exp(Pi*r*n/(4*A)-Pi*n^2/A^2H^2)
-      exp_term(tmp, n, L, prec); // n/A = z, t0=0
-      // tmp1 =  -sinc^(d)(n Pi) * (A pi)^d * exp(Pi*r*n/(4*A)-Pi*n^2/A^2H^2)
-      arb_mul(tmp1, term, tmp, prec);
-      // res = -Lambda(n/A) * sinc^(d)(n Pi) * (A pi)^d * exp(Pi*r*n/(4*A)-Pi*n^2/A^2H^2)
-      //     = -W(n/A) * sinc^(d)(n Pi) * (A pi)^d
-      arb_mul(tmp, L->u_values_off[0][n*L->u_stride], tmp1, prec); // * Lambda(n/A)
-      arb_add(res, res,tmp,prec);
-      // tmp = -W(-n/A) * sinc^(d)(n Pi) * (A pi)^d
-      arb_mul(tmp, L->u_values_off[0][-n*L->u_stride], tmp1, prec); // * Lambda(-n/A)
 
-      if(d&1) // if d odd, sinc^(d)(-n Pi) = - sinc^(d)(n Pi)
-        // tmp = -W(-n/A) * sinc^(d)(-n Pi) * (A pi)^d
-        arb_neg(tmp,tmp);
-      arb_add(res,res,tmp,prec);
+      for(size_t sign = 0; sign < 2; ++sign) { //
+        int64_t k = (sign == 0) ? n : -n;
+        // tmp2 = sinc^(d)(-n Pi) * (A pi)^d
+        if(sign && d&1)
+          // if d odd, sinc^(d)(-n Pi) = - sinc^(d)(n Pi)
+          arb_neg(tmp2, term);
+        else
+          arb_set(tmp2, term);
+
+        // tmp = exp(Pi*r*k/(4*A)-Pi*k^2/A^2H^2)
+        exp_term(tmp, k, L, prec); // n/A = z, t0=0
+
+        // tmp1 =  sinc^(d)(-k Pi) * (A pi)^d * exp(Pi*r*k/(4*A)-Pi*k^2/A^2H^2)
+        arb_mul(tmp1, tmp2, tmp, prec);
+
+        // res += Lambda(k/A) * sinc^(d)(-k Pi) * (A pi)^d * exp(Pi*r*k/(4*A)-Pi*k^2/A^2H^2)
+        //      = W(k/A) * sinc^(d)(-k Pi) * (A pi)^d
+        arb_mul(tmp, L->u_values_off[0][k*L->u_stride], tmp1, prec); // * Lambda(n/A)
+        arb_add(res, res,tmp,prec);
+      }
+
     }
-    //  res = - \sum_{|k| < n} W(k/A) * sinc^(d)(-k Pi) * (A pi)^d
+    // res = \sum_{|k| < n} W(k/A) * sinc^(d)(-k Pi) * (A pi)^d
     arb_add_error(res,L->upsampling_error);
+    if(verbose) {
+      printf("W^(%lld)(0) ~ ", d);
+      arb_printd(res, 20);
+      printf("\n");
+    }
     return true;
   }
 
