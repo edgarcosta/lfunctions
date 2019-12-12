@@ -360,16 +360,16 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode)
   arb_init(L->sum_ans);
   acb_init(L->epsilon);
   acb_init(L->epsilon_sqr);
-  L->ans=(acb_t *)malloc(sizeof(acb_t)*8192);
+  L->allocated_M = 8192;
+  L->ans = (acb_t *)malloc(sizeof(acb_t)*L->allocated_M);
   if(!L->ans)
   {
     arb_clear(tmp);
     ecode[0]|=ERR_OOM;
     return (Lfunc_t) NULL;
   }
-  for(uint64_t i=0;i<8192;i++)
+  for(size_t i = 0; i < L->allocated_M; ++i)
     acb_init(L->ans[i]);
-  L->allocated_M=8192;
 
   arb_init(L->ftwiddle_error);
 
