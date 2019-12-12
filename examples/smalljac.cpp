@@ -214,7 +214,6 @@ int smalljac_callback(
 
 // what does this return?
 long populate_local_factors(curve &C) {
-  print(Lfunc_nmax(C.L));
   return smalljac_Lpolys(C.sj_curve, 1, Lfunc_nmax(C.L), 0, smalljac_callback, &C);
 }
 
