@@ -38,44 +38,44 @@ uint64_t Lfunc_nmax(Lfunc_t Lf)
   arb_zero(tmp1);
   uint64_t old_M=L->M;
   while(true)
-    {
-      L->M=(double)L->M/1.05;
-      M_error(tmp,tmp1,L,prec);
-      arb_mul_2exp_si(tmp,tmp,L->target_prec+75);
-      arb_sub_ui(tmp,tmp,1,prec);
-      if(!arb_is_negative(tmp))
-	break;
-      old_M=L->M;
-    }
+  {
+  L->M=(double)L->M/1.05;
+  M_error(tmp,tmp1,L,prec);
+  arb_mul_2exp_si(tmp,tmp,L->target_prec+75);
+  arb_sub_ui(tmp,tmp,1,prec);
+  if(!arb_is_negative(tmp))
+  break;
+  old_M=L->M;
+  }
   L->M=old_M;
   if(verbose)printf("M reduced to %" PRIu64 ".\n",L->M);
   */
 
   if(L->M>L->allocated_M)
-    {
-      //printf("Need more space for Dirichlet coefficients.\n");
-      for(uint64_t i=0;i<L->allocated_M;i++)
-	acb_clear(L->ans[i]);
-      while(L->allocated_M<L->M)
-	{
-	  L->allocated_M<<=1;
-	  if(L->allocated_M==0) // L->M was huge!
-	    L->allocated_M=L->M;
-	}
-      L->ans=(acb_t *)realloc(L->ans,sizeof(acb_t)*L->allocated_M);
-      if(!L->ans)
-	{
-	  printf("Attempt to (re-)allocate memory for Dirichlet coefficients failed. Exiting.\n");
-	  exit(0);
-	}
-      for(uint64_t i=0;i<L->allocated_M;i++)
-	  acb_init(L->ans[i]);
+  {
+    //printf("Need more space for Dirichlet coefficients.\n");
+    for(size_t i = 0; i < L->allocated_M; ++i)
+      acb_clear(L->ans[i]);
 
-      //printf("re-allocated enough memory for Dirichlet coefficients.\n");
+    while(L->allocated_M < L->M) {
+      L->allocated_M<<=1;
+      if(L->allocated_M == 0) // L->M was huge!
+        L->allocated_M = L->M;
     }
+    L->ans=(acb_t *)realloc(L->ans,sizeof(acb_t)*L->allocated_M);
+    if(!L->ans)
+    {
+      printf("Attempt to (re-)allocate memory for Dirichlet coefficients failed. Exiting.\n");
+      exit(0);
+    }
+    for(size_t i = 0; i < L->allocated_M; ++i)
+      acb_init(L->ans[i]);
 
-  for(uint64_t m=0;m<=L->M;m++)
-    acb_set_ui(L->ans[m],1);
+    //printf("re-allocated enough memory for Dirichlet coefficients.\n");
+  }
+
+  for(size_t i = 0; i < L->M; ++i)
+    acb_set_ui(L->ans[i],1);
 
   arb_zero(L->buthe_Wf);
   L->buthe_M=sqrt((double) L->M);
@@ -132,14 +132,14 @@ void use_lpoly(Lfunc *L, uint64_t p, const acb_poly_t f)
   // normalise by multiplying each term by p^(-m norm)
   acb_poly_one(n_poly);
   for(int64_t m=1;m<acb_poly_length(f);m++)
-    {
-      arb_set_d(tmp1,-L->normalisation);
-      arb_mul(tmp2,tmp1,logp,prec);
-      arb_mul_ui(tmp1,tmp2,m,prec);
-      arb_exp(tmp2,tmp1,prec);
-      acb_mul_arb(tmp,acb_poly_get_coeff_ptr(f,m),tmp2,prec);
-      acb_poly_set_coeff_acb(n_poly,m,tmp);
-    }
+  {
+    arb_set_d(tmp1,-L->normalisation);
+    arb_mul(tmp2,tmp1,logp,prec);
+    arb_mul_ui(tmp1,tmp2,m,prec);
+    arb_exp(tmp2,tmp1,prec);
+    acb_mul_arb(tmp,acb_poly_get_coeff_ptr(f,m),tmp2,prec);
+    acb_poly_set_coeff_acb(n_poly,m,tmp);
+  }
   //if(p<=11){printf("in use_lpoly post-norm with p = %" PRIu64 "\n",p);acb_poly_printd(n_poly,20);printf("\n");}
   uint64_t k=1,pk=p;
   while(pk<=L->M) {k++;pk*=p;}
@@ -158,67 +158,67 @@ void use_lpoly(Lfunc *L, uint64_t p, const acb_poly_t f)
 
 }
 
-  void Lfunc_use_lpoly(Lfunc_t Lf, uint64_t p, const acb_poly_t poly)
-  {
-    Lfunc *L;
-    L=(Lfunc *)Lf;
-    use_lpoly(L,p,poly);
-  }
+void Lfunc_use_lpoly(Lfunc_t Lf, uint64_t p, const acb_poly_t poly)
+{
+  Lfunc *L;
+  L=(Lfunc *)Lf;
+  use_lpoly(L,p,poly);
+}
 
 
 
 // call lpoly_callback with every prime <=L->M
 // so we can populate ans, the Dirichlet coefficients
 Lerror_t Lfunc_use_all_lpolys(Lfunc_t Lf, void (*lpoly_callback) (acb_poly_t lpoly, uint64_t p, int d, int64_t prec, void *parm), void *param)
+{
+  Lfunc *L;
+  L=(Lfunc *)Lf;
+  if(!L->nmax_called)
   {
-    Lfunc *L;
-    L=(Lfunc *)Lf;
-    if(!L->nmax_called)
-      {
-	L->M=Lfunc_nmax(Lf);
-	L->nmax_called=true;
-      }
-
-    acb_poly_t lp;
-    acb_poly_init(lp);
-    primesieve_iterator it;
-    primesieve_init(&it);
-    uint64_t p=0;
-    Lerror_t ecode=ERR_SUCCESS;
-    while((p=primesieve_next_prime(&it)) <= L->M)
-      {
-	lpoly_callback(lp,p,L->degree,L->wprec,param);
-	if(acb_poly_is_zero(lp)) // ran out of Euler polys
-	  {
-	    if(p<L->buthe_M)
-	      L->buthe_M=p-1; // this is likely to mean we compute garbage
-	    L->M=p-1; // we might get away with this
-	    ecode|=ERR_INSUFF_EULER;
-	    break;
-	  }
-	use_lpoly(L,p,lp);
-      }
-
-    //for(i=0;i<20;i++)
-    //{printf("Coefficient %" PRIu64 " set to ",i+1);acb_printd(L->ans[i],20);printf("\n");}
-
-    primesieve_free_iterator(&it);
-    acb_poly_clear(lp);
-    return ecode;
+    L->M=Lfunc_nmax(Lf);
+    L->nmax_called=true;
   }
 
-  bool Lfunc_reduce_nmax(Lfunc_t LL, uint64_t nmax)
+  acb_poly_t lp;
+  acb_poly_init(lp);
+  primesieve_iterator it;
+  primesieve_init(&it);
+  uint64_t p=0;
+  Lerror_t ecode=ERR_SUCCESS;
+  while((p=primesieve_next_prime(&it)) <= L->M)
   {
-    Lfunc *L=(Lfunc *)LL;
-    uint64_t M;
-    M=Lfunc_nmax(LL); // what is the current M
-    if(nmax>=M) // I won't let you increase it
-      return false;
-    L->M=nmax;
-    if(L->buthe_M>nmax) // we could be in serious trouble here
-      L->buthe_M=nmax;
-    return true;
+    lpoly_callback(lp,p,L->degree,L->wprec,param);
+    if(acb_poly_is_zero(lp)) // ran out of Euler polys
+    {
+      if(p<L->buthe_M)
+        L->buthe_M=p-1; // this is likely to mean we compute garbage
+      L->M=p-1; // we might get away with this
+      ecode|=ERR_INSUFF_EULER;
+      break;
+    }
+    use_lpoly(L,p,lp);
   }
+
+  //for(i=0;i<20;i++)
+  //{printf("Coefficient %" PRIu64 " set to ",i+1);acb_printd(L->ans[i],20);printf("\n");}
+
+  primesieve_free_iterator(&it);
+  acb_poly_clear(lp);
+  return ecode;
+}
+
+bool Lfunc_reduce_nmax(Lfunc_t LL, uint64_t nmax)
+{
+  Lfunc *L=(Lfunc *)LL;
+  uint64_t M;
+  M=Lfunc_nmax(LL); // what is the current M
+  if(nmax>=M) // I won't let you increase it
+    return false;
+  L->M=nmax;
+  if(L->buthe_M>nmax) // we could be in serious trouble here
+    L->buthe_M=nmax;
+  return true;
+}
 
 
 #ifdef __cplusplus
