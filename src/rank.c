@@ -213,7 +213,7 @@ extern "C"{
     // res = \sum_{|k| < n} W(k/A) * sinc^(d)(-k Pi) * (A pi)^d
     arb_add_error(res,L->upsampling_error);
     if(verbose) {
-      printf("W^(%lld)(0) ~ ", d);
+      printf("W^(%" PRIu64 ")(0) ~ ", d);
       arb_printd(res, 20);
       printf("\n");
     }
