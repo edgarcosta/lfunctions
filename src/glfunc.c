@@ -403,7 +403,7 @@ Lfunc_t Lfunc_init(uint64_t degree, uint64_t conductor, double normalisation, co
     Lp.mus[i]=mus[i];
   Lp.target_prec = DEFAULT_TARGET_PREC;
   Lp.rank = DK;
-  Lp.self_dual = DK;
+  Lp.self_dual = 1;//DK;
   Lp.cache_dir = ".";
   Lp.gprec = 0; // We will try to do something sensible
   Lp.wprec = 0; // ditto

@@ -2,7 +2,7 @@
 #define _GLFUNC_INTERNAL
 #define OUTPUT_RATIO (8) // we will analyse this portion of B
 #define TURING_RATIO (16)
-#define EXTRA_BITS (35) // extra bits of precision for convolves etc.
+#define EXTRA_BITS (5)//(35) // extra bits of precision for convolves etc.
 #define verbose (false)
 #define BAD_64 (1LL<<62)
 

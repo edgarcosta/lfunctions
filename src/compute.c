@@ -372,6 +372,7 @@ Lerror_t Lfunc_compute(Lfunc_t Lf)
   for(int i = 2; i <= L->rank; i++)
     arb_div_ui(L->L_d,L->L_d,i,L->wprec);
 
+  /*
   ecode|=find_zeros(L,0);
   if(fatal_error(ecode))
     return ecode;
@@ -383,6 +384,7 @@ Lerror_t Lfunc_compute(Lfunc_t Lf)
   }
 
   ecode|=buthe_check_RH(L);
+  */
 
   return ecode;
 

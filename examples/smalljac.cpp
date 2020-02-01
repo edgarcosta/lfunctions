@@ -229,20 +229,20 @@ ostream& operator<<(ostream &s, curve &C) {
   s << Lfunc_rank(L) << ":";
   // L(1/2)^r / r! as arb
   s << Lfunc_Taylor(L) << ":";
-  // first zeros
-  arb_srcptr zeros = Lfunc_zeros(L, 0);
-  s << "[";
-  for(size_t i = 0; i < 10; ++i) {
-    s << zeros + i;
-    if( i < 9 )
-      s << ", ";
-    else
-      s << "]";
-  }
-  s << ":";
-  Lplot_t *Lpp = Lfunc_plot_data(L, 0, 10.0, 500);
-  s << Lpp;
-  Lfunc_clear_plot(Lpp);
+  //// first zeros
+  //arb_srcptr zeros = Lfunc_zeros(L, 0);
+  //s << "[";
+  //for(size_t i = 0; i < 10; ++i) {
+  //  s << zeros + i;
+  //  if( i < 9 )
+  //    s << ", ";
+  //  else
+  //    s << "]";
+  //}
+  //s << ":";
+  //Lplot_t *Lpp = Lfunc_plot_data(L, 0, 10.0, 500);
+  //s << Lpp;
+  //Lfunc_clear_plot(Lpp);
   return s;
 }
 
