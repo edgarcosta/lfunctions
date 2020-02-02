@@ -21,6 +21,8 @@
 #include <flint/fmpzxx.h>
 #include <acb.h>
 
+#include "glfunc.h" // for Lplot_t
+
 
 using std::cerr;
 using std::cout;
@@ -129,6 +131,11 @@ istream & operator>>(istream& s, fmpzxx& output) {
   return s;
 }
 
+// operator << for pair<T, R>
+// outputs [a, b]
+// defined below
+template<class T, class R>
+ostream& operator<<(ostream& s, const pair<T, R>& a);
 
 // outputs [a, b, c, ..]
 template<class T>
@@ -142,6 +149,10 @@ ostream& operator<<(ostream& s, const vector<T>& a) {
   s << "]";
   return s;
 }
+
+// reads [a, b]//defined below
+template<class T, class R>
+istream & operator>>(istream& s, pair<T, R>& output);
 
 // reads [a, b, c, ..]
 template<class T>
