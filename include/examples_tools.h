@@ -19,6 +19,7 @@
 #include <vector>
 #include <flint/fmpz.h>
 #include <flint/fmpzxx.h>
+#include <flint/fmpz_polyxx.h>
 #include <acb.h>
 
 #include "glfunc.h" // for Lplot_t
@@ -50,6 +51,7 @@ using std::stringstream;
 using std::vector;
 
 using flint::fmpzxx;
+using flint::fmpz_polyxx;
 
 
 /******************************************************************************
@@ -292,6 +294,7 @@ istream & operator>>(istream& s, multimap<T, R, Compare, Allocator>& a)
 
 
 
+
 /* outputs a python dictionary
  * {k1: v1
  *  k2: v2
@@ -365,3 +368,151 @@ int64_t lcm(const vector<size_t>& v) {
     res = lcm(res, int64_t(elt));
   return res;
 }
+
+
+
+
+/*
+void split(vector<string> &res, const string &s, char delim) {
+  vector<string> res;
+  stringstream ss(s);
+  string item;
+  while(std::getline(ss, item, delim)) {
+    res.push_back(item);
+  }
+  return res;
+}
+
+vector<string> slitonminus(const string &s) {
+  vector<string> res;
+  stringstream ss(s);
+  string item;
+  int i = 0;
+  while(std::getline(ss, item, '-')) {
+    // add '-' to the nonfirst elements
+    if(i > 0) {
+      item.insert('-');
+    // don't insert the first element if empty
+    if(i > 0 or item.find_first_not_of(' ') != std::string::npos) {
+      res.push_back(item);
+      ++i;
+    }
+  }
+  return res;
+}
+
+vector<string> getmonomials(const string &s) {
+vector<string> res, 
+  res.clear();
+  for(const auto &elt : splitonminus(s)) {
+    split(res, elt, '+')
+  }
+  return res;
+}
+
+template<class T>
+void convertmonomial(T& coeff, long& deg, const string &s, const string &var) {
+  long p1 = s.find_first_not_of('-0123456789');
+  if( p1 == std::string::npos ) {
+    deg = -1;
+    T = 0;
+  } else {
+    T << s.substr(0, p1);
+    // now figure out the degree
+    long p2 = s.find(var, p1);
+    if( p2 == std::string::npos ) {
+      //var not found
+      deg = 0;
+    } else {
+      p2 = s.find_first_of('^', p2 + 1);
+      if( p2 == std::string::npos ) {
+        deg = 1;
+      } else {
+        deg << s.substr(p2 + 1);
+      }
+    }
+  }
+}
+*/
+
+istream & operator>>(istream&s,  fmpz_polyxx& f){
+  f = 0;
+  long c;
+  stringstream buffer;
+  fmpz coeff;
+  long sign, deg;
+  int i;
+  string var;
+  deg = -1;
+  if (!s)
+    throw_line("bad polynomial input"s);
+
+  c = s.peek();
+  while (iswspace(c)) {
+    s.get();
+    c = s.peek();
+  }
+  // find the coefficient
+  sign  = 1;
+  if(c == '-' or c == '+'){
+    if(c == '-') sign = -1;
+    s.get();
+    c = s.peek();
+  }
+  i = 0;
+  while (iswdigit(c)) {
+    ++i;
+    buffer.put(s.get());
+    c = s.peek();
+  }
+  if(i > 0)
+    buffer >> coeff;
+  else
+    coeff = 1;
+  coeff *= sign;
+
+
+  // find the degree
+  while(iswspace(c)){
+    s.get();
+    c = s.peek();
+  }
+  if(c == '*'){
+    while(iswspace(c)){
+      s.get();
+      c = s.peek();
+    }
+  }
+  if (!isalpha(c)) {
+    deg = 0;
+  } else {
+    s.get();
+    c = s.peek();
+    //skip over variable name
+    while(isalnum(c) || (c == '_')){
+      s.get();
+      c = s.peek();
+    }
+    if (c == '^') {
+      s.get();
+      if(!(s >> deg)) {
+        throw_line("bad polynomial input"s);
+      }
+    } else {
+      deg = 1;
+    }
+  }
+  f.set_coeff(deg, coeff);
+  c = s.peek();
+  while (iswspace(c)) {
+    s.get();
+    c = s.peek();
+  }
+  if(c == '+' or c == '-') {
+    fmpz_polyxx g = fmpz_polyxx();
+    s >> g;
+    f += g;
+  }
+  return s;
+}
+
