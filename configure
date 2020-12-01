@@ -381,6 +381,9 @@ else
 fi
 
 
+if [ '$(${CC} --version  2>&1 | grep -q -c "Apple clang")' ] || [ '$(${CXX} --version  2>&1 | grep -q -c "Apple clang")' ]; then
+    INC_DIRS="${INC_DIRS} /usr/local/include"
+fi
 
 # include paths
 
