@@ -291,7 +291,7 @@ Lerror_t Lfunc_compute(Lfunc_t Lf)
   if(verbose) {
     for(int i = 0; i < 100; i++) {
       printf("a[%d] = ", i + 1);
-      acb_printd(L->ans[i], 20);
+      acb_printd(L->ans[i], 6);
       printf("\n");
     }
   }
@@ -311,6 +311,7 @@ Lerror_t Lfunc_compute(Lfunc_t Lf)
     acb_abs(tmp1,L->ans[m],prec);
     arb_add(L->sum_ans,L->sum_ans,tmp1,prec);
   }
+  if(verbose){printf("sum_{n <= %ld |an/sqrt(n)|=",L->M0 -1);arb_printd(L->sum_ans,10);printf("\n");fflush(stdout);}
   for(uint64_t k=0;k<L->max_K;k++)
     for(uint64_t n=0;n<L->fft_N;n++)
       acb_zero(L->skm[k][n]);
@@ -339,8 +340,9 @@ Lerror_t Lfunc_compute(Lfunc_t Lf)
       acb_mul_arb(ctmp,L->ans[m],tmp1,prec);
       acb_add(L->skm[k][b],L->skm[k][b],ctmp,prec); // a_m/sqrt(m)(log(m/sqrt(N))-u_m)^k
     }
+    //if( (m + 1) % 100 == 0){printf("sum_{n <= %ld |an/sqrt(n)|=",m+1);arb_printd(L->sum_ans,10);printf("\n");fflush(stdout);}
   }
-  if(verbose){printf("sum |an/sqrt(n)|=");arb_printd(L->sum_ans,10);printf("\n");fflush(stdout);}
+  if(verbose){printf("sum_{n <= %ld |an/sqrt(n)|=",L->M);arb_printd(L->sum_ans,10);printf("\n");fflush(stdout);}
   finalise_comp(L);
   do_convolves(L);
   finish_convolves(L);
