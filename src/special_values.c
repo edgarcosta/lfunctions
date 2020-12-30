@@ -255,7 +255,7 @@ extern "C"{
     if(verbose) {printf("special value z = ");acb_printd(z,20);printf("\n");}
 
     double T=512.0/L->degree/OUTPUT_RATIO; // largest T for which we have data
-    uint64_t stride=32; // should be computed dynamically
+    uint64_t stride = L->u_stride; //uint64_t stride=32; // should be computed dynamically
     double A=L->A/(double)stride;
 
     double h=sqrt(1.0/A)*1.001,best_h=h;
