@@ -546,7 +546,7 @@ typedef struct {
   vector<acb_poly_struct> local_factors;
 
   // p -> conjugacy class
-  map<size_t, size_t> hard_primes;
+  map<fmpzxx, size_t> hard_primes;
 
   // cycle type -> type
   //  0 = cyc
@@ -741,11 +741,10 @@ ostream& operator<<(ostream &s, artin_rep &AR) {
 
 
 // compute the Euler poly for p
-// with L the product of non-principal characters mod 5 and 7
 void lpoly(const int64_t &p, artin_rep &AR) {
   size_t c;
   // is a hard prime?
-  auto hp = AR.hard_primes.find(p);
+  auto hp = AR.hard_primes.find(fmpzxx(p));
   if( hp != AR.hard_primes.end() ) {
     c = hp->second;
   } else {
