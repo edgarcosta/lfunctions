@@ -360,6 +360,7 @@ Lerror_t init_upsampling(Lfunc *L)
   L->u_no_values=L->fft_NN/OUTPUT_RATIO+L->fft_NN/TURING_RATIO+L->u_N*4*L->u_stride+1;
   L->u_values[0]=(arb_t *)malloc(sizeof(arb_t)*L->u_no_values);
   L->u_values[1]=(arb_t *)malloc(sizeof(arb_t)*L->u_no_values);
+  L->u_no_values_off=L->u_no_values-L->u_N*L->u_stride*2;
   L->u_values_off[0]=L->u_values[0]+L->u_N*L->u_stride*2;
   L->u_values_off[1]=L->u_values[1]+L->u_N*L->u_stride*2;
   for(uint64_t n=0;n<L->u_no_values;n++)

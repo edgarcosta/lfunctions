@@ -108,6 +108,7 @@ extern "C"{
     arb_t *u_values[2];
     arb_t *u_values_off[2];
     uint64_t u_no_values;
+    uint64_t u_no_values_off;
     uint64_t u_stride;
     arb_t u_pi_A;
     arb_t upsampling_error;

@@ -26,7 +26,7 @@ void fprint_errors(FILE *f, Lerror_t ecode)
   // warnings
   if(ecode&ERR_INSUFF_EULER) fprintf(f,"Don't appear to have enough Euler factors.\n");
 
-  if(ecode&ERR_SOME_DATA) fprintf(f,"Data became unusable after output reqion but before end of Turing zone.\n");
+  if(ecode&ERR_SOME_DATA) fprintf(f,"Data became unusable after output region but before end of Turing zone.\n");
   if(ecode&ERR_ZERO_PREC) fprintf(f,"Couldn't isolate all zeros to requested precision.\n");
   if(ecode&ERR_NO_RANK) fprintf(f,"Could not determine rank of L.\n");
   if(ecode&ERR_CONFLICT_RANK) fprintf(f,"Computed rank did not agree with what we were told.\n");

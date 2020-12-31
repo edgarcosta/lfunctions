@@ -89,6 +89,7 @@ extern "C"{
     Lerror_t ecode=s_sinc(tmp,delta,sin_delta,prec);
     if(fatal_error(ecode))
       return ecode;
+    //printf("s_sinc returned ");acb_printd(tmp,20);printf("\n");
     W_k_A(tmp2,L,k,prec,acb_realref(z),pi_by_H2,A);
     acb_mul_arb(res,tmp,tmp2,prec);
     return ecode;
@@ -286,12 +287,19 @@ extern "C"{
       }
       arb_mul_2exp_si(tmp,arb_err,L->target_prec+extra_bits);
       arb_sub_ui(tmp,tmp,1,prec);
-      if(arb_is_negative(tmp))
+      if(arb_is_negative(tmp)) // achieved target error
         break;
       h*=1.01;
       H=ceil(A*A*h*h/2.0);
+      if(H*stride>L->u_no_values_off) // run out of data
+	{
+	  arb_set(arb_err,best_err);
+	  h=best_h;H=best_H;
+	  //ecode|=ERR_SPEC_PREC; // not necessarily, wait till end
+	  break;
+	}
+
       M=H/A;
-      //if(verbose) printf("H = %f h = %f\n",H,h);
       ecode|=arb_upsampling_error(arb_err,M,H,h,A,L->mus,L->degree,L->conductor,T,acb_imagref(z),0,L->pi,prec);
       if(fatal_error(ecode))
       {
@@ -303,22 +311,19 @@ extern "C"{
         return ecode;
       }
       arb_sub(tmp,best_err,arb_err,prec);
-      if(arb_is_positive(tmp))
+      if(arb_is_positive(tmp)) // found a better h,H so use them
       {
         best_h=h;
         best_H=H;
         arb_set(best_err,arb_err);
       }
-      if(H>L->fft_NN/OUTPUT_RATIO)
-      {
-        arb_set(arb_err,best_err);
-        h=best_h;H=best_H;
-        ecode|=ERR_SPEC_PREC;
-        break;
-      }
-      if(verbose){printf("Upsampling error now ");arb_printd(arb_err,20);printf("\n");}
+      if(verbose)
+	{
+	  printf("Upsampling error now ");arb_printd(arb_err,20);printf("\n");
+	}
     }
     arb_clear(best_err);
+
     uint64_t iH=H;
     if(verbose) printf("H = %" PRIu64 " h = %f\n",iH,h);
     if(verbose) {printf("Upsample error set to ");arb_printd(arb_err,20);printf("\n");}
@@ -329,7 +334,6 @@ extern "C"{
     arb_mul(tmp,tmp,tmp,prec);
     arb_div(pi_by_H2,L->pi,tmp,prec);
     arb_neg(pi_by_H2,pi_by_H2); // -Pi/h^2
-
     ecode|=s_upsample_stride(res, z, L, prec, pi_by_H2, arb_err, iH, stride);
     if(fatal_error(ecode))
     {
