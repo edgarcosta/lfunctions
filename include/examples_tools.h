@@ -339,6 +339,11 @@ ostream& operator<<(ostream &s, const acb_t z) {
   return s;
 }
 
+ostream& operator<<(ostream &s, const acb_struct z) {
+  s << "[" << acb_realref(&z) <<", "<< acb_imagref(&z) << "]";
+  return s;
+}
+
 
 // << operator for *Lplot_t
 ostream& operator<<(ostream& s, const Lplot_t *Lpp) {

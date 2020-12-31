@@ -7,6 +7,7 @@
  * python function to generate input provided at the bottom with an example
  */
 #define __STDC_FORMAT_MACROS
+#define special_values_size 2 // implies computing L(1) ... L(special_values_size)
 #include <algorithm>
 #include <chrono>
 #include <cstdint>
@@ -545,6 +546,9 @@ typedef struct {
   // conjugacy class -> euler factor
   vector<acb_poly_struct> local_factors;
 
+  //  k -> L(k+1)
+  vector<acb_struct> special_values;
+
   // p -> conjugacy class
   map<fmpzxx, size_t> hard_primes;
 
@@ -567,6 +571,8 @@ typedef struct {
 void artin_rep_clear(artin_rep &d) {
   for(auto &elt: d.local_factors)
     acb_poly_clear(&elt);
+  for(auto &elt: d.special_values)
+    acb_clear(&elt);
 
   delete[] d.mus;
   Lfunc_clear(d.L);
@@ -695,7 +701,6 @@ istream & operator>>(istream & is, artin_rep &o)
 
 ostream& operator<<(ostream &s, artin_rep &AR) {
   Lfunc_t &L = AR.L;
-  Lerror_t &ecode = AR.ecode;
 
   s << AR.label <<":";
   // root number
@@ -704,24 +709,9 @@ ostream& operator<<(ostream &s, artin_rep &AR) {
   s << Lfunc_rank(L) << ":";
   // L(1/2)^r / r! as arb
   s << Lfunc_Taylor(L) << ":";
-  // L(1)
-  acb_t ctmp;
-  acb_init(ctmp);
-  ecode |= Lfunc_special_value(ctmp, L, 1, 0);
-  if(fatal_error(ecode)) {
-    fprint_errors(stderr, ecode);
-    std::abort();
-  }
-  s << ctmp << ":";
-  // L(2)
-  ecode|=Lfunc_special_value(ctmp, L, 2, 0);
-  if(fatal_error(ecode)) {
-    fprint_errors(stderr,ecode);
-    std::abort();
-  }
-  s << ctmp << ":";
-  acb_clear(ctmp);
-  // first zeros
+  // special values
+  s << AR.special_values << ":";
+  // first 10 zeros
   arb_srcptr zeros = Lfunc_zeros(L, 0);
   s << "[";
   for(size_t i = 0; i < 10; ++i) {
@@ -843,26 +833,20 @@ int main (int argc, char**argv)
 
       printf("Rank = %" PRIu64 "\n",Lfunc_rank(L));
       printf("Epsilon = ");acb_printd(Lfunc_epsilon(L),20);printf("\n");
-      printf("First non-zero Taylor coeff = ");arb_printd(Lfunc_Taylor(L), 20);printf("\n");
+      printf("Leading Taylor coeff = ");arb_printd(Lfunc_Taylor(L), 20);printf("\n");
+      printf("First zero = ");arb_printd(Lfunc_zeros(L, 0), 20);printf("\n");
 
-      acb_t ctmp;
-      acb_init(ctmp);
-      ecode |= Lfunc_special_value(ctmp, L, 1, 0);
-      if(fatal_error(ecode)) {
-        fprint_errors(stderr,ecode);
-        std::abort();
+      AR.special_values.resize(special_values_size);
+      for(size_t i = 0; i < AR.special_values.size(); ++i) {
+        acb_struct elt = AR.special_values[i];
+        acb_init(&elt);
+        ecode |= Lfunc_special_value(&elt, L, i + 1, 0);
+        if(fatal_error(ecode)) {
+          fprint_errors(stderr,ecode);
+          std::abort();
+        }
+        printf("L(%lu) = ", i + 1);acb_printd(&elt,20);printf("\n");
       }
-      printf("L(1) = ");acb_printd(ctmp,20);printf("\n");
-      ecode |= Lfunc_special_value(ctmp, L, 2, 0);
-      if(fatal_error(ecode)) {
-        cerr << "Computation for " << AR.label << " failed"<<endl;
-        fprint_errors(stderr, ecode);
-        cerr << "End " << AR.label << " failed "<<endl;
-        std::abort();
-      }
-      printf("L(2) = ");acb_printd(ctmp,20);printf("\n");
-      acb_clear(ctmp);
-
 
       output << AR << endl;
       // print any warnings collected along the way
