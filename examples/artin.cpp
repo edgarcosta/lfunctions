@@ -850,8 +850,8 @@ int main (int argc, char**argv)
 
       output << AR << endl;
       // print any warnings collected along the way
-      if( ecode != ERR_SUCCESS )
-      {
+      // ignore could not achieve target error bound in special value
+      if( ecode != ERR_SUCCESS and ecode != ERR_SPEC_PREC ) {
         cerr << "Begin warnings for " << AR.label << endl;
         fprint_errors(stderr, ecode);
         cerr << "End warnings for " << AR.label << endl;
