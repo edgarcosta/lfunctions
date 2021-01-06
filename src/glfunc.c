@@ -398,9 +398,8 @@ Lfunc_t Lfunc_init(uint64_t degree, uint64_t conductor, double normalisation, co
     ecode[0]|=ERR_OOM;
     return (Lfunc_t) NULL;
   }
-  uint64_t i;
-  for(i=0;i<degree;i++)
-    Lp.mus[i]=mus[i];
+  for(size_t i=0; i < degree; ++i)
+    Lp.mus[i] = mus[i];
   Lp.target_prec = DEFAULT_TARGET_PREC;
   Lp.rank = DK;
   Lp.self_dual = DK;
