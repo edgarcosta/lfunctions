@@ -6,6 +6,7 @@
 
 
 #define __STDC_FORMAT_MACROS
+#include <array>
 #include <cassert>
 #include <cstdint>
 #include <cwctype>
@@ -25,6 +26,7 @@
 #include "glfunc.h" // for Lplot_t
 
 
+using std::array;
 using std::cerr;
 using std::cout;
 using std::endl;
@@ -147,6 +149,16 @@ ostream& operator<<(ostream& s, const vector<T>& a) {
   for(size_t i = 0; i < n; ++i) {
     s << a[i];
     if(i < n - 1) s<<", ";
+  }
+  s << "]";
+  return s;
+}
+
+template<class T, size_t size> ostream& operator<<(ostream& s, const array<T, size>& a) {
+  s <<"[";
+  for(size_t i = 0; i < size; ++i) {
+    s << a[i];
+    if(i < size - 1) s<<", ";
   }
   s << "]";
   return s;

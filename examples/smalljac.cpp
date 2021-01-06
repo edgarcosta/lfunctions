@@ -285,11 +285,11 @@ int smalljac_callback(
   if(use_lpoly) {
     if(C->symdegree > 1 and good) {
       sympow_ECQ(local_factor_zz, C->symdegree);
-      //if(q < 10) {
-      //  print(q);
-      //  print_pretty(local_factor_zz, "x");
-      //  cout<<endl;
-      //}
+      if(q < 10 and false) {
+        print(q);
+        print_pretty(local_factor_zz, "x");
+        cout<<endl;
+      }
     }
     acb_poly_fit_length(local_factor, local_factor_zz.degree() + 1);
     _acb_poly_set_length(local_factor, local_factor_zz.degree() + 1);
@@ -422,7 +422,7 @@ int main (int argc, char**argv)
 
 
       C.special_values.resize(special_values_size);
-      double shift = (C.symdegree + 1)*0.5;
+      double shift = C.symdegree*0.5;
       for(size_t i = 0; i < C.special_values.size(); ++i) {
         acb_struct elt = C.special_values[i];
         acb_init(&elt);
@@ -473,7 +473,7 @@ void sympow_ECQ(fmpz_polyxx& L, const int &symdegree) {
   static std::array<fmpzxx, 21> a;
   static std::array<fmpzxx, 37> p;
   const std::array<int, 7> maxapower = {2, 4, 6, 9, 12, 16, 20};
-  const std::array<int, 7> maxppower = {3, 36, 6, 10, 15, 21, 28};
+  const std::array<int, 7> maxppower = {3, 6, 10, 15, 21, 28, 36};
 
   a[1] = -L.get_coeff(1); // a
   p[1] = L.get_coeff(2); // p
@@ -483,6 +483,10 @@ void sympow_ECQ(fmpz_polyxx& L, const int &symdegree) {
     init = true;
     a[0].set_one();
     p[0].set_one();
+    for(auto &elt: a)
+      elt.set_zero();
+    for(auto &elt: p)
+      elt.set_zero();
   }
 
   for(int i=2; i <= maxapower[symdegree-2]; ++i ) {
@@ -605,8 +609,10 @@ L = 1 - a*T + p*T^2
 
 
 max_symdeg = 8
-Ls = {i: sym_pol(L, i) for i in range(2, max_symdeg)}
+Ls = {i: sym_pol(L, i) for i in range(2, max_symdeg+1)}
+
 out = ""
+
 
 maxapower = []
 maxppower = []
@@ -631,8 +637,8 @@ static bool init = false;
 """.format(max_symdeg=max_symdeg,
            maxa1=maxa + 1,
            maxp1=maxp + 1,
-           maxapower = set(maxapower), # abusing the fact that they are all distinct
-           maxppower = set(maxppower),
+           maxapower = str(maxapower).replace('[','{').replace(']','}'),
+           maxppower = str(maxppower).replace('[','{').replace(']','}'),
            length = len(maxapower)
           );
 out += r"""
@@ -640,6 +646,10 @@ if(!init) {
   init = true;
   a[0].set_one();
   p[0].set_one();
+  for(auto &elt: a)
+    elt.set_zero();
+  for(auto &elt: p)
+    elt.set_zero();
 }
 
 for(int i=2; i <= maxapower[symdegree-2]; ++i ) {
@@ -674,7 +684,7 @@ for i in range(2, max_symdeg + 1):
             expr = re.sub(r"([ap])\^(\d+)", r"\1[\2]", expr)
             localout +='  L.set_coeff(%d, %s);\n' % (j, expr)
     localout += '      break;\n'
-
+    
     out += '\n'.join(['    '  + elt for elt in localout.split('\n')])
 out += r"""
     default:
