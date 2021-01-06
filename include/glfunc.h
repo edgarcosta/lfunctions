@@ -131,7 +131,8 @@ extern "C"{
   int64_t Lfunc_rank(Lfunc_t L);
 
   // return the first non-zero Taylor coefficient
-  // L^(rank)(k/2)/rank!
+  // L^(rank)((w + 1)/2)/rank!
+  // where w/2 is the normalization (if algebraic, w = motivic weight)
   // same caveats as rank
   arb_srcptr Lfunc_Taylor(Lfunc_t L);
 
@@ -148,6 +149,7 @@ extern "C"{
   // warning, accuracy falls away rapidly as one moves away
   // from the critical line. Should return something sensible
   // for L(k) and L(0)
+  // for re+i*im = (w + 1)/2, use Lfunc_Taylor
   Lerror_t Lfunc_special_value(acb_t res, Lfunc_t LL, double re, double im);
 
   // reclaim memory from an Lfunc_t structure
