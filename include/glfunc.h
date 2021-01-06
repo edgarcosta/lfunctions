@@ -85,12 +85,12 @@ extern "C"{
    *    - EC/Q:
    *        mus = [0, 1] and normalisation = 0.5
    *      or
-   *        mus = [0.5, 1.5] and normalisation = 0.5
+   *        mus = [0.5, 1.5] and normalisation = 0
    *
    *    - Classical modular form of weight 13
-   *        mus = [0, 1] and normalisation = 12.5
+   *        mus = [0, 1] and normalisation = 6
    *      or
-   *        mus = [12.5, 13.5] and normalisation = 0
+   *        mus = [6, 5] and normalisation = 0
    */
   Lfunc_t Lfunc_init(uint64_t degree, uint64_t conductor, double normalisation, const double *mus, Lerror_t *ecode);
   // do the same but with more control
