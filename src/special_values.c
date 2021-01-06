@@ -244,7 +244,7 @@ extern "C"{
     arb_init(tmp);
     arb_set_d(tmp, L->normalisation);
     arb_set_d(arb_err, alg_res);
-    arb_sub(acb_realref(an_s),arb_err,tmp,prec); // an re(s) = alg re(s)/(2*norm+1)
+    arb_sub(acb_realref(an_s),arb_err,tmp,prec); // an re(s) = alg re(s)- norm
     arb_set_d(acb_imagref(an_s),alg_ims);
     //printf("Analytic s = ");acb_printd(an_s,20);printf("\n");
 
