@@ -285,7 +285,7 @@ int smalljac_callback(
   if(use_lpoly) {
     if(C->symdegree > 1 and good) {
       sympow_ECQ(local_factor_zz, C->symdegree);
-      if(q < 10 and false) {
+      if(q < 15 and false) {
         print(q);
         print_pretty(local_factor_zz, "x");
         cout<<endl;
@@ -475,25 +475,30 @@ void sympow_ECQ(fmpz_polyxx& L, const int &symdegree) {
   const std::array<int, 7> maxapower = {2, 4, 6, 9, 12, 16, 20};
   const std::array<int, 7> maxppower = {3, 6, 10, 15, 21, 28, 36};
 
-  a[1] = -L.get_coeff(1); // a
-  p[1] = L.get_coeff(2); // p
   static bool init = false;
-
   if(!init) {
     init = true;
-    a[0].set_one();
-    p[0].set_one();
     for(auto &elt: a)
       elt.set_zero();
     for(auto &elt: p)
       elt.set_zero();
+    a[0].set_one();
+    p[0].set_one();
+  }
+  a[1] = -L.get_coeff(1); // a
+  p[1] = L.get_coeff(2); // p
+
+  if(symdegree%2 == 1) {
+    for(int i=2; i <= maxapower[symdegree-2]; ++i )
+          a[i] = a[i/2]*a[i - i/2];
+  } else {
+    a[2] = a[1] * a[1];
+    // we only need the even powers
+    for(int i=4; i <= maxapower[symdegree-2]; i+=2 )
+          a[i] = a[2*(i/4)]*a[i - 2*(i/4)];
   }
 
-  for(int i=2; i <= maxapower[symdegree-2]; ++i ) {
-      if(i%2 == 0 or symdegree%2 == 1) {
-          a[i] = a[i/2]*a[i - i/2];
-      }
-  }
+
 
   // we can skip some of the larger powers
   int symdegreechalf = ceil(symdegree*0.5);
@@ -502,6 +507,10 @@ void sympow_ECQ(fmpz_polyxx& L, const int &symdegree) {
   }
   int i = maxppower[symdegree-2];
   p[i] = p[i/2]*p[i - i/2];
+  if(p[1] == 13) {
+    print(a);
+    print(p);
+  }
   switch(symdegree) {
       case 2:
       L.fit_length(4);
@@ -630,10 +639,6 @@ static std::array<fmpzxx, {maxa1}> a;
 static std::array<fmpzxx, {maxp1}> p;
 const std::array<int, {length}> maxapower = {maxapower};
 const std::array<int, {length}> maxppower = {maxppower};
-
-a[1] = -L.get_coeff(1); // a
-p[1] = L.get_coeff(2); // p
-static bool init = false;
 """.format(max_symdeg=max_symdeg,
            maxa1=maxa + 1,
            maxp1=maxp + 1,
@@ -642,20 +647,27 @@ static bool init = false;
            length = len(maxapower)
           );
 out += r"""
+static bool init = false;
 if(!init) {
   init = true;
-  a[0].set_one();
-  p[0].set_one();
   for(auto &elt: a)
     elt.set_zero();
   for(auto &elt: p)
     elt.set_zero();
+  a[0].set_one();
+  p[0].set_one();
 }
+a[1] = -L.get_coeff(1); // a
+p[1] = L.get_coeff(2); // p
 
-for(int i=2; i <= maxapower[symdegree-2]; ++i ) {
-    if(i%2 == 0 or symdegree%2 == 1) {
+if(symdegree%2 == 1) {
+  for(int i=2; i <= maxapower[symdegree-2]; ++i )
         a[i] = a[i/2]*a[i - i/2];
-    }
+} else {
+  a[2] = a[1] * a[1];
+  // we only need the even powers
+  for(int i=4; i <= maxapower[symdegree-2]; i+=2 )
+        a[i] = a[2*(i/4)]*a[i - 2*(i/4)];
 }
 
 // we can skip some of the larger powers
