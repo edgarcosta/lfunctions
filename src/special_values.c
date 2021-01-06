@@ -242,9 +242,9 @@ extern "C"{
     acb_init(an_s);
     arb_init(arb_err);
     arb_init(tmp);
-    arb_set_d(tmp,2.0*L->normalisation+1.0);
-    arb_set_d(arb_err,alg_res);
-    arb_div(acb_realref(an_s),arb_err,tmp,prec); // an re(s) = alg re(s)/(2*norm+1)
+    arb_set_d(tmp, L->normalisation);
+    arb_set_d(arb_err, alg_res);
+    arb_sub(acb_realref(an_s),arb_err,tmp,prec); // an re(s) = alg re(s)/(2*norm+1)
     arb_set_d(acb_imagref(an_s),alg_ims);
     //printf("Analytic s = ");acb_printd(an_s,20);printf("\n");
 
@@ -262,7 +262,7 @@ extern "C"{
     double h=sqrt(1.0/A)*1.001,best_h=h;
     double H=ceil(A*A*h*h/2.0),best_H=H;
     double M=H/A;
-    double dimz=0.5-alg_res/(2.0*L->normalisation+1.0); // double approx to Im z
+    double dimz=0.5-(alg_res - L->normalisation); // double approx to Im z
     if(verbose) printf("A = %f Im z = %f\n",A,dimz);
     ecode|=arb_upsampling_error(arb_err,M,H,h,A,L->mus,L->degree,L->conductor,T,acb_imagref(z),0,L->pi,prec); // first effort
     if(fatal_error(ecode))
