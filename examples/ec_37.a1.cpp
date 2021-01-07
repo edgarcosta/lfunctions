@@ -183,6 +183,27 @@ int main ()
   arb_clear(bsd);
 
 
+  //FIXME add asserts and these two lines to intro text
+  // ~ 0.183965475258329849732118662920
+  acb_t ctmp;
+  acb_init(ctmp);
+  ecode|=Lfunc_special_value(ctmp, L, 1.5, 0.0);
+  if(fatal_error(ecode)) {
+    fprint_errors(stderr,ecode);
+    std::abort();
+  }
+  printf("L(1.5) = ");acb_printd(ctmp, DIGITS);printf("\n");
+  if (RAW) cout<<"RAW: "<<ctmp << endl;
+  // ~ 0.551792338072610900567950084313
+  ecode|=Lfunc_special_value(ctmp, L, 2.5,0.0);
+  if(fatal_error(ecode)) {
+    fprint_errors(stderr, ecode);
+    std::abort();
+  }
+  printf("L(2.5) = ");acb_printd(ctmp, DIGITS);printf("\n");
+  acb_clear(ctmp);
+
+
 
   printf("First 10 zeros\n");
   // we could use Lfunc_zeros(L, 1) for the dual L-function

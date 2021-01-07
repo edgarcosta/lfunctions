@@ -241,7 +241,25 @@ int main ()
   assert(arb_overlaps(Lfunc_Taylor(L), bsd));
   arb_clear(bsd);
 
-
+  //FIXME add asserts and these two lines to intro text
+  // ~ 0.133768432546318414418290373661
+  acb_t ctmp;
+  acb_init(ctmp);
+  ecode|=Lfunc_special_value(ctmp, L, 1.5, 0.0);
+  if(fatal_error(ecode)) {
+    fprint_errors(stderr,ecode);
+    std::abort();
+  }
+  printf("L(1.5) = ");acb_printd(ctmp, DIGITS);printf("\n");
+  if (RAW) cout<<"RAW: "<<ctmp << endl;
+  // ~ 0.552975867046450192416260240311
+  ecode|=Lfunc_special_value(ctmp, L, 2.5,0.0);
+  if(fatal_error(ecode)) {
+    fprint_errors(stderr, ecode);
+    std::abort();
+  }
+  printf("L(2.5) = ");acb_printd(ctmp, DIGITS);printf("\n");
+  acb_clear(ctmp);
 
   printf("First 10 zeros\n");
   // we could use Lfunc_zeros(L, 1) for the dual L-function
