@@ -198,8 +198,8 @@ istream &operator>>(istream &is, curve &o)
           }
           if((o.symdegree % 2) == 0)
             o.mus[o.symdegree] = -2*floor(u*0.5);
-          vector<double> vmus(o.mus, o.mus + o.degree);
-          print(vmus);
+          //vector<double> vmus(o.mus, o.mus + o.degree);
+          //print(vmus);
         }
 
 
