@@ -198,6 +198,8 @@ istream &operator>>(istream &is, curve &o)
           }
           if((o.symdegree % 2) == 0)
             o.mus[o.symdegree] = -2*floor(u*0.5);
+          vector<double> vmus(o.mus, o.mus + o.degree);
+          print(vmus);
         }
 
 
@@ -285,6 +287,7 @@ int smalljac_callback(
   if(use_lpoly) {
     if(C->symdegree > 1 and good) {
       sympow_ECQ(local_factor_zz, C->symdegree);
+      //FIXME
       if(q < 15 and false) {
         print(q);
         print_pretty(local_factor_zz, "x");
@@ -415,10 +418,10 @@ int main (int argc, char**argv)
         std::abort();
       }
 
-      printf("Rank = %" PRIu64 "\n",Lfunc_rank(L));
-      printf("Epsilon = ");acb_printd(Lfunc_epsilon(L),20);printf("\n");
-      printf("First non-zero Taylor coeff = ");arb_printd(Lfunc_Taylor(L), 20);printf("\n");
-      printf("First zero = ");arb_printd(Lfunc_zeros(L, 0), 20);printf("\n");
+      printf("\tRank = %" PRIu64 "\n",Lfunc_rank(L));
+      printf("\tEpsilon = ");acb_printd(Lfunc_epsilon(L),20);printf("\n");
+      printf("\tFirst non-zero Taylor coeff = ");arb_printd(Lfunc_Taylor(L), 20);printf("\n");
+      printf("\tFirst zero = ");arb_printd(Lfunc_zeros(L, 0), 20);printf("\n");
 
 
       C.special_values.resize(special_values_size);
@@ -432,7 +435,7 @@ int main (int argc, char**argv)
           fprint_errors(stderr,ecode);
           std::abort();
         }
-        printf("L(%.2f) = ", val);acb_printd(&elt,20);printf("\n");
+        printf("\tL(%.2f) = ", val);acb_printd(&elt,20);printf("\n");
       }
 
 
@@ -440,9 +443,9 @@ int main (int argc, char**argv)
       // print any warnings collected along the way
       // ignore could not achieve target error bound in special value
       if( ecode != ERR_SUCCESS and ecode != ERR_SPEC_PREC ) {
-        cerr << "Begin warnings for " << C.label << endl;
+        cerr << "\tBegin warnings for " << C.label << endl;
         fprint_errors(stderr, ecode);
-        cerr << "End warnings for " << C.label << endl;
+        cerr << "\tEnd warnings for " << C.label << endl;
         r++;
       }
 
@@ -507,10 +510,6 @@ void sympow_ECQ(fmpz_polyxx& L, const int &symdegree) {
   }
   int i = maxppower[symdegree-2];
   p[i] = p[i/2]*p[i - i/2];
-  if(p[1] == 13) {
-    print(a);
-    print(p);
-  }
   switch(symdegree) {
       case 2:
       L.fit_length(4);

@@ -1,6 +1,10 @@
 # Makefile
 Makefile
 
+
+# Hidden files
+.?*
+
 # g files
 g_*_*
 

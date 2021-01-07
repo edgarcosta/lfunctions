@@ -164,6 +164,7 @@ template<class T, size_t size> ostream& operator<<(ostream& s, const array<T, si
   return s;
 }
 
+
 // reads [a, b]//defined below
 template<class T, class R>
 istream & operator>>(istream& s, pair<T, R>& output);
