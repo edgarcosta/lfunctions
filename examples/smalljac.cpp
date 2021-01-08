@@ -437,6 +437,14 @@ int main (int argc, char**argv)
         }
         printf("\tL(%.2f) = ", val);acb_printd(&elt,20);printf("\n");
       }
+      printf("\tFirst 20 zeros\n");
+      // we could use Lfunc_zeros(L, 1) for the dual L-function
+      arb_srcptr zeros=Lfunc_zeros(L, 0);
+      for(int i  = 0; i < 20; ++i) {
+        printf("\tZero %d = ", i);
+        arb_printd(zeros+i, 20);
+        printf("\n");
+      }
 
 
       output << C << endl;
