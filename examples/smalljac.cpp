@@ -180,7 +180,7 @@ istream &operator>>(istream &is, curve &o)
           //slong newdeg = flint::bin(ulong(o.degree + o.symdegree - 1), ulong(o.symdegree)).to<slong>();
           //o.degree = newdeg;
           o.degree = o.symdegree + 1;
-          assert_print(o.degree, <, MAX_DEGREE);
+          assert_print(o.degree, <=, MAX_DEGREE);
         }
         o.mus = new double[o.degree];
         o.lastq = 1;
