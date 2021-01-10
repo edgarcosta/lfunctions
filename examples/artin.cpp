@@ -838,14 +838,13 @@ int main (int argc, char**argv)
 
       AR.special_values.resize(special_values_size);
       for(size_t i = 0; i < AR.special_values.size(); ++i) {
-        acb_struct elt = AR.special_values[i];
-        acb_init(&elt);
-        ecode |= Lfunc_special_value(&elt, L, i + 1, 0);
+        acb_init(&AR.special_values[i]);
+        ecode |= Lfunc_special_value(&AR.special_values[i], L, i + 1, 0);
         if(fatal_error(ecode)) {
           fprint_errors(stderr,ecode);
           std::abort();
         }
-        printf("L(%lu) = ", i + 1);acb_printd(&elt,20);printf("\n");
+        printf("L(%lu) = ", i + 1);acb_printd(&AR.special_values[i],20);printf("\n");
       }
 
       output << AR << endl;

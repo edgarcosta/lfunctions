@@ -218,6 +218,8 @@ istream &operator>>(istream &is, curve &o)
 
 void curve_clear(curve &C) {
   smalljac_curve_clear(C.sj_curve);
+  for(auto &elt: C.special_values)
+    acb_clear(&elt);
   delete[] C.mus;
   Lfunc_clear(C.L);
 }
@@ -427,16 +429,16 @@ int main (int argc, char**argv)
       C.special_values.resize(special_values_size);
       double shift = C.symdegree*0.5;
       for(size_t i = 0; i < C.special_values.size(); ++i) {
-        acb_struct elt = C.special_values[i];
-        acb_init(&elt);
+        acb_init(&C.special_values[i]);
         double val = 1 + i + shift;
-        ecode |= Lfunc_special_value(&elt, L, val, 0);
+        ecode |= Lfunc_special_value(&C.special_values[i], L, val, 0);
         if(fatal_error(ecode)) {
           fprint_errors(stderr,ecode);
           std::abort();
         }
-        printf("\tL(%.2f) = ", val);acb_printd(&elt,20);printf("\n");
+        printf("\tL(%.2f) = ", val);acb_printd(&C.special_values[i],20);printf("\n");
       }
+      cout << C.special_values <<endl;
       printf("\tFirst 20 zeros\n");
       // we could use Lfunc_zeros(L, 1) for the dual L-function
       arb_srcptr zeros=Lfunc_zeros(L, 0);
