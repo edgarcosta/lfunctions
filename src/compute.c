@@ -311,7 +311,7 @@ Lerror_t Lfunc_compute(Lfunc_t Lf)
     acb_abs(tmp1,L->ans[m],prec);
     arb_add(L->sum_ans,L->sum_ans,tmp1,prec);
   }
-  if(verbose){printf("sum_{n <= %ld |an/sqrt(n)|=",L->M0 -1);arb_printd(L->sum_ans,10);printf("\n");fflush(stdout);}
+  if(verbose){printf("sum_{n <= %"  PRIu64 " |an/sqrt(n)|=",L->M0 -1);arb_printd(L->sum_ans,10);printf("\n");fflush(stdout);}
   for(uint64_t k=0;k<L->max_K;k++)
     for(uint64_t n=0;n<L->fft_N;n++)
       acb_zero(L->skm[k][n]);
@@ -342,7 +342,7 @@ Lerror_t Lfunc_compute(Lfunc_t Lf)
     }
     //if( (m + 1) % 100 == 0){printf("sum_{n <= %ld |an/sqrt(n)|=",m+1);arb_printd(L->sum_ans,10);printf("\n");fflush(stdout);}
   }
-  if(verbose){printf("sum_{n <= %ld |an/sqrt(n)|=",L->M);arb_printd(L->sum_ans,10);printf("\n");fflush(stdout);}
+  if(verbose){printf("sum_{n <= %"  PRIu64 " |an/sqrt(n)|=",L->M);arb_printd(L->sum_ans,10);printf("\n");fflush(stdout);}
   finalise_comp(L);
   do_convolves(L);
   finish_convolves(L);
