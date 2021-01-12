@@ -70,13 +70,24 @@ int main() {
 #include <smalljac.h>
 
 #include "glfunc.h"
+#include "tracehash.h"
 #include "examples_tools.h"
 
+using std::array;
 using std::strcpy;
+using flint::fmpzxx;
+using flint::fmpqxx;
 using flint::fmpz_polyxx;
 
-typedef std::chrono::time_point<std::chrono::system_clock> SystemTime ;
+#define M61UI		0x1FFFFFFFFFFFFFFFUL		// this should raise a compile-time error on 32-bit machines
 
+
+// i -> p_i
+int16_t* primes;
+// p_i -> i
+map<int16_t, int16_t> primes_dict;
+
+typedef std::chrono::time_point<std::chrono::system_clock> SystemTime;
 
 typedef struct {
   // some string
@@ -96,7 +107,6 @@ typedef struct {
   // the bad local factors
   multimap<int64_t, vector<fmpzxx>> bad_factors;
 
-
   // Sym^d(L(C))
   int symdegree;
 
@@ -111,6 +121,14 @@ typedef struct {
   fmpz_polyxx last_local_factor;
   vector<bool> touched; // the euler factors already used
 
+  //stores ap, p < 2^13
+  array<fmpzxx, APHASH_MAXPI> ap;
+
+  //2nd moment approximation
+  double second_moment;
+
+  //trace hash
+  long tracehash;
 
 
   // L-function
@@ -122,6 +140,11 @@ typedef struct {
 
 istream &operator>>(istream &is, curve &o)
 {
+  // initialize ap
+  for(auto &elt: o.ap)
+    elt = 0;
+  // initialize sum for second moment
+  o.second_moment = 0;
   for(size_t i = 0; i < 5; ++i){
     string s;
     if(not getline(is, s, ':'))
@@ -237,12 +260,17 @@ int smalljac_callback(
     void *arg){  				// forwarded arg from caller
 
 	curve *C = (curve *)arg;
-  acb_poly_t local_factor;
-  acb_poly_init(local_factor);
-  fmpz_polyxx local_factor_zz;
-
+  static acb_poly_t local_factor;
+  static fmpz_polyxx local_factor_zz;
+  static bool init = false;
+  if(!init) {
+    acb_poly_init(local_factor);
+    local_factor_zz.fit_length(MAX_DEGREE + 1);
+    acb_poly_fit_length(local_factor, MAX_DEGREE + 1);
+    init = true;
+  }
+  local_factor_zz = 0;
   if( good ) {
-    local_factor_zz.fit_length(n == C->genus ? 2*C->genus + 1 : 1 + n);
     local_factor_zz.set_coeff(0, 1);
     for(int i = 0; i < n; ++i)
       local_factor_zz.set_coeff(i + 1, a[i]);
@@ -261,7 +289,6 @@ int smalljac_callback(
       message << "local factor for q = "<< q << " not found!";
       throw_line(message.str());
     }
-    local_factor_zz.fit_length(it->second.size());
     for(size_t i = 0; i < it->second.size(); ++i)
       local_factor_zz.set_coeff(i, it->second[i]);
     C->bad_factors.erase(it); // we will no longer use it
@@ -280,23 +307,16 @@ int smalljac_callback(
       if(C->lastq == q) {
         local_factor_zz *= C->last_local_factor;
       } else {
-        C->last_local_factor = local_factor_zz;
+        C->last_local_factor = fmpz_polyxx(local_factor_zz);
         use_lpoly = false;
       }
     }
     C->lastq = q;
   }
   if(use_lpoly) {
-    if(C->symdegree > 1 and good) {
+    if(C->symdegree > 1 and good)
       sympow_ECQ(local_factor_zz, C->symdegree);
-      //FIXME
-      if(q < 15 and false) {
-        print(q);
-        print_pretty(local_factor_zz, "x");
-        cout<<endl;
-      }
-    }
-    acb_poly_fit_length(local_factor, local_factor_zz.degree() + 1);
+
     _acb_poly_set_length(local_factor, local_factor_zz.degree() + 1);
     for(long i = 0; i <= local_factor_zz.degree(); ++i) {
       // acb_poly_get_coeff_ptr(local_factor, i) = local_factor->coeffs + i
@@ -304,23 +324,35 @@ int smalljac_callback(
     }
     Lfunc_use_lpoly(C->L, q, local_factor);
     C->touched[q] = true;
+    if(local_factor_zz.degree() >= 1) {
+      if( q <= APHASH_MAXP ) {
+        C->ap[primes_dict[(int16_t)q]] = -local_factor_zz.coeff(1);
+      }
+      // += ap^2 / p^w = (ap/n^(w/2))^2
+      C->second_moment += pow(local_factor_zz.coeff(1).to<double>(), 2)/pow(double(q), C->symdegree);
+    }
   }
-  acb_poly_clear(local_factor);
+  //acb_poly_clear(local_factor);
   return true;
 }
 
+long ap(long p, void *arg) {
+	curve *C = (curve *)arg;
+  return (C->ap[primes_dict[p]] % M61UI).to<slong>();
+}
 
 // what does this return?
 long populate_local_factors(curve &C) {
-  C.touched = vector<bool>(Lfunc_nmax(C.L) + 1, false);
-  long res = smalljac_Lpolys(C.sj_curve, 1, Lfunc_nmax(C.L), 0, smalljac_callback, &C);
+  size_t bound = Lfunc_nmax(C.L) < 1<<13 ? 1<<13 : Lfunc_nmax(C.L);
+  C.touched = vector<bool>(bound + 1, false);
+  long res = smalljac_Lpolys(C.sj_curve, 1, bound, 0, smalljac_callback, &C);
   if(C.nf_degree == 2) { // deal with ramified primes
     acb_poly_t local_factor;
     acb_poly_init(local_factor);
+    acb_poly_fit_length(local_factor, C.degree + 1);
     for(const auto &it : C.bad_factors){
       assert_print(C.nf_disc % fmpzxx(it.first), ==, 0);
-      if( it.first <= (long) Lfunc_nmax(C.L) ) {
-        acb_poly_fit_length(local_factor, it.second.size());
+      if( it.first <= (long) bound ) {
         _acb_poly_set_length(local_factor, it.second.size());
         for(size_t i = 0; i < it.second.size(); ++i) {
           // acb_poly_get_coeff_ptr(local_factor, i) = local_factor->coeffs + i
@@ -328,18 +360,35 @@ long populate_local_factors(curve &C) {
         }
         Lfunc_use_lpoly(C.L, it.first, local_factor);
         C.touched[it.first] = true;
+        if(it.second.size() > 1) {
+          if( it.first <= APHASH_MAXP )
+            C.ap[primes_dict[(int16_t)it.first]] = it.second[1];
+          // += ap^2 / p^w = (ap/n^(w/2))^2
+          C.second_moment += pow(it.second[1].to<double>(), 2u)/ pow(double(it.first), C.symdegree);
+        }
       }
     }
+    // deal with inert primes
+    // local_factor = 1 + ?T^2, and p^2 > bound;
+    // thus we are only setting coefficients to zero
+    // no need to worry about second_moment or ap
     acb_poly_one(local_factor);
     primesieve_iterator it;
     primesieve_init(&it);
     uint64_t p=0;
-    while((p=primesieve_next_prime(&it)) <= Lfunc_nmax(C.L)){
-      if( not C.touched[p] ) Lfunc_use_lpoly(C.L, p, local_factor);
+    while((p=primesieve_next_prime(&it)) <= bound){
+      if( not C.touched[p] ){
+        Lfunc_use_lpoly(C.L, p, local_factor);
+        C.touched[p] = true;
+      }
     }
     primesieve_free_iterator(&it);
     acb_poly_clear(local_factor);
   }
+  C.tracehash = aphash(ap, &C);
+  long primepi = 0;
+  for(auto elt: C.touched) if(elt) ++primepi;
+  C.second_moment /= primepi;
   return res;
 }
 
@@ -349,6 +398,10 @@ ostream& operator<<(ostream &s, curve &C) {
   Lfunc_t &L = C.L;
 
   s << C.label <<":";
+  // trace hash
+  s << std::setprecision(17) << C.tracehash << ":";
+  // second moment
+  s << C.second_moment << ":";
   // root number
   s << Lfunc_epsilon(L) <<":";
   // r = rank
@@ -369,7 +422,7 @@ ostream& operator<<(ostream &s, curve &C) {
   }
   s << ":";
   Lplot_t *Lpp = Lfunc_plot_data(L, 0, 10.0, 500);
-  s << Lpp;
+  s << std::setprecision(17) << Lpp;
   Lfunc_clear_plot(Lpp);
   return s;
 }
@@ -377,8 +430,13 @@ ostream& operator<<(ostream &s, curve &C) {
 
 
 
-int main (int argc, char**argv)
-{
+int main (int argc, char**argv) {
+  vector<size_t> primes_vector(APHASH_MAXPI, 0);
+  primes = (int16_t *)primesieve_generate_n_primes(APHASH_MAXPI, 0, INT16_PRIMES);
+  for(size_t i=0; i < APHASH_MAXPI; ++i)
+    primes_dict[primes[i]] = i;
+  assert_print(primes[APHASH_MAXPI-1], ==, 8191);
+
   try {
     assert_print(argc, ==, 3);
     printf("Input: %s\n", argv[1]);
@@ -474,6 +532,7 @@ int main (int argc, char**argv)
      cerr << "Uncaught exception: " <<ex.what() << endl;
      std::abort();
   }
+  primesieve_free(primes);
 }
 
 
@@ -482,10 +541,10 @@ void sympow_ECQ(fmpz_polyxx& L, const int &symdegree) {
   assert_print(symdegree, <=, 8);
   assert_print(L.degree(), ==, 2);
   assert_print(L.get_coeff(0).is_one(), ==, true);
-  static std::array<fmpzxx, 21> a;
-  static std::array<fmpzxx, 37> p;
-  const std::array<int, 7> maxapower = {2, 4, 6, 9, 12, 16, 20};
-  const std::array<int, 7> maxppower = {3, 6, 10, 15, 21, 28, 36};
+  static array<fmpzxx, 21> a;
+  static array<fmpzxx, 37> p;
+  const array<int, 7> maxapower = {2, 4, 6, 9, 12, 16, 20};
+  const array<int, 7> maxppower = {3, 6, 10, 15, 21, 28, 36};
 
   static bool init = false;
   if(!init) {
