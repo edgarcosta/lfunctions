@@ -113,7 +113,7 @@ extern "C"{
   // Once all polys have been provided, do the computation
   Lerror_t Lfunc_compute(Lfunc_t L);
 
-  // what working precsion did the computation use
+  // what working precision did the computation use
   int64_t Lfunc_wprec(Lfunc_t L);
 
   // return the root number Lambda(s)=epsilon Lambda(k-s)

@@ -268,7 +268,7 @@ void final_ifft(Lfunc *L)
 
 // this is called by the user to compute all the bits of the Lfunc we expect them to want
 // including Lambda(t) for t =0,1/A,2/A,....
-// the zeros up to height 112/degree
+// the zeros up to height 64/degree
 // the (apparent) rank
 // epsilon and epsilon_sqr
 // Lambda^(rank)(1/2)
