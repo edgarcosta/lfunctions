@@ -70,6 +70,7 @@ int main() {
 #include <smalljac.h>
 
 #include "glfunc.h"
+#include "glfunc_internals.h" // so we can set self-dual = yes
 #include "tracehash.h"
 #include "examples_tools.h"
 
@@ -111,7 +112,7 @@ typedef struct {
   int symdegree;
 
   //  k -> L(k+1)
-  vector<acb_struct> special_values;
+  array<acb_struct, special_values_size> special_values;
 
 
   // nf field stuff
@@ -227,6 +228,7 @@ istream &operator>>(istream &is, curve &o)
 
 
         o.L = Lfunc_init(o.degree, uint64_t(o.conductor), o.symdegree * 0.5, o.mus, &o.ecode);
+        ((Lfunc *) o.L)->self_dual = YES;
         break;
       case 4:
         if(!(ss >> o.bad_factors))
@@ -399,9 +401,9 @@ ostream& operator<<(ostream &s, curve &C) {
 
   s << C.label <<":";
   // trace hash
-  s << std::setprecision(17) << C.tracehash << ":";
+  s << C.tracehash << ":";
   // second moment
-  s << C.second_moment << ":";
+  s << std::setprecision(17) << C.second_moment << ":";
   // root number
   s << Lfunc_epsilon(L) <<":";
   // r = rank
@@ -410,19 +412,11 @@ ostream& operator<<(ostream &s, curve &C) {
   s << Lfunc_Taylor(L) << ":";
    // special values
   s << C.special_values << ":";
-  // first zeros
-  arb_srcptr zeros = Lfunc_zeros(L, 0);
-  s << "[";
-  for(size_t i = 0; i < 10; ++i) {
-    s << zeros + i;
-    if( i < 9 )
-      s << ", ";
-    else
-      s << "]";
-  }
+  // first zeros as balls, the rest as doubles if we have enough precision
+  ostream_zeros(s, L, 0);
   s << ":";
   Lplot_t *Lpp = Lfunc_plot_data(L, 0, 10.0, 500);
-  s << std::setprecision(17) << Lpp;
+  s << Lpp;
   Lfunc_clear_plot(Lpp);
   return s;
 }
@@ -478,13 +472,13 @@ int main (int argc, char**argv) {
         std::abort();
       }
 
+      // we use printn to match SAGE's _repr_
       printf("\tRank = %" PRIu64 "\n",Lfunc_rank(L));
-      printf("\tEpsilon = ");acb_printd(Lfunc_epsilon(L),20);printf("\n");
-      printf("\tFirst non-zero Taylor coeff = ");arb_printd(Lfunc_Taylor(L), 20);printf("\n");
-      printf("\tFirst zero = ");arb_printd(Lfunc_zeros(L, 0), 20);printf("\n");
+      printf("\tEpsilon = ");acb_printn(Lfunc_epsilon(L) ,20, 0);printf("\n");
+      printf("\tFirst non-zero Taylor coeff = ");arb_printn(Lfunc_Taylor(L), 20, 0);printf("\n");
+      printf("\tFirst zero = ");arb_printn(Lfunc_zeros(L, 0), 20, 0);printf("\n");
 
 
-      C.special_values.resize(special_values_size);
       double shift = C.symdegree*0.5;
       for(size_t i = 0; i < C.special_values.size(); ++i) {
         acb_init(&C.special_values[i]);
@@ -494,14 +488,13 @@ int main (int argc, char**argv) {
           fprint_errors(stderr,ecode);
           std::abort();
         }
-        printf("\tL(%.2f) = ", val);acb_printd(&C.special_values[i],20);printf("\n");
+        printf("\tL(%.2f) = ", val);acb_printn(&C.special_values[i],20, 0);printf("\n");
       }
       //printf("\tFirst 20 zeros\n");
-      //// we could use Lfunc_zeros(L, 1) for the dual L-function
       //arb_srcptr zeros=Lfunc_zeros(L, 0);
       //for(int i  = 0; i < 20; ++i) {
       //  printf("\tZero %d = ", i);
-      //  arb_printd(zeros+i, 20);
+      //  arb_printn(zeros+i, 20, 0);
       //  printf("\n");
       //}
 
@@ -574,27 +567,27 @@ void sympow_ECQ(fmpz_polyxx& L, const int &symdegree) {
   // we can skip some of the larger powers
   int symdegreechalf = ceil(symdegree*0.5);
   for(int i=2; i <= maxppower[symdegree-2] - symdegreechalf; ++i ) {
-      p[i] = p[i/2]*p[i - i/2];
+    p[i] = p[i/2]*p[i - i/2];
   }
   int i = maxppower[symdegree-2];
   p[i] = p[i/2]*p[i - i/2];
   switch(symdegree) {
-      case 2:
+    case 2:
       L.fit_length(4);
       L.set_coeff(0, 1);
       L.set_coeff(1, -a[2] + p[1]);
       L.set_coeff(2, a[2]*p[1] - p[2]);
       L.set_coeff(3, -p[3]);
-          break;
-        case 3:
+      break;
+    case 3:
       L.fit_length(5);
       L.set_coeff(0, 1);
       L.set_coeff(1, -a[3] + 2*a[1]*p[1]);
       L.set_coeff(2, a[4]*p[1] - 3*a[2]*p[2] + 2*p[3]);
       L.set_coeff(3, -a[3]*p[3] + 2*a[1]*p[4]);
       L.set_coeff(4, p[6]);
-          break;
-        case 4:
+      break;
+    case 4:
       L.fit_length(6);
       L.set_coeff(0, 1);
       L.set_coeff(1, -a[4] + 3*a[2]*p[1] - p[2]);
@@ -602,8 +595,8 @@ void sympow_ECQ(fmpz_polyxx& L, const int &symdegree) {
       L.set_coeff(3, -a[6]*p[3] + 5*a[4]*p[4] - 7*a[2]*p[5] + 2*p[6]);
       L.set_coeff(4, a[4]*p[6] - 3*a[2]*p[7] + p[8]);
       L.set_coeff(5, -p[10]);
-          break;
-        case 5:
+      break;
+    case 5:
       L.fit_length(7);
       L.set_coeff(0, 1);
       L.set_coeff(1, -a[5] + 4*a[3]*p[1] - 3*a[1]*p[2]);
@@ -612,8 +605,8 @@ void sympow_ECQ(fmpz_polyxx& L, const int &symdegree) {
       L.set_coeff(4, a[8]*p[6] - 7*a[6]*p[7] + 16*a[4]*p[8] - 13*a[2]*p[9] + 3*p[10]);
       L.set_coeff(5, -a[5]*p[10] + 4*a[3]*p[11] - 3*a[1]*p[12]);
       L.set_coeff(6, p[15]);
-          break;
-        case 6:
+      break;
+    case 6:
       L.fit_length(8);
       L.set_coeff(0, 1);
       L.set_coeff(1, -a[6] + 5*a[4]*p[1] - 6*a[2]*p[2] + p[3]);
@@ -623,8 +616,8 @@ void sympow_ECQ(fmpz_polyxx& L, const int &symdegree) {
       L.set_coeff(5, -a[10]*p[10] + 9*a[8]*p[11] - 29*a[6]*p[12] + 40*a[4]*p[13] - 22*a[2]*p[14] + 3*p[15]);
       L.set_coeff(6, a[6]*p[15] - 5*a[4]*p[16] + 6*a[2]*p[17] - p[18]);
       L.set_coeff(7, -p[21]);
-          break;
-        case 7:
+      break;
+    case 7:
       L.fit_length(9);
       L.set_coeff(0, 1);
       L.set_coeff(1, -a[7] + 6*a[5]*p[1] - 10*a[3]*p[2] + 4*a[1]*p[3]);
@@ -635,8 +628,8 @@ void sympow_ECQ(fmpz_polyxx& L, const int &symdegree) {
       L.set_coeff(6, a[12]*p[15] - 11*a[10]*p[16] + 46*a[8]*p[17] - 91*a[6]*p[18] + 86*a[4]*p[19] - 34*a[2]*p[20] + 4*p[21]);
       L.set_coeff(7, -a[7]*p[21] + 6*a[5]*p[22] - 10*a[3]*p[23] + 4*a[1]*p[24]);
       L.set_coeff(8, p[28]);
-          break;
-        case 8:
+      break;
+    case 8:
       L.fit_length(10);
       L.set_coeff(0, 1);
       L.set_coeff(1, -a[8] + 7*a[6]*p[1] - 15*a[4]*p[2] + 10*a[2]*p[3] - p[4]);
@@ -648,11 +641,10 @@ void sympow_ECQ(fmpz_polyxx& L, const int &symdegree) {
       L.set_coeff(7, -a[14]*p[21] + 13*a[12]*p[22] - 67*a[10]*p[23] + 174*a[8]*p[24] - 239*a[6]*p[25] + 166*a[4]*p[26] - 50*a[2]*p[27] + 4*p[28]);
       L.set_coeff(8, a[8]*p[28] - 7*a[6]*p[29] + 15*a[4]*p[30] - 10*a[2]*p[31] + p[32]);
       L.set_coeff(9, -p[36]);
-          break;
-
+      break;
     default:
       throw_line("we cannot get here!"s);
-    }
+  }
 }
 
 

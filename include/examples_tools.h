@@ -360,9 +360,49 @@ ostream& operator<<(ostream &s, const acb_struct z) {
 
 // << operator for *Lplot_t
 ostream& operator<<(ostream& s, const Lplot_t *Lpp) {
-  s << Lpp->spacing << ":";
+  s << std::setprecision(17) << Lpp->spacing << ":";
   vector<double> plot(Lpp->points,Lpp->points + Lpp->n_points);
-  s << plot;
+  s << std::setprecision(17) << plot;
+  return s;
+}
+
+// << operator for Lfunc_zeros
+// Only the zeros in 64/degree get checked against RH.
+// There may be some missing in [64/degree,96/degree]
+ostream& ostream_zeros(ostream& s, const Lfunc_t L, uint64_t side=0, bool checked=true) {
+  arb_t rh_lim;
+  arb_init(rh_lim); // to what height do we check RH?
+  arb_set_ui(rh_lim,64);
+  arb_div_ui(rh_lim,rh_lim,L->degree,200);
+  const arb_srcptr zeros = Lfunc_zeros(L, side);
+  s << "[";
+  for(size_t i = 0; i < 10; ++i) {
+    if(arb_is_zero(zeros + i) or (checked and arb_gt(zeros+i,rh_lim))) {
+      s << "]:[]";
+      arb_clear(rh_lim);
+      return s;
+    }
+    if (i != 0) {
+      s << ", ";
+    }
+    s << zeros + i;
+  }
+  s << "]:[";
+  for(size_t i = 10; i < MAX_ZEROS; ++i) {
+    // if we can round exactly to double and we made an attempt at recognizing the zero
+    if(arb_is_zero(zeros + i)
+        or not arb_can_round_arf(zeros + i, 53, ARF_RND_NEAR)
+        or (checked and arb_gt(zeros+i,rh_lim))
+        ) {
+      break;
+    }
+    if (i != 10) {
+      s << ", ";
+    }
+    s << std::setprecision(17) << arf_get_d(arb_midref(zeros + i), ARF_RND_NEAR);
+  }
+  s << "]";
+  arb_clear(rh_lim);
   return s;
 }
 
