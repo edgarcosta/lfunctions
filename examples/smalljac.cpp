@@ -415,7 +415,7 @@ ostream& operator<<(ostream &s, curve &C) {
   // first zeros as balls, the rest as doubles if we have enough precision
   ostream_zeros(s, L, 0);
   s << ":";
-  Lplot_t *Lpp = Lfunc_plot_data(L, 0, 64/C.degree, 257);
+  Lplot_t *Lpp = Lfunc_plot_data(L, 0, 64.0/C.degree, 257);
   s << Lpp;
   Lfunc_clear_plot(Lpp);
   return s;
