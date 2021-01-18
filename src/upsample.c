@@ -25,7 +25,7 @@ extern "C"{
       s+=mus[d];
     s+=(double)r/2.0;
     s/=M_PI;
-    s=sqrt(s*A*h/2.0);
+    s=sqrt(s)*A*h/2.0;
     return H>s;
   }
 

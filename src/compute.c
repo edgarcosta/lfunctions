@@ -58,11 +58,14 @@ void copy(Lfunc *L)
   }
 
   int64_t nn=-L->u_N*L->u_stride*2; // this is where we start from
-  if(negate_me)
-    for(uint64_t n=0;n<L->u_no_values;n++,nn++)
+  if(negate_me) // our guess at epsilon had wrong sign
     {
-      arb_neg(L->u_values[0][n],acb_realref(L->res[nn%L->fft_NN]));
-      arb_neg(L->u_values[1][n],acb_realref(L->res[(-nn)%L->fft_NN]));
+      acb_neg(L->epsilon,L->epsilon);
+      for(uint64_t n=0;n<L->u_no_values;n++,nn++)
+	{
+	  arb_neg(L->u_values[0][n],acb_realref(L->res[nn%L->fft_NN]));
+	  arb_neg(L->u_values[1][n],acb_realref(L->res[(-nn)%L->fft_NN]));
+	}
     }
   else
     for(uint64_t n=0;n<L->u_no_values;n++,nn++)
