@@ -40,10 +40,28 @@ void lpoly_callback(acb_poly_t poly, uint64_t p, int d __attribute__((unused)), 
   acb_poly_t p5;
   acb_poly_init(p5);
   acb_poly_one(p5);
-  if((p%5==1)||(p%5==4))
+  /*  if((p%5==1)||(p%5==4))
     acb_poly_set_coeff_si(p5,1,-1);
   if((p%5==2)||(p%5==3))
     acb_poly_set_coeff_si(p5,1,1);
+  */
+  acb_t i;
+  acb_init(i);
+  arb_set_ui(acb_imagref(i),1); // i
+  if((p%5)==1)
+    acb_poly_set_coeff_si(p5,1,-1);
+  if((p%5)==2)
+    acb_poly_set_coeff_acb(p5,1,i);
+  if((p%5)==3)
+    {
+      acb_neg(i,i);
+      acb_poly_set_coeff_acb(p5,1,i);
+      acb_neg(i,i);
+    }
+  if((p%5)==4)
+    acb_poly_set_coeff_si(p5,1,1);
+  acb_clear(i);
+
   acb_poly_t p7;
   acb_poly_init(p7);
   acb_poly_one(p7);
@@ -65,7 +83,7 @@ int main (int argc, char**argv)
   printf("\n");
 
   Lfunc_t L;
-  double mus[]={0,1};
+  double mus[]={1,1};
   Lerror_t ecode;
 
   // we have a degree 2 L-function with alg=anal so normalisation = 0.0
