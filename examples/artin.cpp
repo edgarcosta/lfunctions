@@ -547,7 +547,7 @@ typedef struct {
   vector<acb_poly_struct> local_factors;
 
   //  k -> L(k+1)
-  vector<acb_struct> special_values;
+  array<acb_struct, special_values_size> special_values;
 
   // p -> conjugacy class
   map<fmpzxx, size_t> hard_primes;
@@ -711,18 +711,10 @@ ostream& operator<<(ostream &s, artin_rep &AR) {
   s << Lfunc_Taylor(L) << ":";
   // special values
   s << AR.special_values << ":";
-  // first 10 zeros
-  arb_srcptr zeros = Lfunc_zeros(L, 0);
-  s << "[";
-  for(size_t i = 0; i < 10; ++i) {
-    s << zeros + i;
-    if( i < 9 )
-      s << ", ";
-    else
-      s << "]";
-  }
+  // first zeros as balls, the rest as doubles if we have enough precision
+  ostream_zeros(s, L, 0);
   s << ":";
-  Lplot_t *Lpp = Lfunc_plot_data(L, 0, 10.0, 500);
+  Lplot_t *Lpp = Lfunc_plot_data(L, 0, 64/AR.dimension, 257);
   s << Lpp;
   Lfunc_clear_plot(Lpp);
   return s;
@@ -836,7 +828,6 @@ int main (int argc, char**argv)
       printf("Leading Taylor coeff = ");arb_printd(Lfunc_Taylor(L), 20);printf("\n");
       printf("First zero = ");arb_printd(Lfunc_zeros(L, 0), 20);printf("\n");
 
-      AR.special_values.resize(special_values_size);
       for(size_t i = 0; i < AR.special_values.size(); ++i) {
         acb_init(&AR.special_values[i]);
         ecode |= Lfunc_special_value(&AR.special_values[i], L, i + 1, 0);
