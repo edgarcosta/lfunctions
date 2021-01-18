@@ -24,6 +24,7 @@
 #include <acb.h>
 
 #include "glfunc.h" // for Lplot_t
+#include "glfunc_internals.h" // for L->degree
 
 
 using std::array;
@@ -373,7 +374,7 @@ ostream& ostream_zeros(ostream& s, const Lfunc_t L, uint64_t side=0, bool checke
   arb_t rh_lim;
   arb_init(rh_lim); // to what height do we check RH?
   arb_set_ui(rh_lim,64);
-  arb_div_ui(rh_lim,rh_lim,L->degree,200);
+  arb_div_ui(rh_lim,rh_lim, ((Lfunc *) L)->degree, 200);
   const arb_srcptr zeros = Lfunc_zeros(L, side);
   s << "[";
   for(size_t i = 0; i < 10; ++i) {
