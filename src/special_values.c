@@ -221,7 +221,7 @@ extern "C"{
     acb_exp(tmp1,tmp2,prec);
     //printf("N^(-(s-1/2)/2) = ");acb_printd(tmp1,20);printf("\n");
     acb_mul(res,res,tmp1,prec);
-    acb_div(res,res,L->epsilon_sqr,prec);
+    acb_mul(res,res,L->epsilon,prec);
     //printf("spec_gamma returning ");acb_printd(res,10);printf("\n");
     acb_clear(tmp1);
     acb_clear(tmp2);
@@ -345,25 +345,22 @@ extern "C"{
       return ecode;
     }
     if(verbose){printf("W(z) = ");acb_printd(res,20);printf("\n");}
-
     // go from W(z)->Lam(1/2+iz)
     acb_t s,ctmp;
     acb_init(s);acb_init(ctmp);
     acb_mul_arb(s,z,L->pi,prec);
     acb_mul_ui(ctmp,s,L->degree,prec);
-    acb_mul_2exp_si(ctmp,ctmp,-2);
+    acb_mul_2exp_si(ctmp,ctmp,-2); // pi r z /4
     arb_mul(tmp,acb_imagref(z),acb_imagref(z),prec);
     arb_mul(tmp,tmp,pi_by_H2,prec);
     arb_sub(acb_realref(ctmp),acb_realref(ctmp),tmp,prec);
     acb_exp(s,ctmp,prec);
     if(verbose){printf("going from W to Lambda by dividing by ");acb_printd(s,20);printf("\n");}
     acb_div(res,res,s,prec);
-
     // go from Lam->L by dividing out gamma(s)
     spec_rgamma(ctmp,an_s,L,prec);
     if(verbose){printf("going from Lambda to L by multiplying by ");acb_printd(ctmp,20);printf("\n");}
     acb_mul(res,res,ctmp,prec);
-
     acb_abs(tmp,res,prec);
     arb_get_rad_arb(tmp,tmp);
     arb_mul_2exp_si(tmp,tmp,L->target_prec);
