@@ -234,6 +234,9 @@ extern "C"{
         break;
       arb_set(tmp1,zeros[z]);
       buthe_fhat(tmp,tmp1,Lf,prec);
+      if(verbose) {
+        printf("Zero at ");arb_printd(tmp1,20);printf(" contributed ");arb_printd(tmp,20);printf("\n");
+      }
       arb_add(res,res,tmp,prec);
     }
     arb_mul_2exp_si(res,res,1);
@@ -251,8 +254,7 @@ extern "C"{
   {
     static bool init=false;
     static arb_t tmp,tmp1;
-    if(!init)
-    {
+    if(!init) {
       init=true;
       arb_init(tmp);
       arb_init(tmp1);
@@ -263,8 +265,7 @@ extern "C"{
         break;
       arb_set(tmp1,zeros[z]);
       buthe_fhat(tmp,tmp1,Lf,prec);
-      if(verbose) 
-      {
+      if(verbose) {
         printf("Zero at ");arb_printd(tmp1,20);printf(" contributed ");arb_printd(tmp,20);printf("\n");
       }
       arb_add(res,res,tmp,prec);
@@ -310,7 +311,7 @@ extern "C"{
     arb_log_ui(tmp1,N,prec); // log N
     arb_mul_ui(tmp2,logpi,r,prec); // log Pi^r
     arb_sub(tmp3,tmp1,tmp2,prec); // log(N/Pi^r)
-    //if(verbose){printf("lgam2 adding ");arb_printd(tmp3,20);printf("\n");}
+    if(verbose){printf("lgam2 adding ");arb_printd(tmp3,20);printf("\n");}
     arb_add(res,res,tmp3,prec);
   }
 
@@ -318,8 +319,7 @@ extern "C"{
   {
     static bool init=false;
     static arb_t tmp,tmp1,logpi;
-    if(!init)
-    {
+    if(!init) {
       init=true;
       arb_init(tmp);
       arb_init(tmp1);
@@ -332,9 +332,8 @@ extern "C"{
     buthe_lgam2(res,L->degree,L->conductor,logpi,prec);
     arb_div(tmp,L->buthe_b,L->pi,prec);
     arb_mul(res,res,tmp,prec);
-    //if(verbose) {printf("Winf before integral = ");arb_printd(res,20);printf("\n");}
-    for(uint64_t k=0;k<L->degree;k++)
-    {
+    if(verbose) {printf("Winf before integral = ");arb_printd(res,20);printf("\n");}
+    for(uint64_t k=0;k<L->degree;k++) {
       uint64_t ptr;
       bool approx;
       if(L->mus[k]>MAX_MU)
@@ -359,15 +358,14 @@ extern "C"{
       //if(verbose){printf("Integral contributing ");arb_printd(buthe_ints[(Lf->r-2)*(2*MAX_MUI_2+1)+(uint64_t)(2.0*Lf->mus[k])],20);printf("\n");}
       arb_add(res,res,tmp,prec);
     }
-    //if(verbose) {printf("Winf = ");arb_printd(res,20);printf("\n");}
+    if(verbose) {printf("Winf = ");arb_printd(res,20);printf("\n");}
   }
 
   Lerror_t buthe_check_RH(Lfunc *L)
   {
     static bool init=false;
     static arb_t sum,two_zeros;
-    if(!init)
-    {
+    if(!init) {
       init=true;
       arb_init(sum);
       arb_init(two_zeros);

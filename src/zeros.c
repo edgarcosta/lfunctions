@@ -271,35 +271,38 @@ Lerror_t find_zeros(Lfunc *L, uint64_t side)
       return ecode;
     last_sign=this_sign;
     this_sign=sign(L->u_values_off[side][n]);
+
     if(this_sign==UNK) // run out of precision
       return ecode|ERR_SOME_DATA;
+
+    if(stat_points)
+      {
+	last_dir=this_dir;
+	this_dir=direction(L->u_values_off[side][n-1], L->u_values_off[side][n], prec);
+	if(this_dir==UNK) // time to stop doing stat points
+	  stat_points=false;
+      }
+
+    
     if(this_sign!=last_sign) // found a zero between n and n-1
-    {
-      arb_mul_ui(tmp1, L->one_over_A, n-1, prec);
-      arb_mul_ui(tmp2, L->one_over_A, n, prec);
-      if(verbose)
-	{
-	  printf("zero found between ");arb_printd(tmp1, 20);
-	  printf(" and ");arb_printd(tmp2, 20);printf("\n");
-	}
-      ecode|=isolate_zero(L->zeros[side][count++], tmp1, tmp2, L->u_values_off[side][n-1], L->u_values_off[side][n], last_sign, L, side, prec);
-      if(fatal_error(ecode)||(count==MAX_ZEROS))
-	return ecode;
-      continue;
-    }
+      {
+	arb_mul_ui(tmp1, L->one_over_A, n-1, prec);
+	arb_mul_ui(tmp2, L->one_over_A, n, prec);
+	if(verbose)
+	  {
+	    printf("zero found between ");arb_printd(tmp1, 20);
+	    printf(" and ");arb_printd(tmp2, 20);printf("\n");
+	  }
+	ecode|=isolate_zero(L->zeros[side][count++], tmp1, tmp2, L->u_values_off[side][n-1], L->u_values_off[side][n], last_sign, L, side, prec);
+	if(fatal_error(ecode)||(count==MAX_ZEROS))
+	  return ecode;
+	continue;	
+      }
 
     // didn't find a sign change, so let's see about stationary points
-
+    
     if(!stat_points) // not bothering any more
       continue;
-
-    last_dir=this_dir;
-    this_dir=direction(L->u_values_off[side][n-1], L->u_values_off[side][n], prec);
-    if(this_dir==UNK)
-      {
-	stat_points=false; // time to give up on stat points
-	continue;
-      }
 
     if(this_dir!=last_dir) // change in direction
     {
