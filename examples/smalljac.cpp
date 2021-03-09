@@ -28,7 +28,8 @@ and elliptic curves over quadratic fields, note that one now passes the bad fact
 
  *
  * Output file:
- * label:root number:rank:leading term taylor:10 zeros:plot delta:plot yvalues
+ * FIXME!
+ * label:root number:rank:leading term taylor:10 zeros:plot delta:plot values
  */
 
 #ifdef NOSMALLJAC
@@ -104,6 +105,7 @@ typedef struct {
   int sj_err;
   int genus;
   int nf_degree;
+  bool cm; // only applies for genus 1
 
   // the bad local factors
   multimap<int64_t, vector<fmpzxx>> bad_factors;
@@ -181,6 +183,7 @@ istream &operator>>(istream &is, curve &o)
         }
         o.genus = smalljac_curve_genus(o.sj_curve);
         o.nf_degree = smalljac_curve_nf_degree(o.sj_curve);
+        o.cm = (o.genus == 1 and o.nf_degree == 1) ? smalljac_curve_cm(o.sj_curve) : false; //only returns reasonable output for E/Q
         // smalljac only handles quadratic number fields for elliptic curves
         assert_print(o.nf_degree, <=, 2);
         if( o.genus > 1 or o.nf_degree > 1) {
@@ -204,6 +207,10 @@ istream &operator>>(istream &is, curve &o)
           //slong newdeg = flint::bin(ulong(o.degree + o.symdegree - 1), ulong(o.symdegree)).to<slong>();
           //o.degree = newdeg;
           o.degree = o.symdegree + 1;
+          // we will manually factor the shift of the Riemann zeta function
+          // with remove_riemann_shift
+          if((o.symdegree % 4) == 0 and o.cm)
+            o.degree--;
           assert_print(o.degree, <=, MAX_DEGREE);
         }
         o.mus = new double[o.degree];
@@ -220,7 +227,9 @@ istream &operator>>(istream &is, curve &o)
             o.mus[i] = -i;
             o.mus[i + u] = -i + 1;
           }
-          if((o.symdegree % 2) == 0)
+          // the second condition checks that we are not in the CM case
+          // with m%4 == 0
+          if((o.symdegree % 2) == 0 and o.degree > o.symdegree)
             o.mus[o.symdegree] = -2*floor(u*0.5);
           //vector<double> vmus(o.mus, o.mus + o.degree);
           //print(vmus);
@@ -249,6 +258,17 @@ void curve_clear(curve &C) {
   Lfunc_clear(C.L);
 }
 
+
+void remove_riemann_shift(fmpz_polyxx& L, const unsigned long p, const unsigned long shift){
+  fmpzxx ppower(p);
+  ppower = pow(ppower, shift);
+  for(int i = 1; i <= L.degree(); ++i)
+    L.coeff(i) += ppower*L.coeff(i-1);
+
+  assert_print(L.lead(), ==, 0);
+  L._normalise();
+}
+
 // implemented at the bottom
 // sets L to Sym^d L
 void sympow_ECQ(fmpz_polyxx& L, const int &symdegree);
@@ -261,7 +281,7 @@ int smalljac_callback(
     int n,							// either 1 or g for good p, 0 for bad p
     void *arg){  				// forwarded arg from caller
 
-	curve *C = (curve *)arg;
+  curve *C = (curve *)arg;
   static acb_poly_t local_factor;
   static fmpz_polyxx local_factor_zz;
   static bool init = false;
@@ -298,13 +318,13 @@ int smalljac_callback(
   bool use_lpoly = true;
   if(C->nf_degree == 2){
     if(n_is_square(q)) {
-        q = n_sqrt(q); // so we call Lfunc_use_lpoly accordingly
-        fmpz_polyxx local_factor_zz2(2*local_factor_zz.degree() + 1);
-        for(long i=0; i <= 2*local_factor_zz.degree(); ++i) {
-          if(i%2 == 0)
-            local_factor_zz2.set_coeff(i, local_factor_zz.get_coeff(i/2));
-        }
-        local_factor_zz = local_factor_zz2;
+      q = n_sqrt(q); // so we call Lfunc_use_lpoly accordingly
+      fmpz_polyxx local_factor_zz2(2*local_factor_zz.degree() + 1);
+      for(long i=0; i <= 2*local_factor_zz.degree(); ++i) {
+        if(i%2 == 0)
+          local_factor_zz2.set_coeff(i, local_factor_zz.get_coeff(i/2));
+      }
+      local_factor_zz = local_factor_zz2;
     } else { // p is split, as smalljac doesn't handle ramified primes in the monic order
       if(C->lastq == q) {
         local_factor_zz *= C->last_local_factor;
@@ -316,8 +336,18 @@ int smalljac_callback(
     C->lastq = q;
   }
   if(use_lpoly) {
-    if(C->symdegree > 1 and good)
+    if(C->symdegree > 1 and good){
       sympow_ECQ(local_factor_zz, C->symdegree);
+    }
+    if(C->genus == 1 and C->cm and (C->symdegree % 4) == 0) { // factor out the Riemann zeta function shift
+      remove_riemann_shift(local_factor_zz, q, ((unsigned long)C->symdegree)>>1);
+      if (good) {
+        assert_print(local_factor_zz.degree(), ==, C->degree);
+      } else {
+        assert_print(local_factor_zz.degree(), <, C->degree);
+      }
+
+    }
 
     _acb_poly_set_length(local_factor, local_factor_zz.degree() + 1);
     for(long i = 0; i <= local_factor_zz.degree(); ++i) {
@@ -498,6 +528,7 @@ int main (int argc, char**argv) {
       //  printf("\n");
       //}
 
+      //print(C.second_moment)
 
       output << C << endl;
       // print any warnings collected along the way
@@ -755,7 +786,6 @@ for i in range(2, max_symdeg + 1):
             expr = re.sub(r"([ap])\^(\d+)", r"\1[\2]", expr)
             localout +='  L.set_coeff(%d, %s);\n' % (j, expr)
     localout += '      break;\n'
-    
     out += '\n'.join(['    '  + elt for elt in localout.split('\n')])
 out += r"""
     default:
