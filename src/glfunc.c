@@ -36,7 +36,8 @@ void fprint_errors(FILE *f, Lerror_t ecode)
   if(ecode&ERR_G_INFILE) fprintf(f,"Problem opening cached G data file.\n");
   if(ecode&ERR_G_OUTFILE) fprintf(f,"Problem opening file to cache G data.\n");
   if(ecode&ERR_BAD_DEGREE) fprintf(f,"The degree of the L-function must be between 1 and %d\n", MAX_DEGREE + 1);
-
+  if(ecode&ERR_SPEC_NZ) fprintf(f,"Special value routine only works for Im s>=0.\n");
+  
 }
 
 

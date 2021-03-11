@@ -232,6 +232,11 @@ extern "C"{
   // compute L(s) into res where s is given in algebraic normalisation
   Lerror_t Lfunc_special_value(acb_t res, Lfunc_t LL, double alg_res, double alg_ims)
   {
+    double T=alg_ims;
+    if (verbose) printf("T set to %f\n",T);
+    if(T<0.0)
+      return ERR_SPEC_NZ; // need s in upper half plane
+    
     Lerror_t ecode=ERR_SUCCESS;
     Lfunc *L=(Lfunc *) LL;
     int64_t prec=L->wprec;
@@ -247,15 +252,13 @@ extern "C"{
     arb_sub(acb_realref(an_s),arb_err,tmp,prec); // an re(s) = alg re(s)- norm
     arb_set_d(acb_imagref(an_s),alg_ims);
     //printf("Analytic s = ");acb_printd(an_s,20);printf("\n");
-
+    
     acb_t z;
     acb_init(z);
     arb_set(acb_realref(z),acb_imagref(an_s));
     arb_set_d(tmp,0.5);
     arb_sub(acb_imagref(z),tmp,acb_realref(an_s),prec);
-    if(verbose) {printf("special value z = ");acb_printd(z,20);printf("\n");}
-
-    double T=512.0/L->degree/OUTPUT_RATIO; // largest T for which we have data
+    if(verbose) {printf("special value z = ");acb_printd(z,20);printf("\n");}    
     uint64_t stride=32; // should be computed dynamically
     double A=L->A/(double)stride;
 
