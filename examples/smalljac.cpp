@@ -344,7 +344,9 @@ int smalljac_callback(
       if (good) {
         assert_print(local_factor_zz.degree(), ==, C->degree);
       } else {
-        assert_print(local_factor_zz.degree(), <, C->degree);
+        // bad primes for the model or isogeny class
+        // aren't necessarily bad for the symmetric power
+        assert_print(local_factor_zz.degree(), <=, C->degree);
       }
 
     }
