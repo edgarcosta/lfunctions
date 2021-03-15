@@ -2,7 +2,7 @@
 #include "glfunc_internals.h"
 
 #undef verbose
-#define verbose false
+#define verbose true
 #ifdef __cplusplus
 extern "C"{
 #endif
@@ -69,10 +69,10 @@ Lerror_t isolate_zero(arb_t res, arb_t tt0, arb_t tt1, arb_t ff0, arb_t ff1, int
       return ERR_UPSAMPLE;
     sign_t new_sign=sign(tmp2);
     if(new_sign==UNK) // can't do any better
-      {
-	arb_union(res, t0, t1, prec);
-	return ERR_SUCCESS;
-      }
+    {
+      arb_union(res, t0, t1, prec);
+      return ERR_SUCCESS;
+    }
     if(new_sign!=s0) // change is between t0 and tmp1
     {
       arb_set(t1, tmp1);
@@ -129,8 +129,7 @@ Lerror_t stat_point(arb_t z1, arb_t z2, uint64_t m, Lfunc *L, uint64_t side, uin
   arb_mul(f2, L->u_values_off[side][m+1], tmp, prec);
   sign_t s=sign(f0);
 
-  while(true)
-  {
+  while(true) {
     if(verbose){arb_printd(t0, 20);printf(" ");arb_printd(t1, 20);printf(" ");arb_printd(t2, 20);printf("\n");}
     if(verbose){arb_printd(f0, 20);printf(" ");arb_printd(f1, 20);printf(" ");arb_printd(f2, 20);printf("\n");}
     arb_add(t01, t0, t1, prec);
@@ -152,7 +151,7 @@ Lerror_t stat_point(arb_t z1, arb_t z2, uint64_t m, Lfunc *L, uint64_t side, uin
       }
       ecode|=isolate_zero(z1, t0, t01, f0, f01, s, L, side, prec);
       if(fatal_error(ecode))
-	return ecode;
+        return ecode;
       ecode|=isolate_zero(z2, t01, t1, f01, f1, s, L, side, prec);
       return ecode;
     }
@@ -189,7 +188,7 @@ Lerror_t stat_point(arb_t z1, arb_t z2, uint64_t m, Lfunc *L, uint64_t side, uin
       }
       ecode|=isolate_zero(z1, t1, t12, f1, f12, s, L, side, prec);
       if(fatal_error(ecode))
-	return ecode;
+        return ecode;
       isolate_zero(z2, t12, t2, f12, f2, s12, L, side, prec);
       return ecode;
     }
@@ -257,11 +256,10 @@ Lerror_t find_zeros(Lfunc *L, uint64_t side)
   }
 
   this_dir=direction(L->u_values_off[side][n], L->u_values_off[side][n+1], prec);
-  if(this_dir==UNK)
-    {
-      printf("Unknown direction at start of data.\n");
-      return ecode|ERR_NO_DATA;
-    }
+  if(this_dir==UNK) {
+    printf("Unknown direction at start of data.\n");
+    return ecode|ERR_NO_DATA;
+  }
 
 
   // now start searching for zeros and stat pts.
@@ -275,60 +273,59 @@ Lerror_t find_zeros(Lfunc *L, uint64_t side)
     if(this_sign==UNK) // run out of precision
       return ecode|ERR_SOME_DATA;
 
-    if(stat_points)
-      {
-	last_dir=this_dir;
-	this_dir=direction(L->u_values_off[side][n-1], L->u_values_off[side][n], prec);
-	if(this_dir==UNK) // time to stop doing stat points
-	  stat_points=false;
-      }
+    if(stat_points) {
+      last_dir=this_dir;
+      this_dir=direction(L->u_values_off[side][n-1], L->u_values_off[side][n], prec);
+      if(this_dir==UNK) // time to stop doing stat points
+        stat_points=false;
+    }
 
-    
+
     if(this_sign!=last_sign) // found a zero between n and n-1
+    {
+      arb_mul_ui(tmp1, L->one_over_A, n-1, prec);
+      arb_mul_ui(tmp2, L->one_over_A, n, prec);
+      if(verbose)
       {
-	arb_mul_ui(tmp1, L->one_over_A, n-1, prec);
-	arb_mul_ui(tmp2, L->one_over_A, n, prec);
-	if(verbose)
-	  {
-	    printf("zero found between ");arb_printd(tmp1, 20);
-	    printf(" and ");arb_printd(tmp2, 20);printf("\n");
-	  }
-	ecode|=isolate_zero(L->zeros[side][count++], tmp1, tmp2, L->u_values_off[side][n-1], L->u_values_off[side][n], last_sign, L, side, prec);
-	if(fatal_error(ecode)||(count==MAX_ZEROS))
-	  return ecode;
-	continue;	
+        printf("zero found between ");arb_printd(tmp1, 20);
+        printf(" and ");arb_printd(tmp2, 20);printf("\n");
       }
+      ecode|=isolate_zero(L->zeros[side][count++], tmp1, tmp2, L->u_values_off[side][n-1], L->u_values_off[side][n], last_sign, L, side, prec);
+      if(fatal_error(ecode)||(count==MAX_ZEROS))
+        return ecode;
+      continue;
+    }
 
     // didn't find a sign change, so let's see about stationary points
-    
+
     if(!stat_points) // not bothering any more
       continue;
 
     if(this_dir!=last_dir) // change in direction
     {
       if(((last_dir==UP)&&(this_sign==NEG))||((last_dir==DOWN)&&(this_sign==POS)))
-	{
-	  if(verbose) printf("Stationary point detected.\n");
-	  ecode|=stat_point(z1, z2, n-1, L, side, prec, n<=L->fft_NN/OUTPUT_RATIO);
-	  if(fatal_error(ecode))
-	    return ecode;
-	  if(verbose)
-	    {
-	      printf("Stat zero found at ");arb_printd(z1, 20);
-	      printf("\nand                ");arb_printd(z2, 20);
-	      printf("\n");fflush(stdout);
-	    }
-	  if(verbose){printf("setting zeros %" PRIu64 " and %" PRIu64 " to ", count, count+1);
-	    arb_printd(z1, 20);printf(" ");arb_printd(z2, 20);printf("\n");}
-	  arb_set(L->zeros[side][count], z1);
-	  count++;
-	  if(count==MAX_ZEROS)
-	    return ecode;
-	  arb_set(L->zeros[side][count], z2);
-	  count++;
-	  if(count==MAX_ZEROS)
-	    return ecode;
-	}
+      {
+        if(verbose) printf("Stationary point detected.\n");
+        ecode|=stat_point(z1, z2, n-1, L, side, prec, n<=L->fft_NN/OUTPUT_RATIO);
+        if(fatal_error(ecode))
+          return ecode;
+        if(verbose)
+        {
+          printf("Stat zero found at ");arb_printd(z1, 20);
+          printf("\nand                ");arb_printd(z2, 20);
+          printf("\n");fflush(stdout);
+        }
+        if(verbose){printf("setting zeros %" PRIu64 " and %" PRIu64 " to ", count, count+1);
+          arb_printd(z1, 20);printf(" ");arb_printd(z2, 20);printf("\n");}
+        arb_set(L->zeros[side][count], z1);
+        count++;
+        if(count==MAX_ZEROS)
+          return ecode;
+        arb_set(L->zeros[side][count], z2);
+        count++;
+        if(count==MAX_ZEROS)
+          return ecode;
+      }
     }
   }
   return ecode;
