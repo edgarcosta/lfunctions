@@ -2,7 +2,7 @@
 #include "glfunc_internals.h"
 
 #undef verbose
-#define verbose true
+#define verbose false
 #ifdef __cplusplus
 extern "C"{
 #endif
@@ -45,7 +45,12 @@ direction_t direction(arb_t a, arb_t b, uint64_t prec) {
 }
 
 // binary chop - isolate as far as we can
-Lerror_t isolate_zero(arb_t res, arb_t tt0, arb_t tt1, arb_t ff0, arb_t ff1, int8_t s0, Lfunc *L, uint64_t side, uint64_t prec) {
+Lerror_t isolate_zero(
+    arb_t res,
+    arb_t tt0, arb_t tt1,
+    arb_t ff0, arb_t ff1,
+    int8_t s0, // sign of ff0
+    Lfunc *L, uint64_t side, uint64_t prec) {
   static bool init=false;
   static arb_t tmp1, tmp2, tmp3, t0, t1, f0, f1;
   if(!init) {
@@ -130,8 +135,8 @@ Lerror_t stat_point(arb_t z1, arb_t z2, uint64_t m, Lfunc *L, uint64_t side, uin
   sign_t s=sign(f0);
 
   while(true) {
-    if(verbose){arb_printd(t0, 20);printf(" ");arb_printd(t1, 20);printf(" ");arb_printd(t2, 20);printf("\n");}
-    if(verbose){arb_printd(f0, 20);printf(" ");arb_printd(f1, 20);printf(" ");arb_printd(f2, 20);printf("\n");}
+    if(verbose){printf("ti = ");arb_printd(t0, 20);printf(" ");arb_printd(t1, 20);printf(" ");arb_printd(t2, 20);printf("\n");}
+    if(verbose){printf("fi = ");arb_printd(f0, 20);printf(" ");arb_printd(f1, 20);printf(" ");arb_printd(f2, 20);printf("\n");}
     arb_add(t01, t0, t1, prec);
     arb_mul_2exp_si(t01, t01, -1);
     if(!upsample_stride(f01, t01, L, side, prec))
@@ -141,10 +146,8 @@ Lerror_t stat_point(arb_t z1, arb_t z2, uint64_t m, Lfunc *L, uint64_t side, uin
     sign_t s01=sign(f01);
     if(s01==UNK)
       return ecode|ERR_DBL_ZERO;
-    if(s01!=s)
-    {
-      if(!isolate_p)
-      {
+    if(s01!=s) {
+      if(!isolate_p) {
         arb_union(z1, t0, t01, prec);
         arb_union(z2, t01, t1, prec);
         return ecode;
@@ -152,7 +155,7 @@ Lerror_t stat_point(arb_t z1, arb_t z2, uint64_t m, Lfunc *L, uint64_t side, uin
       ecode|=isolate_zero(z1, t0, t01, f0, f01, s, L, side, prec);
       if(fatal_error(ecode))
         return ecode;
-      ecode|=isolate_zero(z2, t01, t1, f01, f1, s, L, side, prec);
+      ecode|=isolate_zero(z2, t01, t1, f01, f1, s01, L, side, prec);
       return ecode;
     }
     direction_t left=direction(f0, f01, prec);
@@ -301,10 +304,8 @@ Lerror_t find_zeros(Lfunc *L, uint64_t side)
     if(!stat_points) // not bothering any more
       continue;
 
-    if(this_dir!=last_dir) // change in direction
-    {
-      if(((last_dir==UP)&&(this_sign==NEG))||((last_dir==DOWN)&&(this_sign==POS)))
-      {
+    if(this_dir!=last_dir) { // change in direction
+      if(((last_dir==UP)&&(this_sign==NEG))||((last_dir==DOWN)&&(this_sign==POS))) {
         if(verbose) printf("Stationary point detected.\n");
         ecode|=stat_point(z1, z2, n-1, L, side, prec, n<=L->fft_NN/OUTPUT_RATIO);
         if(fatal_error(ecode))

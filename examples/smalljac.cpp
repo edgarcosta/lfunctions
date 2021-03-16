@@ -496,6 +496,11 @@ int main (int argc, char**argv) {
 
       // populate local factors
       populate_local_factors(C);
+      print(C.second_moment)
+      SystemTime middle(std::chrono::system_clock::now());
+      double walltime_middle = std::chrono::duration_cast<std::chrono::milliseconds>(middle - start).count();
+      cout << "Done local:   \t"<< C.label << "\ttook ";
+      cout << std::setw(6) << std::setfill(' ')  << std::fixed << std::setprecision(2) << walltime_middle/1000 << "s"<< endl;
 
       // do the computation
       ecode |= Lfunc_compute(L);
@@ -530,7 +535,6 @@ int main (int argc, char**argv) {
       //  printf("\n");
       //}
 
-      //print(C.second_moment)
 
       output << C << endl;
       // print any warnings collected along the way
