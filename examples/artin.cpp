@@ -811,7 +811,7 @@ int main (int argc, char**argv)
       cout <<"using p <= " << target_M << endl;
 
       // populate local factors
-      ps.skipto(0);
+      ps.jump_to(0);
       for(uint64_t p = ps.next_prime(); p <= target_M; p = ps.next_prime())
         lpoly(int64_t(p), AR);
 
