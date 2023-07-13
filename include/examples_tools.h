@@ -254,9 +254,18 @@ istream & operator>>(istream& s, pair<T, R>& output) {
   if(!(s>>output.second))
     throw_line("bad second element"s);
 
+  c = s.peek();
   while (c != ']' and c != EOF) {
+    if( not iswspace(c) ) {
+        throw_line("bad character after second element"s);
+    }
+    s.get();
     c = s.peek();
   }
+
+  if (c == EOF)
+    throw_line("bad pair input"s);
+  s.get();
 
   if (c == EOF)
     throw_line("bad pair input"s);
