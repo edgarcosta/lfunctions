@@ -267,9 +267,6 @@ istream & operator>>(istream& s, pair<T, R>& output) {
     throw_line("bad pair input"s);
   s.get();
 
-  if (c == EOF)
-    throw_line("bad pair input"s);
-  s.get();
 
   return s;
 }
