@@ -14,6 +14,10 @@
 
 #define MAX_L (10) // maximum differential allowed in upsampling
 
+
+#define COMPUTE_ZEROS
+#define COMPUTE_RANK
+
 #include "inttypes.h"
 #include "acb.h"
 #include <stdbool.h>

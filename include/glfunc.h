@@ -55,7 +55,7 @@ extern "C"{
   typedef struct{
     uint64_t degree;
     uint64_t conductor;
-    double normalisation; 
+    double normalisation;
     double *mus;
     int64_t target_prec;
     int64_t wprec;
@@ -72,7 +72,7 @@ extern "C"{
   } Lplot_t;
 
   bool fatal_error(Lerror_t ecode); // are any errors in ecode considered fatal?
-  void fprint_errors(FILE *f, Lerror_t ecode); // print all errors with newlines 
+  void fprint_errors(FILE *f, Lerror_t ecode); // print all errors with newlines
 
   // return initialised Lfunc structure
   /* Input:

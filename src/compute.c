@@ -366,10 +366,13 @@ Lerror_t Lfunc_compute(Lfunc_t Lf)
 
   copy(L);
 
+#ifdef COMPUTE_RANK
   ecode|=do_rank(L);
   if(fatal_error(ecode))
     return ecode;
+#endif
 
+#ifdef COMPUTE_ZEROS
   arb_set_d(acb_realref(ctmp),0.5);
   arb_zero(acb_imagref(ctmp));
   abs_gamma(sks,ctmp,L,L->wprec);
@@ -388,6 +391,7 @@ Lerror_t Lfunc_compute(Lfunc_t Lf)
   }
 
   ecode|=buthe_check_RH(L);
+#endif
 
   return ecode;
 
