@@ -57,6 +57,14 @@ using flint::fmpzxx;
 using flint::fmpz_polyxx;
 
 
+#ifdef WITH_SPACE
+  const std::string comma = ", "s;
+#else
+  const std::string comma = ","s;
+#endif;
+
+
+
 /******************************************************************************
  * Generic handy tools
  *  - my_exception: an exception class that throws line number
@@ -149,7 +157,7 @@ ostream& operator<<(ostream& s, const vector<T>& a) {
   s <<"[";
   for(size_t i = 0; i < n; ++i) {
     s << a[i];
-    if(i < n - 1) s<<", ";
+    if(i < n - 1) s<<comma;
   }
   s << "]";
   return s;
@@ -159,7 +167,7 @@ template<class T, size_t size> ostream& operator<<(ostream& s, const array<T, si
   s <<"[";
   for(size_t i = 0; i < size; ++i) {
     s << a[i];
-    if(i < size - 1) s<<", ";
+    if(i < size - 1) s<<comma;
   }
   s << "]";
   return s;
@@ -217,7 +225,7 @@ istream & operator>>(istream& s, vector<T>& output) {
 // outputs [a, b]
 template<class T, class R>
 ostream& operator<<(ostream& s, const pair<T, R>& a) {
-  s <<"["<<a.first<<", "<<a.second<<"]";
+  s <<"["<<a.first<<comma<<a.second<<"]";
   return s;
 }
 
@@ -355,12 +363,12 @@ ostream& operator<<(ostream& s, const arb_t x) {
 // returns the rectangle [ar*2^er, br*2^er] + [ai*2^ei, bi*2^ei]*I
 // as [[ar, br, er], [ai, bi, ei]]
 ostream& operator<<(ostream &s, const acb_t z) {
-  s << "[" << acb_realref(z) <<", "<< acb_imagref(z) << "]";
+  s << "[" << acb_realref(z) <<comma<< acb_imagref(z) << "]";
   return s;
 }
 
 ostream& operator<<(ostream &s, const acb_struct z) {
-  s << "[" << acb_realref(&z) <<", "<< acb_imagref(&z) << "]";
+  s << "[" << acb_realref(&z) <<comma<< acb_imagref(&z) << "]";
   return s;
 }
 
@@ -390,7 +398,7 @@ ostream& ostream_zeros(ostream& s, const Lfunc_t L, uint64_t side=0, bool checke
       return s;
     }
     if (i != 0) {
-      s << ", ";
+      s << comma;
     }
     s << zeros + i;
   }
@@ -404,7 +412,7 @@ ostream& ostream_zeros(ostream& s, const Lfunc_t L, uint64_t side=0, bool checke
       break;
     }
     if (i != 10) {
-      s << ", ";
+      s << comma;
     }
     s << std::setprecision(17) << arf_get_d(arb_midref(zeros + i), ARF_RND_NEAR);
   }
