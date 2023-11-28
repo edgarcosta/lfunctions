@@ -1,8 +1,8 @@
 // Copyright Edgar Costa 2019
 // See LICENSE file for license details.
 /*
- * Make up a degree 2 L-function associated to the classical modular form 23.1.b.a
- * http://www.lmfdb.org/L/ModularForm/GL2/Q/holomorphic/23/1/b/a/
+ * Make up a degree 2 L-function associated to the classical modular form 7.3.b.a 
+ *https://www.lmfdb.org/ModularForm/GL2/Q/holomorphic/7/3/b/a/ 
  *
  * Change the following two lines, to modify the number of decimal digits printed, or to print raw format (not human friendly)
  */
@@ -147,6 +147,9 @@ int main ()
   Lerror_t ecode;
 
   // we have a degree 2 L-function with motivic weight 2
+  // 2 = degree
+  // 7 = conductor
+  // 1 = (3-1)/2
   L = Lfunc_init(2, 7, 1, mus, &ecode);
   if(fatal_error(ecode))
   {
