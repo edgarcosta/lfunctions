@@ -1,3 +1,5 @@
+#ifdef BUTHE
+
 #include "acb_poly.h"
 #include "glfunc_internals.h"
 
@@ -416,4 +418,6 @@ extern "C"{
 
 #ifdef __cplusplus
 }
+#endif
+
 #endif

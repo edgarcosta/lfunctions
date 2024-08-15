@@ -18,7 +18,9 @@ void fprint_errors(FILE *f, Lerror_t ecode)
   if(ecode&ERR_M_ERROR) fprintf(f,"Error computing M. Failed Lemma 2 of M_error.tex.\n");
   if(ecode&ERR_NO_DATA) fprintf(f,"Looks like we have no usable data.\n");
   if(ecode&ERR_ZERO_ERROR) fprintf(f,"Fatal error looking for zeros.\n");
+#ifdef BUTHE
   if(ecode&ERR_BUT_ERROR) fprintf(f,"Error doing Buthe check. Estimate for Wf+Winf-Ws* must allow >=0.\n");
+  #endif
   if(ecode&ERR_UPSAMPLE) fprintf(f,"Error computing bounds for upsampling.\n");
   if(ecode&ERR_MU_HALF) fprintf(f,"We expect all mu's to be 1/2 non-negative integers.\n");
   if(ecode&ERR_STAT_POINT) fprintf(f,"Fatal error in stationary point routine.\n");
@@ -375,8 +377,13 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode)
   arb_init(L->ftwiddle_error);
 
   arb_clear(tmp);
-  init_buthe(L,L->wprec); // setup stuff for Buthe zero check
 
+#ifdef BUTHE
+  init_buthe(L,L->wprec); // setup stuff for Buthe zero check
+#endif
+#ifdef TURING
+  arb_init(L->imint);
+#endif
   L->nmax_called=false; // noone has called nmax yet
 
   arb_init(L->Lam_d);

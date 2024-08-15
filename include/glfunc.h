@@ -9,6 +9,8 @@
 #define YES (0)
 #define NO (0)
 
+#define TURING
+
 #define MAX_DEGREE (9) // if increasing, need more integrals in buthe.c
 // and probably need to take a good look at g.c
 #define MAX_R MAX_DEGREE
@@ -21,7 +23,9 @@
 // fatalities
 #define ERR_NO_DATA (1) // the first two Lambda(t) values contained zero. Totally fatal
 #define ERR_ZERO_ERROR (2) // some unexpected error isolating zeros
+#ifdef BUTHE
 #define ERR_BUT_ERROR (4) // Wf+Winf-Ws* must be negative (we cant find too many zeros)
+#endif
 #define ERR_OOM (8) // out of memory error
 #define ERR_UPSAMPLE (16) // something bad happened trying to upsample
 #define ERR_MU_HALF (32) // mus should be 1/2 integers
@@ -35,7 +39,7 @@
 // warnings
 #define ERR_SOME_DATA ((uint64_t) 1<<32) // We had some sensible data, but not to end of Turing Zone
 #define ERR_ZERO_PREC ((uint64_t) 1<<33) // couldn't isolate zeros to target_prec
-#define ERR_RH_ERROR ((uint64_t) 1<<34) // RH check (using Buthe's method) failed
+#define ERR_RH_ERROR ((uint64_t) 1<<34) // RH check (using Buthe's or Turing's method) failed
 #define ERR_INSUFF_EULER ((uint64_t) 1<<35) // ran out of Euler factors before we expected to
 #define ERR_NO_RANK ((uint64_t) 1<<36) // could not determine rank of L
 #define ERR_CONFLICT_RANK ((uint64_t) 1<<37) // rank we computed did not agree with what we were told

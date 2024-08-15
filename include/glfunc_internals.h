@@ -6,11 +6,13 @@
 #define verbose (false)
 #define BAD_64 (1LL<<62)
 
+#ifdef BUTHE
 // how many integrals have I precomputed for Buthe's method?
 #define MAX_MUI (100)
 #define MAX_MUI_2 (200)
 #define MAX_MU ((double) MAX_MUI)
 #define MAX_MU_2 ((double) MAX_MUI_2)
+#endif
 
 #define MAX_L (10) // maximum differential allowed in upsampling
 
@@ -77,6 +79,7 @@ extern "C"{
     arb_t pre_ftwiddle_error;
     arb_t ftwiddle_error;
 
+#ifdef BUTHE
     arb_t buthe_Wf;
     arb_t buthe_Winf;
     arb_t buthe_Ws;
@@ -86,8 +89,13 @@ extern "C"{
     arb_t buthe_h;
     arb_t buthe_ints[(MAX_R-1)*(2*MAX_MUI_2+1)];
     uint64_t buthe_M;
+#endif
 
-
+#ifdef TURING
+    uint64_t X; // see eq 4.10
+    arb_t imint;
+#endif
+    
     arb_t one_over_root_N;
     arb_t sum_ans;
     acb_t epsilon;
@@ -139,12 +147,19 @@ extern "C"{
   Lerror_t do_pre_iFFT_errors(Lfunc *L);
   bool M_error(arb_t res, arb_t x, Lfunc *L, int64_t prec);
 
+#ifdef BUTHE
   // from buthe.c
   void init_buthe(Lfunc *L, int64_t prec);
   void wf(Lfunc *L, uint64_t p, acb_poly_t fp1, acb_poly_t fp, int64_t prec);
   void buthe_Wf_error(Lfunc *L);
   Lerror_t buthe_check_RH(Lfunc *L);
+#endif
 
+#ifdef TURING
+  // from turing.c
+  Lerror_t turing_check_RH(Lfunc *L);
+#endif
+  
   // from compute.c
   void lfunc_compute(Lfunc *L);
 
