@@ -82,7 +82,7 @@ extern "C"{
   /* Input:
    *  - degree, the degree of the L-function
    *  - conductor, the conductor of the L-function
-   *  - normalisation, the shift on s axis to go from the algebraic normalization to the analytic one, i.e., if an is the Dirichlet in the algebraic normalization, then an/n^{normalisation} is the Dirichlet coefficient of in the analytic normalization
+   *  - normalisation, the shift on s axis to go from the algebraic normalization to the analytic one, i.e., if an is the Dirichlet in the algebraic normalization, then an/n^{normalisation} is the Dirichlet coefficient of in the analytic normalization. Lambda(s)=eps Lambda(k-s) -> normalisation = (k-1)/2
    *  - mus, the shifts of Gamma_R, mu[i] + normalisation must be half integers
    *  - ecode, where we keep track of errors and warnings
    *
@@ -92,10 +92,10 @@ extern "C"{
    *      or
    *        mus = [0.5, 1.5] and normalisation = 0
    *
-   *    - Classical modular form of weight 13
+   *    - Classical modular form of weight 13 (motivic weight of Lfunc = 12)
    *        mus = [0, 1] and normalisation = 6
    *      or
-   *        mus = [6, 5] and normalisation = 0
+   *        mus = [6, 7] and normalisation = 0
    */
   Lfunc_t Lfunc_init(uint64_t degree, uint64_t conductor, double normalisation, const double *mus, Lerror_t *ecode);
   // do the same but with more control

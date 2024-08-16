@@ -383,6 +383,7 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode)
 #endif
 #ifdef TURING
   arb_init(L->imint);
+  arb_init(L->X);
 #endif
   L->nmax_called=false; // noone has called nmax yet
 

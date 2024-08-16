@@ -1,7 +1,7 @@
 #ifndef _GLFUNC_INTERNAL
 #define _GLFUNC_INTERNAL
-#define OUTPUT_RATIO (8) // we will analyse this portion of B
-#define TURING_RATIO (16)
+#define OUTPUT_RATIO (8) // we will analyse 1/this of B
+#define TURING_RATIO (16) // and use a further 1/this for Turing
 #define EXTRA_BITS (35) // extra bits of precision for convolves etc.
 #define verbose (false)
 #define BAD_64 (1LL<<62)
@@ -92,7 +92,7 @@ extern "C"{
 #endif
 
 #ifdef TURING
-    uint64_t X; // see eq 4.10
+    arb_t X; // see eq 4.10
     arb_t imint;
 #endif
     
@@ -157,7 +157,7 @@ extern "C"{
 
 #ifdef TURING
   // from turing.c
-  Lerror_t turing_check_RH(Lfunc *L);
+  Lerror_t turing_check_RH(Lfunc *L, int64_t);
 #endif
   
   // from compute.c

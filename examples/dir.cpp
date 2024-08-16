@@ -1,6 +1,6 @@
 /*
-Make up a degree 2 L-function by multiplying the quadratic character
-mod 5 and 7 together.
+Make up a degree 2 L-function by multiplying one of the non-real primitive
+characters mod 5 and the quadratic character mod 7 together.
 */
 
 #define DIGITS 20
@@ -40,11 +40,15 @@ void lpoly_callback(acb_poly_t poly, uint64_t p, int d __attribute__((unused)), 
   acb_poly_t p5;
   acb_poly_init(p5);
   acb_poly_one(p5);
-  /*  if((p%5==1)||(p%5==4))
+
+  /*
+  if((p%5==1)||(p%5==4))
     acb_poly_set_coeff_si(p5,1,-1);
   if((p%5==2)||(p%5==3))
     acb_poly_set_coeff_si(p5,1,1);
   */
+
+  // the Euler polynomials are (1-chi(p)p^-s)^-1
   acb_t i;
   acb_init(i);
   arb_set_ui(acb_imagref(i),1); // i
@@ -83,10 +87,11 @@ int main (int argc, char**argv)
   printf("\n");
 
   Lfunc_t L;
-  double mus[]={1,1};
+  double mus[]={1,1}; // both dirichlet characters are odd
   Lerror_t ecode;
 
-  // we have a degree 2 L-function with alg=anal so normalisation = 0.0
+  // we have a degree 2 L-function with cond=5*7, alg=anal so
+  // normalisation = 0.0
   L=Lfunc_init(2,5*7,0.0,mus,&ecode);
   if(fatal_error(ecode))
   {
