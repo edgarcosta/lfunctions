@@ -192,10 +192,12 @@ int main ()
   printf("L(2) = ");acb_printd(ctmp, DIGITS);printf("\n");
   acb_clear(ctmp);
 
-  printf("First 10 zeros\n");
+  printf("zeros\n");
   // we could use Lfunc_zeros(L, 1) for the dual L-function
   arb_srcptr zeros=Lfunc_zeros(L, 0);
-  for(int i  = 0; i < 10; ++i) {
+  for(int i  = 0;; ++i) {
+    if(arb_is_zero(zeros+i))
+      break;
     printf("Zero %d = ", i);
     arb_printd(zeros+i, DIGITS);
     printf("\n");

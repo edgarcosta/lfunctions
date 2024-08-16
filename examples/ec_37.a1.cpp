@@ -207,7 +207,7 @@ int main ()
 
 
 
-  printf("First 10 zeros\n");
+  printf("Zeros\n");
   // we could use Lfunc_zeros(L, 1) for the dual L-function
   arb_srcptr zeros=Lfunc_zeros(L, 0);
   for(int i  = 0; i < 10; ++i) {

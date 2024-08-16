@@ -396,7 +396,7 @@ Lerror_t Lfunc_compute(Lfunc_t Lf)
 #endif
 
 #ifdef TURING
-  ecode|=turing_check_RH(L);
+  ecode|=turing_check_RH(L,prec);
 #endif
   
 #endif

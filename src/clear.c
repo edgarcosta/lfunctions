@@ -70,6 +70,7 @@ extern "C"{
 
     #ifdef TURING
     arb_cclear(L->imint);
+    arb_cclear(L->X);
     #endif
     
     arb_cclear(L->one_over_root_N);
