@@ -18,8 +18,8 @@
 #define COMPUTE_ZEROS
 #define COMPUTE_RANK
 
-#include "inttypes.h"
-#include "acb.h"
+#include <acb.h>
+#include <inttypes.h>
 #include <stdbool.h>
 #include "glfunc.h"
 
