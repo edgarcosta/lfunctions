@@ -1,4 +1,4 @@
-// Copyright Edgar Costa 2019
+// Copyright Edgar Costa 2024
 // See LICENSE file for license details.
 //
 //
@@ -14,7 +14,16 @@
  *
  */
 
+#include <acb_poly.h>
+#include <assert.h>
+#include <ctype.h>
+#include <inttypes.h>
+#include <primesieve.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "glfunc.h"
 
 typedef struct {
 	// some string
@@ -117,10 +126,9 @@ static inline size_t replace_char(char* str, const char d, const char n) {
   char *p;
   size_t count=0;
   p = str;
-  replace = d == n;
   // Count occurance of d in string
   while( (p=strchr(p, d)) != NULL ) {
-    if(replace)
+    if(d != n) // compiler should be smart enough to figure out these are constants
       *p = n; // replace delimiter.
     p++; // Skip past our old delimiter
     count++;
@@ -129,12 +137,13 @@ static inline size_t replace_char(char* str, const char d, const char n) {
 }
 
 // remove the nulls
-static inline replace_null(char *str, const char d, const size_t count) {
+static inline void replace_null(char *str, const char d, const size_t count) {
   char* p = str;
   for(size_t i = 0; i < count; ++i) {
-    p=strchr(p, 0);
-    *p = n; // replace delimiter.
+    p = strchr(p, 0);
+    *p = d; // replace null by delimiter.
     p++; // Skip past our old delimiter
+  }
 }
 
 // this changes the string
@@ -165,14 +174,14 @@ static inline int split(char * str, char delim, char ***array, size_t *length ) 
 
 
 
-long populate_local_factors(Lfunc_rational_t L) {
+void populate_local_factors(Lfunc_rational_t L) {
   size_t bound = Lfunc_nmax(L->L);
+  // printf("bound = %ld\n", bound);
   size_t size;
   int64_t * primes = (int64_t*) primesieve_generate_primes(0, bound, &size, INT64_PRIMES);
   // FIXME check that we have enough euler factors
   // use Lfunc_reduce_nmax if euler_factors is too short
-  assert size_euler_factors
-  size = max(size, size_euler_factors);
+  assert(L->size_euler_factors >= size);
 
   size_t d = L->degree;
   acb_poly_t local_factor;
@@ -180,18 +189,15 @@ long populate_local_factors(Lfunc_rational_t L) {
   acb_poly_fit_length(local_factor, d + 1);
 
 
-
   for (size_t i = 0; i < size; ++i) {
-    int64_t p = primes[i];
-    int64_t pk = 1;
     acb_poly_zero(local_factor);
-    for(size_t j=0; j <= d; ++j) {
-      acb_set_d(local_factor->coeffs + i, L->euler_factors + i*(d+1) + j);
+    _acb_poly_set_length(local_factor, d + 1);
+    for(size_t j = 0; j <= d; ++j) {
+      acb_set_si(local_factor->coeffs + j, L->euler_factors[i*(d+1) + j]);
     }
-    Lfunc_use_lpoly(L->L, p, local_factor);
+    Lfunc_use_lpoly(L->L, primes[i], local_factor);
   }
 
-  primesieve_free_iterator(&it);
   acb_poly_clear(local_factor);
 }
 
@@ -222,34 +228,42 @@ int Lfunc_rational_set_s(Lfunc_rational_t L, char *s) {
   int status = 0;
 
   status = split(s, ':', &tokens, &tokens_length);
+  // printf("tokens_length: %d\n", tokens_length);
 
   if(tokens_length != 6)
     status = -1;
 
   if(status != -1) {
     // read label
-    L->label = (char *) malloc((strlen(tokens[0]) + 1) * sizeof(char));
-    strncpy(L->label, input, len);
+    size_t len = strlen(tokens[0]) + 1;
+    L->label = (char *) malloc(len * sizeof(char));
+    strncpy(L->label, tokens[0], len);
+    // printf("label = %s\n", L->label);
 
-
+    // printf("label = %s %d\n", tokens[1], strlen(tokens[1]));
     L->degree = atol(tokens[1]);
+    // printf("degree = %d\n", L->degree);
     L->conductor = atol(tokens[2]);
+    // printf("conductor = %ld\n", L->conductor);
     L->weight = atol(tokens[3]);
+    // printf("weight = %d\n", L->weight);
+    L->mus = (double *)malloc(L->degree*sizeof(double));
     status = atoff(L->mus, L->degree, tokens[4]);
-
-
   }
 
 
   if(status != -1) {
     // assuming a matrix as input
-    size_t entries = replace_char(tokens[5], ',', ',');
-    size_t L->size_euler_factors = entries/(d + 1);
+    // this just counts commas
+    size_t entries = replace_char(tokens[5], ',', ',') + 1;
+    assert(entries % (L->degree + 1) == 0);
+    L->size_euler_factors = entries/(L->degree + 1);
     int* d;
     d = (int *)malloc(L->size_euler_factors * sizeof(int));
     for(size_t i = 0; i < L->size_euler_factors; ++i)
       d[i] = L->degree + 1;
-    status = aoiii(L->euler_factors, d, L->size_euler_factors, L->degree + 1, input)
+    L->euler_factors = (int64_t *) malloc( L->size_euler_factors * (L->degree + 1) * sizeof(int64_t));
+    status = atoiii(L->euler_factors, d, L->size_euler_factors, L->degree + 1, tokens[5]);
   }
   if(status != -1) {
     L->L = Lfunc_init(L->degree, L->conductor, L->weight*0.5, L->mus, &L->ecode);
@@ -285,11 +299,15 @@ int main(int argc, char** argv) {
 
   char *line = NULL;
   size_t len = 0;
-  while ((ssize_t read = getline(&line, &len, file)) != -1) {
-    printf("READ: %s", line);
-    Lfunc_rational L;
+  while (getline(&line, &len, input) != -1) {
+    Lfunc_rational_t L;
     Lfunc_rational_init(L);
-    Lfunc_rational_set_s(L, s);
+    Lfunc_rational_set_s(L, line);
+    printf("label = %s\n", L->label);
+    printf("degree = %d conductor = %" PRId64 " weight = %d mus = [ ", L->degree, L->conductor, L->weight);
+    for(int i=0; i < L->degree; ++i)
+      printf("%.2f ", L->mus[i]);
+    printf("]\n");
 
 
     populate_local_factors(L);
@@ -302,15 +320,15 @@ int main(int argc, char** argv) {
       fprint_errors(stderr, L->ecode);
       return -1;
     }
-    printf("Rank = %" PRIu64 "\n",Lfunc_rank(L));
-    printf("Epsilon = ");acb_printd(Lfunc_epsilon(L),20);printf("\n");
-    printf("Leading Taylor coeff = ");arb_printd(Lfunc_Taylor(L), 20);printf("\n");
-    printf("First zero = ");arb_printd(Lfunc_zeros(L, 0), 20);printf("\n");
+    printf("ecode = %lu\n", L->ecode);
+    printf("Rank = %" PRIu64 "\n", Lfunc_rank(L->L));
+    printf("Epsilon = ");acb_printd(Lfunc_epsilon(L->L),20);printf("\n");
+    printf("Leading Taylor coeff = ");arb_printd(Lfunc_Taylor(L->L), 20);printf("\n");
+    printf("First zero = ");arb_printd(Lfunc_zeros(L->L, 0), 20);printf("\n");
 
+    // TODO write output to output
     Lfunc_rational_clear(L);
   }
-
-
   fclose(input);
   fclose(output);
 }
