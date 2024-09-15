@@ -796,7 +796,6 @@ int main (int argc, char**argv)
       cout << "Date:   \t" <<  std::put_time(std::localtime(&startt), "%F %T") << endl;
 
       artin_rep AR;
-      Lerror_t &ecode = AR.ecode;
       Lfunc_t &L = AR.L;
 
 
@@ -817,9 +816,9 @@ int main (int argc, char**argv)
 
 
       // do the computation
-      ecode |= Lfunc_compute(L);
-      if(fatal_error(ecode)) {
-        fprint_errors(stderr, ecode);
+      AR.ecode |= Lfunc_compute(L);
+      if(fatal_error(AR.ecode)) {
+        fprint_errors(stderr, AR.ecode);
         std::abort();
       }
 
@@ -830,9 +829,9 @@ int main (int argc, char**argv)
 
       for(size_t i = 0; i < AR.special_values.size(); ++i) {
         acb_init(&AR.special_values[i]);
-        ecode |= Lfunc_special_value(&AR.special_values[i], L, i + 1, 0);
-        if(fatal_error(ecode)) {
-          fprint_errors(stderr,ecode);
+        AR.ecode |= Lfunc_special_value(&AR.special_values[i], L, i + 1, 0);
+        if(fatal_error(AR.ecode)) {
+          fprint_errors(stderr, AR.ecode);
           std::abort();
         }
         printf("L(%lu) = ", i + 1);acb_printd(&AR.special_values[i],20);printf("\n");
@@ -841,9 +840,9 @@ int main (int argc, char**argv)
       output << AR << endl;
       // print any warnings collected along the way
       // ignore could not achieve target error bound in special value
-      if( ecode != ERR_SUCCESS and ecode != ERR_SPEC_PREC ) {
+      if( AR.ecode != ERR_SUCCESS and AR.ecode != ERR_SPEC_PREC ) {
         cerr << "Begin warnings for " << AR.label << endl;
-        fprint_errors(stderr, ecode);
+        fprint_errors(stderr, AR.ecode);
         cerr << "End warnings for " << AR.label << endl;
         r++;
       }
