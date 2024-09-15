@@ -320,7 +320,6 @@ int main(int argc, char** argv) {
       fprint_errors(stderr, L->ecode);
       return -1;
     }
-    printf("ecode = %lu\n", L->ecode);
     printf("Rank = %" PRIu64 "\n", Lfunc_rank(L->L));
     printf("Epsilon = ");acb_printd(Lfunc_epsilon(L->L),20);printf("\n");
     printf("Leading Taylor coeff = ");arb_printd(Lfunc_Taylor(L->L), 20);printf("\n");
