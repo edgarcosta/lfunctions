@@ -324,10 +324,12 @@ int main(int argc, char** argv) {
       fprint_errors(stderr, L->ecode);
       return -1;
     }
+    printf("Error code = %" PRIu64 "\n", L->ecode);
     printf("Rank = %" PRIu64 "\n", Lfunc_rank(L->L));
     printf("Epsilon = ");acb_printd(Lfunc_epsilon(L->L),20);printf("\n");
     printf("Leading Taylor coeff = ");arb_printd(Lfunc_Taylor(L->L), 20);printf("\n");
     printf("First zero = ");arb_printd(Lfunc_zeros(L->L, 0), 20);printf("\n");
+    printf("\n\n");
 
     // TODO write output to output
     Lfunc_rational_clear(L);
