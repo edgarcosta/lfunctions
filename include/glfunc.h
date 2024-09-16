@@ -13,7 +13,7 @@
 // and probably need to take a good look at g.c
 #define MAX_R MAX_DEGREE
 #define MAX_ZEROS (256)
-#define DEFAULT_TARGET_PREC (100)
+#define DEFAULT_TARGET_PREC (10)
 // error codes
 // those in lower 32 bits are fatal
 // those in upper 32 bits are warnings
