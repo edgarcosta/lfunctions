@@ -1,11 +1,10 @@
-#ifdef BUTHE
-
-#include "acb_poly.h"
+#include "flint/acb_poly.h"
 #include "glfunc_internals.h"
 
 #ifdef __cplusplus
 extern "C"{
 #endif
+#ifdef BUTHE
 
 
   // We use Buthe's method to verify our list of zeros
@@ -32,7 +31,7 @@ extern "C"{
     uint64_t buthe_r_ints [(MAX_R-1)*(2*MAX_MUI_2+1)]=
 #include "../gp/buthe_ints.out"
 
-      arb_t one;
+    arb_t one;
     arb_init(one);
     arb_set_ui(one,1);
     for(uint64_t i=0;i<(MAX_R-1)*(2*MAX_MUI_2+1);i++)
@@ -46,24 +45,26 @@ extern "C"{
     arb_init(L->buthe_Winf);
     arb_init(L->buthe_Ws);
     arb_init(L->buthe_b); // will confirm RH in [0,b]
-    arb_init(L->buthe_sig1);
     arb_init(L->buthe_C);
     arb_init(L->buthe_h);
 
 
-
-    arb_set_ui(L->buthe_sig1,1); // |c(p^m)|<=p^(r-1)m i.e. Ramanujan
     arb_set_ui(L->buthe_C,L->degree);
     arb_div_ui(L->buthe_b,L->B,OUTPUT_RATIO,prec);
     //printf("Buthe b set to ");arb_printd(L->buthe_b,20);printf("\n");
-    arb_set_ui(L->buthe_h,4);
+    //
+    // we set buthe_h as big as possible
+    // we need b-a>5h/Pi were b-a =512/16/10
+    // 
+    arb_set_ui(L->buthe_h,BUTHE_H); // defined in buthe_ints.out
     //printf("Buthe h set to ");arb_printd(L->buthe_h,20);printf("\n");
 
-    // check h<pi*b/5 will be OK so long as degree <=10
+    // check h<pi*2*b/5 will be OK so long as degree <=10
     arb_t tmp;
     arb_init(tmp);
     arb_mul(tmp,L->pi,L->buthe_b,prec);
     arb_div_ui(tmp,tmp,5,prec);
+    arb_mul_2exp_si(tmp,tmp,1);
     if(verbose) {
       printf("Max allowed h is ");
       arb_printd(tmp,20);
@@ -91,7 +92,7 @@ extern "C"{
   // compute a term for wf
   // bm is real part of the algebraic coefficient for p^m in -L'/L(s)=sum_{n>1} Lambda(n) b(n)n^{-s}
   // subtract 2 Re(log(p)bm f(mlog p)/sqrt(p^m) from Wf
-  // f(mlog(p))=sin(b mlog(p))/(Pi m log(p) cosh(h mlog(p)/2))
+  // Re f(mlog(p))=sin(b mlog(p))/(Pi m log(p) cosh(h mlog(p)/2))
   // so we want 2 bm sin(b m log(p))/(Pi m cosh(h m log(p)/2))
   void wf1(Lfunc *L, uint64_t m, uint64_t pm, arb_t bm, int64_t prec)
   {
@@ -165,8 +166,10 @@ extern "C"{
     }
   }
 
-
-  //8 D M^((1-h)/2)/(h-1) pi
+  // We assume that L=exp(sum c(p^m) p^{-ms})
+  // and that |c(p^m)|<=rp^(m/2)
+  // sigma_0=1, sigma_1=3/2, C=r
+  // see Lemma 3.4 of Buthe
   void buthe_Wf_error(Lfunc *L)
   {
     int64_t prec=L->wprec;
@@ -175,15 +178,29 @@ extern "C"{
     arb_init(tmp);
     arb_init(tmp1);
     arb_init(tmp2);
+    if(verbose)
+      {
+	printf("In buthe_Wf_error with M=%lu\n",L->buthe_M);
+	printf("   and h = ");arb_printd(L->buthe_h,20);printf("\n");
+      }
+    
     arb_log_ui(tmp,L->buthe_M,prec);
-    arb_sub_ui(tmp1,L->buthe_h,1,prec);
-    arb_mul_2exp_si(tmp1,tmp1,-1); //(h-1)/2
-    arb_mul(tmp2,tmp,tmp1,prec);
-    arb_exp(tmp,tmp2,prec); // M^(h-1)/2
-    arb_mul(tmp2,tmp,L->pi,prec);
-    arb_mul(tmp,tmp2,tmp1,prec);
-    arb_set_ui(tmp2,4*r);
-    arb_div(tmp1,tmp2,tmp,prec);
+    arb_sub_ui(tmp1,L->buthe_h,2,prec); // h-2 = 6
+    if(verbose) {printf("h-2 = ");arb_printd(tmp1,10);printf("\n");}
+    arb_mul_2exp_si(tmp1,tmp1,-1); // (h-2)/2 = 3
+    arb_mul(tmp2,tmp,tmp1,prec); // (h-2)/2 log M
+    arb_neg(tmp2,tmp2); // (2-h)/2 log M
+    arb_exp(tmp,tmp2,prec); // M^((2-h)/2)
+    if(verbose)
+      {
+	printf("M^((2-h)/2)=");
+	arb_printd(tmp,20);
+	printf("\n");
+      }
+    arb_div(tmp2,tmp,tmp1,prec); // 2M^()/(h-2)
+    arb_mul_2exp_si(tmp2,tmp2,2); // 8 M^()/(h-2)
+    arb_mul_ui(tmp,tmp2,r,prec); // 8 r M^()/(h-2)
+    arb_div(tmp1,tmp,L->pi,prec); // /pi
     if(verbose){printf("error in Buthe Wf <= ");arb_printd(tmp1,20);printf("\n");}
     arb_add_error(L->buthe_Wf,tmp1);
     arb_clear(tmp);

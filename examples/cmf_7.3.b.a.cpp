@@ -1,8 +1,8 @@
 // Copyright Edgar Costa 2019
 // See LICENSE file for license details.
 /*
- * Make up a degree 2 L-function associated to the classical modular form 7.3.b.a 
- *https://www.lmfdb.org/ModularForm/GL2/Q/holomorphic/7/3/b/a/ 
+ * Make up a degree 2 L-function associated to the classical modular form 23.1.b.a
+ * http://www.lmfdb.org/L/ModularForm/GL2/Q/holomorphic/23/1/b/a/
  *
  * Change the following two lines, to modify the number of decimal digits printed, or to print raw format (not human friendly)
  */
@@ -65,12 +65,12 @@ Z-plot in [0, 10]:
 #include <string>
 #include <vector>
 #include <flint/fmpz.h>
-#include <flint/fmpzxx.h>
-#include <acb_poly.h>
-#include "glfunc.h"
-#include "examples_tools.h"
+//#include <flint/fmpzxx.h>
+#include <flint/acb_poly.h>
+#include "glfunc_internals.h"
+//#include "examples_tools.h"
 
-using flint::fmpzxx;
+//using flint::fmpzxx;
 using std::cout;
 using std::endl;
 using std::int64_t;
@@ -147,9 +147,6 @@ int main ()
   Lerror_t ecode;
 
   // we have a degree 2 L-function with motivic weight 2
-  // 2 = degree
-  // 7 = conductor
-  // 1 = (3-1)/2
   L = Lfunc_init(2, 7, 1, mus, &ecode);
   if(fatal_error(ecode))
   {
@@ -173,12 +170,16 @@ int main ()
     return 0;
   }
 
+  Lfunc *LL=(Lfunc *) L;
+  printf("sqrt(sign) = ");acb_printd(LL->sqrt_sign,20);printf("\n");
+
+  
   // now extract some information
   printf("Order of vanishing = %" PRIu64 "\n",Lfunc_rank(L));
-  printf("Epsilon = ");
-  acb_printd(Lfunc_epsilon(L),DIGITS);
+  printf("Sign = ");
+  acb_printd(Lfunc_sign(L),DIGITS);
   printf("\n");
-  if (RAW) cout<<"RAW: "<<Lfunc_epsilon(L) << endl;
+  if (RAW) cout<<"RAW: "<<Lfunc_sign(L) << endl;
   printf("First non-zero Taylor coeff = ");
   arb_printd(Lfunc_Taylor(L),DIGITS);
   printf("\n");

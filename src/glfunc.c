@@ -361,8 +361,8 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode)
 
   arb_init(L->one_over_root_N);
   arb_init(L->sum_ans);
-  acb_init(L->epsilon);
-  acb_init(L->epsilon_sqr);
+  acb_init(L->sign);
+  acb_init(L->sqrt_sign);
   L->allocated_M = 8192;
   L->ans = (acb_t *)malloc(sizeof(acb_t)*L->allocated_M);
   if(!L->ans)

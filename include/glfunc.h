@@ -9,7 +9,8 @@
 #define YES (0)
 #define NO (0)
 
-#define TURING
+#define BUTHE
+//#define TURING
 
 #define MAX_DEGREE (9) // if increasing, need more integrals in buthe.c
 // and probably need to take a good look at g.c
@@ -121,8 +122,11 @@ extern "C"{
   // what working precision did the computation use
   int64_t Lfunc_wprec(Lfunc_t L);
 
-  // return the root number Lambda(s)=epsilon Lambda(k-s)
-  acb_srcptr Lfunc_epsilon(Lfunc_t L);
+  // return the sign Lambda(s)=sign Lambda(k-s)
+  acb_srcptr Lfunc_sign(Lfunc_t L);
+
+  // return the sqrt of sign (chosen to make Lambda(delta)>0
+  acb_srcptr Lfunc_sqrt_sign(Lfunc_t L);
 
   // return the zeros, side = 0,1 for L, conjugate L
   // if rank =0,1 this list is complete, providing

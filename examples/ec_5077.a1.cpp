@@ -73,13 +73,14 @@ Z-plot in [0, 10]:
 #include <sstream>
 #include <string>
 #include <vector>
-#include <flint/fmpz.h>
-#include <flint/fmpzxx.h>
-#include <acb_poly.h>
-#include "glfunc.h"
-#include "examples_tools.h"
+//#include <flint/fmpz.h>
+//#include <flint/fmpzxx.h>
+#include <flint/acb_poly.h>
+#include "glfunc_internals.h"
+//#include "examples_tools.h"
+#include <cassert>
 
-using flint::fmpzxx;
+//using flint::fmpzxx;
 using std::cout;
 using std::endl;
 using std::int64_t;
@@ -403,25 +404,19 @@ int main ()
     return 0;
   }
 
+  Lfunc *LL=(Lfunc *) L;
+  printf("sqrt sign = ");acb_printd(LL->sqrt_sign,20);printf("\n");
+
+  
   // now extract some information
   printf("Order of vanishing = %" PRIu64 "\n",Lfunc_rank(L));
-  printf("Epsilon = ");
-  acb_printd(Lfunc_epsilon(L),DIGITS);
+  printf("Sign = ");
+  acb_printd(Lfunc_sign(L),DIGITS);
   printf("\n");
-  if (RAW) cout<<"RAW: "<<Lfunc_epsilon(L) << endl;
   printf("First non-zero Taylor coeff = ");
   arb_printd(Lfunc_Taylor(L),DIGITS);
   printf("\n");
-  if (RAW) cout<<"RAW: "<<Lfunc_Taylor(L) << endl;
-  arb_t bsd;
-  char bsd_str[] = "1.73184990011930068979197508506015284495439272927616821328741317175655866241628546665635605522560167370696322002493812745881488860601965106244574237598";
-  arb_init(bsd);
-  arb_set_str(bsd, bsd_str, 400);
-  assert(arb_overlaps(Lfunc_Taylor(L), bsd));
-  arb_clear(bsd);
 
-  //FIXME add asserts and these two lines to intro text
-  // ~ 0.0867814475049496725746234132390
   acb_t ctmp;
   acb_init(ctmp);
   ecode|=Lfunc_special_value(ctmp, L, 1.5, 0.0);

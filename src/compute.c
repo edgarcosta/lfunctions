@@ -47,7 +47,7 @@ void acb_print_max_rel_error(acb_t *vec, uint64_t n)
 // ensure that Lambda(0)>0 or Lambda(+delta)>0
 void copy(Lfunc *L)
 {
-  bool negate_me=false; // we want f(epsilon)>0
+  bool negate_me=false; // we want f(delta)>0
   if(arb_is_negative(acb_realref(L->res[0])))
     negate_me=true;
   else
@@ -58,9 +58,9 @@ void copy(Lfunc *L)
   }
 
   int64_t nn=-L->u_N*L->u_stride*2; // this is where we start from
-  if(negate_me) // our guess at epsilon had wrong sign
+  if(negate_me) // our guess at sqrt_sign had wrong sign
     {
-      acb_neg(L->epsilon,L->epsilon);
+      acb_neg(L->sqrt_sign,L->sqrt_sign);
       for(uint64_t n=0;n<L->u_no_values;n++,nn++)
 	{
 	  arb_neg(L->u_values[0][n],acb_realref(L->res[nn%L->fft_NN]));
@@ -162,7 +162,7 @@ void do_convolves(Lfunc *L)
 
     for(n=0; n <= (int64_t)L->fft_N/2; n++)
       acb_add(L->res[n],L->res[n],L->kres[n],prec);
-    // we need [N-1] to compute epsilon when F_hat(0)=0
+    // we need [N-1] to compute sign when F_hat(0)=0
     acb_add(L->res[L->fft_N-1],L->res[L->fft_N-1],L->kres[L->fft_N-1],prec);
   }
   acb_clear(tmp);
@@ -273,7 +273,7 @@ void final_ifft(Lfunc *L)
 // including Lambda(t) for t =0,1/A,2/A,....
 // the zeros up to height 64/degree
 // the (apparent) rank
-// epsilon and epsilon_sqr
+// sign and sqrt_sign
 // Lambda^(rank)(1/2)
 // L^(rank)(1/2)/rank!
 Lerror_t Lfunc_compute(Lfunc_t Lf)

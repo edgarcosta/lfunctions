@@ -67,12 +67,12 @@ Z-plot in [0, 10]:
 #include <string>
 #include <vector>
 #include <flint/fmpz.h>
-#include <flint/fmpzxx.h>
-#include <acb_poly.h>
-#include "glfunc.h"
-#include "examples_tools.h"
+//#include <flint/fmpzxx.h>
+#include <flint/acb_poly.h>
+#include "glfunc_internals.h"
+//#include "examples_tools.h"
 
-using flint::fmpzxx;
+//using flint::fmpzxx;
 using std::cout;
 using std::endl;
 using std::int64_t;
@@ -163,12 +163,16 @@ int main ()
     return 0;
   }
 
+  Lfunc *LL=(Lfunc *) L;
+  acb_printd(LL->sqrt_sign,20);printf("\n");
+
+  
   // now extract some information
   printf("Order of vanishing = %" PRIu64 "\n",Lfunc_rank(L));
-  printf("Epsilon = ");
-  acb_printd(Lfunc_epsilon(L),DIGITS);
+  printf("Sign = ");
+  acb_printd(Lfunc_sign(L),DIGITS);
   printf("\n");
-  if (RAW) cout<<"RAW: "<<Lfunc_epsilon(L) << endl;
+  if (RAW) cout<<"RAW: "<<Lfunc_sign(L) << endl;
   printf("First non-zero Taylor coeff = ");
   arb_printd(Lfunc_Taylor(L),DIGITS);
   printf("\n");
