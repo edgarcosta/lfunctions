@@ -221,7 +221,7 @@ extern "C"{
     acb_exp(tmp1,tmp2,prec);
     //printf("N^(-(s-1/2)/2) = ");acb_printd(tmp1,20);printf("\n");
     acb_mul(res,res,tmp1,prec);
-    acb_mul(res,res,L->epsilon,prec);
+    acb_mul(res,res,L->sqrt_sign,prec);
     //printf("spec_gamma returning ");acb_printd(res,10);printf("\n");
     acb_clear(tmp1);
     acb_clear(tmp2);

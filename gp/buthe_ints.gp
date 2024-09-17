@@ -7,7 +7,7 @@ allocatemem(2^30); /* lots of memory too */
 MAX_MU=100;
 MAX_MU2=200;
 MAX_R=9;
-h=4;
+h=8;
 
 /* compute 2\int\limits_0^{100}\frac{\exp(-(1/2-\mu_j)t)}{1-\exp(-2t)}(f(0)-f(t)) dt
    assumes 1) Pari can numerically integrate this to better than 20 bits
@@ -23,4 +23,6 @@ for(r=2,2,for(kk=0,2*MAX_MU2,k=kk/2.0;b=64.0/r;S=bint(b,k);printf("%d,",trunc(S)
 
 for(r=3,MAX_R,for(kk=0,2*MAX_MU,k=kk/2.0;b=64.0/r;S=bint(b,k);printf("%d,",trunc(S)));for(kk=2*MAX_MU+1,2*MAX_MU2,printf("0,"));printf("\n");)
 printf("}\n");
+
+printf("#define BUTHE_H (%d)\n",h);
 quit;

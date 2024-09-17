@@ -437,7 +437,7 @@ void acb_reasonable_arg(arb_t out, acb_t in, arb_t pi, uint64_t prec)
 }
 
 
-// compute epsilon from x and y such that x*epsilon = conj(y*epsilon)  
+// compute sqrt_sign from x and y such that x*sqrt_sign = conj(y*sqrt_sign)  
 void fix_epsilon(acb_t res, acb_t x, acb_t y, arb_t pi, uint64_t prec)
 {
   arb_t th1,th2;
@@ -558,7 +558,7 @@ Lerror_t do_pre_iFFT_errors(Lfunc *L)
       printf("F_hat[-1]=");acb_printd(L->res[L->fft_N-1],30);printf("\n");
       printf("Using F_hat[1] and F_hat[-1] to fix epsilon.\n");
     }
-    fix_epsilon(L->epsilon,L->res[1],L->res[L->fft_N-1],L->pi,prec);
+    fix_epsilon(L->sqrt_sign,L->res[1],L->res[L->fft_N-1],L->pi,prec);
   }
   else // can use F_hat[0]
   {  
@@ -574,8 +574,8 @@ Lerror_t do_pre_iFFT_errors(Lfunc *L)
       acb_arg(th,ctmp1,prec);
       if(verbose) {printf("arg=");arb_printd(th,20);printf("\n");}
       arb_sin_cos(th1,th2,th,prec);
-      arb_set(acb_realref(L->epsilon),th2);
-      arb_set(acb_imagref(L->epsilon),th1);
+      arb_set(acb_realref(L->sqrt_sign),th2);
+      arb_set(acb_imagref(L->sqrt_sign),th1);
     }
     else
     {
@@ -585,8 +585,8 @@ Lerror_t do_pre_iFFT_errors(Lfunc *L)
       //arb_set(th,th1); //arb_intersect(th,th1,th2,prec);
       arb_neg(th,th);
       arb_sin_cos(th1,th2,th,prec);
-      arb_set(acb_realref(L->epsilon),th2);
-      arb_set(acb_imagref(L->epsilon),th1);
+      arb_set(acb_realref(L->sqrt_sign),th2);
+      arb_set(acb_imagref(L->sqrt_sign),th1);
       //fix_epsilon(ctmp1,L->res[1],L->res[L->fft_N-1],prec);
       //printf("Or we could have used ");acb_printd(ctmp1,10);printf("\n");
     }
@@ -594,13 +594,13 @@ Lerror_t do_pre_iFFT_errors(Lfunc *L)
   //arb_one(acb_imagref(L->epsilon));arb_zero(acb_realref(L->epsilon));
   if(verbose)
   {
-    printf("epsilon set to ");
-    acb_printd(L->epsilon,10);
+    printf("sqrt_sign set to ");
+    acb_printd(L->sqrt_sign,10);
     printf("\n");
   }
-  acb_sqr(L->epsilon_sqr,L->epsilon,prec);
+  acb_sqr(L->sign,L->sqrt_sign,prec);
   for(n=0;n<i;n++)
-    acb_mul(L->res[n],L->res[n],L->epsilon,prec);
+    acb_mul(L->res[n],L->res[n],L->sqrt_sign,prec);
 
   // the rest of the vector we just approximate with F_hat_twiddle error
 

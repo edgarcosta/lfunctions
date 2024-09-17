@@ -1,5 +1,12 @@
 #ifndef _GLFUNC_INTERNAL
 #define _GLFUNC_INTERNAL
+
+#include "inttypes.h"
+#include "flint/acb.h"
+#include <stdbool.h>
+#include "glfunc.h"
+
+
 #define OUTPUT_RATIO (8) // we will analyse 1/this of B
 #define TURING_RATIO (16) // and use a further 1/this for Turing
 #define EXTRA_BITS (35) // extra bits of precision for convolves etc.
@@ -20,10 +27,6 @@
 #define COMPUTE_ZEROS
 #define COMPUTE_RANK
 
-#include <acb.h>
-#include <inttypes.h>
-#include <stdbool.h>
-#include "glfunc.h"
 
 #ifdef __cplusplus
 extern "C"{
@@ -84,7 +87,6 @@ extern "C"{
     arb_t buthe_Winf;
     arb_t buthe_Ws;
     arb_t buthe_b;
-    arb_t buthe_sig1;
     arb_t buthe_C;
     arb_t buthe_h;
     arb_t buthe_ints[(MAX_R-1)*(2*MAX_MUI_2+1)];
@@ -98,8 +100,8 @@ extern "C"{
     
     arb_t one_over_root_N;
     arb_t sum_ans;
-    acb_t epsilon;
-    acb_t epsilon_sqr;
+    acb_t sqrt_sign;
+    acb_t sign;
     acb_t *ans;
     uint64_t M;
     uint64_t M0;

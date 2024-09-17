@@ -61,7 +61,6 @@ extern "C"{
     arb_cclear(L->buthe_Winf);
     arb_cclear(L->buthe_Ws);
     arb_cclear(L->buthe_b);
-    arb_cclear(L->buthe_sig1);
     arb_cclear(L->buthe_C);
     arb_cclear(L->buthe_h);
     for(uint64_t i=0;i<(MAX_R-1)*(2*MAX_MUI_2+1);i++)
@@ -132,8 +131,8 @@ extern "C"{
 	  acb_cclear(L->res[i]);
 	free(L->res);
       }
-    acb_cclear(L->epsilon);
-    acb_cclear(L->epsilon_sqr);
+    acb_cclear(L->sign);
+    acb_cclear(L->sqrt_sign);
     if(L->ans)
       {
 	for(uint64_t i=0;i<L->allocated_M;i++)

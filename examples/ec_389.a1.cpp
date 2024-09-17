@@ -228,10 +228,10 @@ int main ()
 
   // now extract some information
   printf("Order of vanishing = %" PRIu64 "\n",Lfunc_rank(L));
-  printf("Epsilon = ");
-  acb_printd(Lfunc_epsilon(L),DIGITS);
+  printf("Sign = ");
+  acb_printd(Lfunc_sign(L),DIGITS);
   printf("\n");
-  if (RAW) cout<<"RAW: "<<Lfunc_epsilon(L) << endl;
+  if (RAW) cout<<"RAW: "<<Lfunc_sign(L) << endl;
   printf("First non-zero Taylor coeff = ");
   arb_printd(Lfunc_Taylor(L),DIGITS);
   printf("\n");

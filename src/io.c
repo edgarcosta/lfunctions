@@ -5,10 +5,16 @@
 extern "C"{
 #endif
 
-acb_srcptr Lfunc_epsilon(Lfunc_t L)
+acb_srcptr Lfunc_sign(Lfunc_t L)
 {
   Lfunc *LL=(Lfunc *) L;
-  return (acb_srcptr)LL->epsilon_sqr;
+  return (acb_srcptr)LL->sign;
+}
+
+acb_srcptr Lfunc_sqrt_sign(Lfunc_t L)
+{
+  Lfunc *LL=(Lfunc *) L;
+  return (acb_srcptr)LL->sqrt_sign;
 }
 
 arb_srcptr Lfunc_zeros(Lfunc_t L, uint64_t side)

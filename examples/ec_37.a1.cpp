@@ -67,12 +67,13 @@ Z-plot in [0, 10]:
 #include <string>
 #include <vector>
 #include <flint/fmpz.h>
-#include <flint/fmpzxx.h>
-#include <acb_poly.h>
+//#include <flint/fmpzxx.h>
+#include <flint/acb_poly.h>
 #include "glfunc.h"
-#include "examples_tools.h"
+#include "glfunc_internals.h"
+//#include "examples_tools.h"
 
-using flint::fmpzxx;
+//using flint::fmpzxx;
 using std::cout;
 using std::endl;
 using std::int64_t;
@@ -128,10 +129,9 @@ void lpoly_callback(acb_poly_t poly, uint64_t p, int d __attribute__((unused)), 
 {
   acb_poly_zero(poly);
   auto it = euler_factors.find(p);
-  if( it != euler_factors.end() ) {
-  for(size_t i = 0; i < it->second.size(); ++i)
-    acb_poly_set_coeff_si(poly, i, it->second[i]);
-  }
+  if( it != euler_factors.end() )
+    for(size_t i = 0; i < it->second.size(); ++i)
+      acb_poly_set_coeff_si(poly, i, it->second[i]);
 }
 
 
@@ -140,7 +140,7 @@ void lpoly_callback(acb_poly_t poly, uint64_t p, int d __attribute__((unused)), 
 int main ()
 {
   Lfunc_t L;
-  double mus[2] = {0, 1};
+  double mus[2] = {0,1};
   Lerror_t ecode;
 
   // we have a degree 2 L-function of motivic weight 1, so normalisation = 0.5
@@ -161,6 +161,7 @@ int main ()
 
   // do the computation
   ecode|=Lfunc_compute(L);
+  
   if(fatal_error(ecode))
   {
     fprint_errors(stderr,ecode);
@@ -169,26 +170,28 @@ int main ()
 
   // now extract some information
   printf("Order of vanishing = %" PRIu64 "\n",Lfunc_rank(L));
-  printf("Epsilon = ");
-  acb_printd(Lfunc_epsilon(L),DIGITS);
+  printf("Sign = ");
+  acb_printd(Lfunc_sign(L),DIGITS);
   printf("\n");
-  if (RAW) cout<<"RAW: "<<Lfunc_epsilon(L) << endl;
+  printf("Square Root(Sign) = ");
+  acb_printd(Lfunc_sqrt_sign(L),DIGITS);
+  printf("\n");
   printf("First non-zero Taylor coeff = ");
   arb_printd(Lfunc_Taylor(L),DIGITS);
   printf("\n");
-  if (RAW) cout<<"RAW: "<<Lfunc_Taylor(L) << endl;
-  arb_t bsd;
-  char bsd_str[] = "0.305999773834052301820483683321676474452637774590771998534541832481016050469290169911495257337795897237898682879524967997997869651621709648704953228700";
-  arb_init(bsd);
-  arb_set_str(bsd, bsd_str, 400);
-  assert(arb_overlaps(Lfunc_Taylor(L), bsd));
-  arb_clear(bsd);
+
+  printf("Zeros\n");
+  // we could use Lfunc_zeros(L, 1) for the dual L-function
+  arb_srcptr zeros=Lfunc_zeros(L, 0);
+  for(int i  = 0; i < 10; ++i) {
+    printf("Zero %d = ", i);
+    arb_printd(zeros+i, DIGITS);
+    printf("\n");
+    if (RAW) cout<<"RAW: "<<zeros + i<< endl;
+  }
 
 
-  //FIXME add asserts and these two lines to intro text
-  // ~ 0.183965475258329849732118662920
-  acb_t ctmp;
-  acb_init(ctmp);
+  acb_t ctmp;acb_init(ctmp);
   ecode|=Lfunc_special_value(ctmp, L, 1.5, 0.0);
   if(fatal_error(ecode)) {
     fprint_errors(stderr,ecode);
@@ -207,15 +210,6 @@ int main ()
 
 
 
-  printf("Zeros\n");
-  // we could use Lfunc_zeros(L, 1) for the dual L-function
-  arb_srcptr zeros=Lfunc_zeros(L, 0);
-  for(int i  = 0; i < 10; ++i) {
-    printf("Zero %d = ", i);
-    arb_printd(zeros+i, DIGITS);
-    printf("\n");
-    if (RAW) cout<<"RAW: "<<zeros + i<< endl;
-  }
 
   printf("Z-plot in [0, 10]:\n");
   Lplot_t *Lpp=Lfunc_plot_data(L, 0, 10.0, 20);

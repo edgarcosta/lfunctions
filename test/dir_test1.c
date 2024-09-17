@@ -79,7 +79,7 @@ int main (int argc, char**argv)
 
   // now extract some information
   printf("(Apparent) Rank = %" PRIu64 "\n",Lfunc_rank(L));
-  printf("Epsilon = ");acb_printd(Lfunc_epsilon(L),20);printf("\n");
+  printf("Sign = ");acb_printd(Lfunc_sign(L),20);printf("\n");
   printf("First non-zero Taylor coeff = ");arb_printd(Lfunc_Taylor(L),20);printf("\n");
 
   acb_t ctmp;

@@ -86,8 +86,11 @@ uint64_t Lfunc_nmax(Lfunc_t Lf)
   return L->M;
 }
 
-
+#ifdef BUTHE
 void use_inv_lpoly(Lfunc *L, uint64_t p, acb_poly_t c, acb_poly_t f, uint64_t prec)
+  #else
+void use_inv_lpoly(Lfunc *L, uint64_t p, acb_poly_t c, uint64_t prec)
+#endif  
 {
   acb_t tmp;
   acb_init(tmp);
@@ -150,7 +153,11 @@ void use_lpoly(Lfunc *L, uint64_t p, const acb_poly_t f)
   //if(p<=11){printf("Inverted poly\n");
   //acb_poly_printd(inv_poly,20);printf("\n------------------\n");
   //}
+  #ifdef BUTHE
   use_inv_lpoly(L,p,inv_poly,n_poly,prec);
+#else
+  use_inv_lpoly(L,p,inv_poly,prec);
+#endif
   arb_clear(logp);
   acb_clear(tmp);
   arb_clear(tmp1);
