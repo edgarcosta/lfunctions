@@ -1,8 +1,6 @@
 #include "glfunc.h"
 #include "glfunc_internals.h"
 
-#undef verbose
-#define verbose false
 #ifdef __cplusplus
 extern "C"{
 #endif

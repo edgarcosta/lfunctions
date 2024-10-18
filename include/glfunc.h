@@ -9,8 +9,8 @@
 #define YES (0)
 #define NO (0)
 
-#define BUTHE
-//#define TURING
+//#define BUTHE
+#define TURING
 
 #define MAX_DEGREE (9) // if increasing, need more integrals in buthe.c
 // and probably need to take a good look at g.c
