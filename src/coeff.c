@@ -7,8 +7,6 @@
 extern "C"{
 #endif
 
-#undef verbose
-#define verbose false
 
 
 uint64_t Lfunc_nmax(Lfunc_t Lf)

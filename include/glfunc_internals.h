@@ -120,7 +120,8 @@ extern "C"{
     arb_t u_A;
     arb_t u_one_over_A;
     arb_t *u_values[2];
-    arb_t *u_values_off[2];
+    arb_t *u_values_off[2]; // will contain Lam(t)
+    // Lam(t)=eps^1/2 N^it/2 prod gamma_r(1/2+it+mu_j) L(1/2+it)
     uint64_t u_no_values;
     uint64_t u_no_values_off;
     uint64_t u_stride;

@@ -2,8 +2,7 @@
 #include "glfunc_internals.h"
 
 
-#undef verbose
-#define verbose false
+
 #ifdef __cplusplus
 extern "C"{
 #endif
@@ -97,9 +96,9 @@ extern "C"{
   }
 
   // estimate W(1/2+iz) by upsampling off Lu->u_values_off
-  Lerror_t s_upsample_stride(acb_ptr res, acb_ptr z, Lfunc *L, int64_t prec, arb_t pi_by_H2, arb_t err, int64_t N, uint64_t stride)
+  Lerror_t s_upsample_stride(acb_ptr res, acb_ptr z, double t0, Lfunc *L, int64_t prec, arb_t pi_by_H2, arb_t err, int64_t N, uint64_t stride)
   {
-    static arb_t A; // the A for upsampling = usual A / stride
+    static arb_t A,pi; // the A for upsampling = usual A / stride
     static acb_t diff,this_diff,term,sin_diff,neg_sin_diff;
     static bool init=false;
     if(!init)
@@ -111,10 +110,47 @@ extern "C"{
       acb_init(term);
       acb_init(sin_diff);
       acb_init(neg_sin_diff);
+      arb_init(pi);
+      arb_const_pi(pi,prec);
     }
-    //printf("-Pi/h^2 = ");arb_printd(pi_by_H2,20);printf("\n");
+
+    // sum runs for |k-t_0*A|<N
+    int64_t k0=-(N-t0*L->A/stride-1);
+    int64_t k1=(N+t0*L->A/stride-1);
+    if(verbose)printf("Sampling for k=[%ld,%ld] and n=[%ld,%ld]\n",k0,k1,k0*stride,k1*stride);
+
     arb_div_ui(A,L->arb_A,stride,prec);
-    //printf("Special point upsampling A set to ");arb_printd(A,20);printf("\n");
+    if(verbose){printf("Special point upsampling A set to ");arb_printd(A,20);printf("\n");}
+    acb_mul_arb(diff,z,A,prec);
+    acb_sub_si(diff,diff,k0,prec);
+    acb_mul_arb(diff,diff,L->pi,prec);
+    acb_sin(sin_diff,diff,prec);
+
+    acb_zero(res);
+    int64_t n=k0*stride;
+    for(int64_t k=k0;k<=k1;k++)
+      {
+	Lerror_t ecode=s_do_point(term,L,n,z,diff,sin_diff,L->arb_A,prec,pi_by_H2);
+	if(verbose&&(k==0))
+	  {
+	    printf("W(0)sinc(stuff)  returned ");
+	    acb_printd(term,20);
+	    printf("\n");
+	  }
+	if(fatal_error(ecode))
+	  return ecode;
+	acb_add(res,res,term,prec);
+	acb_neg(sin_diff,sin_diff);
+	n+=stride;
+	acb_sub_arb(diff,diff,pi,prec);
+      }
+    arb_add_error(acb_realref(res),err);
+    arb_add_error(acb_imagref(res),err);
+
+    return ERR_SUCCESS;
+    
+    
+    /*
     int64_t n=s_left_n(z,L->arb_A,prec);
     if(n==BAD_64)
       return ERR_SPEC_VALUE;
@@ -131,7 +167,7 @@ extern "C"{
     Lerror_t ecode=s_do_point(res,L,n,z,diff,sin_diff,L->arb_A,prec,pi_by_H2);
     if(fatal_error(ecode))
       return ecode;
-    if(verbose){printf("Nearest point contributed ");acb_printd(res,20);printf("\n");}
+    if(verbose){printf("Nearest point (k=%ld) contributed ",n);acb_printd(res,20);printf("\n");}
     acb_set(this_diff,diff);
     // do Lu->N points to left of left
     for(uint64_t count=0; count < (uint64_t)N; count++)
@@ -166,6 +202,7 @@ extern "C"{
     arb_add_error(acb_realref(res),err);
     arb_add_error(acb_imagref(res),err);
     return ecode;
+    */
   }
 
   //1/gamma_r(s)
@@ -283,11 +320,6 @@ extern "C"{
     while(true)
     {
       int64_t extra_bits=(int64_t)(M_PI*(dimz*dimz/(h*h)+fabs(dimz)*A)/M_LN2)+10;
-      if(verbose)
-      {
-        printf("h=%f extra_bits=%" PRId64 "\n", h, extra_bits);
-        printf("arb_error now ");arb_printd(arb_err,20);printf("\n");
-      }
       arb_mul_2exp_si(tmp,arb_err,L->target_prec+extra_bits);
       arb_sub_ui(tmp,tmp,1,prec);
       if(arb_is_negative(tmp)) // achieved target error
@@ -320,10 +352,6 @@ extern "C"{
         best_H=H;
         arb_set(best_err,arb_err);
       }
-      if(verbose)
-	{
-	  printf("Upsampling error now ");arb_printd(arb_err,20);printf("\n");
-	}
     }
     arb_clear(best_err);
 
@@ -337,7 +365,7 @@ extern "C"{
     arb_mul(tmp,tmp,tmp,prec);
     arb_div(pi_by_H2,L->pi,tmp,prec);
     arb_neg(pi_by_H2,pi_by_H2); // -Pi/h^2
-    ecode|=s_upsample_stride(res, z, L, prec, pi_by_H2, arb_err, iH, stride);
+    ecode|=s_upsample_stride(res, z, T, L, prec, pi_by_H2, arb_err, iH, stride);
     if(fatal_error(ecode))
     {
       arb_clear(pi_by_H2);
@@ -360,6 +388,7 @@ extern "C"{
     acb_exp(s,ctmp,prec);
     if(verbose){printf("going from W to Lambda by dividing by ");acb_printd(s,20);printf("\n");}
     acb_div(res,res,s,prec);
+    if(verbose) {printf("Lambda(z) = ");acb_printd(res,20);printf("\n");}
     // go from Lam->L by dividing out gamma(s)
     spec_rgamma(ctmp,an_s,L,prec);
     if(verbose){printf("going from Lambda to L by multiplying by ");acb_printd(ctmp,20);printf("\n");}
