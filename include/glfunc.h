@@ -9,8 +9,8 @@
 #define YES (0)
 #define NO (0)
 
-//#define BUTHE
-#define TURING
+#define BUTHE
+//#define TURING
 
 #define MAX_DEGREE (9) // if increasing, need more integrals in buthe.c
 // and probably need to take a good look at g.c
@@ -159,6 +159,7 @@ extern "C"{
   // from the critical line. Should return something sensible
   // for L(k) and L(0)
   // for re+i*im = (w + 1)/2, use Lfunc_Taylor
+  Lerror_t Lfunc_special_value_choice(acb_t res, acb_t res_dash, Lfunc_t LL, double re, double im, bool lam_p, bool do_dash);
   Lerror_t Lfunc_special_value(acb_t res, Lfunc_t LL, double re, double im);
 
   // reclaim memory from an Lfunc_t structure
