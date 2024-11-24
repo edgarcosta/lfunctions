@@ -105,7 +105,7 @@ extern "C"{
   bool Lfunc_reduce_nmax(Lfunc_t LL, uint64_t nmax);
 
   // lpoly_callback will be called for each prime<=max_p
-  // it will stop calling if poly is zet to zero and reset nmax accordingly
+  // it will stop calling if poly is set to zero and reset nmax accordingly
   Lerror_t Lfunc_use_all_lpolys(Lfunc_t L, void (*lpoly_callback) (acb_poly_t lpoly, uint64_t p, int d, int64_t prec, void *parm), void *param);
 
   // you provide one Euler polynomial at a time
