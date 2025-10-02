@@ -288,8 +288,9 @@ uint64_t turing_count(arb_t res, Lfunc *L, int64_t prec)
   if(!turing_int(tint,t0,h,L,&zeros_found,0,prec))
     return 0;
   if(verbose)
-    {printf("Turing int [0] = ");arb_printd(tint,20);printf("\n");}
-  if(L->self_dual)
+    {printf("Turing int [0] = ");arb_printd(tint,20);printf("\n");
+      printf("Zeros found on side 0 = %lu\n",zeros_found);}
+  if(L->self_dual==YES)
     {
       zeros_found<<=1;
       arb_mul_2exp_si(tint,tint,1);
@@ -304,7 +305,8 @@ uint64_t turing_count(arb_t res, Lfunc *L, int64_t prec)
     }
   zeros_found+=L->rank; // not rigorous if rank > 1 unless it can be proven otherwise
   if(verbose)
-    {printf("Turing int [*] = ");arb_printd(tint,20);printf("\n");}
+    {printf("Turing int [*] = ");arb_printd(tint,20);printf("\n");
+      printf("Zeros found on both sides = %lu\n",zeros_found);}
   if(!St_int(sint,h,t0,L,prec))
     return 0;
   if(verbose)
