@@ -6,7 +6,7 @@
 #include <stdbool.h>
 
 #define DK (-1) // don't know
-#define YES (0)
+#define YES (1)
 #define NO (0)
 
 //#define BUTHE
