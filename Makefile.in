@@ -91,6 +91,7 @@ print-%:
 # and after each binary (different L-functions can share a g_<mu> filename).
 CHECK_BINS = \
 	build/test/dir_test1.exe \
+	build/test/gcache_validate_test.exe \
 	build/examples/ec_37.a1.exe \
 	build/examples/ec_389.a1.exe \
 	build/examples/ec_5077.a1.exe \

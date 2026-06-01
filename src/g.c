@@ -16,6 +16,19 @@ extern "C"{
 
 #define maxr MAX_DEGREE
 
+// On-disk G-cache format.  The file opens with a self-describing header line
+//   GCACHE <version> <degree> <gprec> <twomu_0> ... <twomu_{degree-1}>
+// so a loaded file can be verified against the current request rather than
+// trusted on the strength of its (lossy, mus-only) filename.  twomu_i is the
+// i-th sorted analytic mu times two -- an exact integer for the half-integer
+// mus the library enforces -- which also captures the normalisation (already
+// folded into L->mus).  GCACHE_VERSION must be bumped whenever the on-disk
+// layout or the printarb/printarf number format changes; a change to
+// EXTRA_BITS or the gprec formula needs no bump, since the stored gprec is
+// checked for sufficiency (a too-low cached gprec is rejected automatically).
+#define GCACHE_MAGIC "GCACHE"
+#define GCACHE_VERSION 1
+
 
   static void printarf(FILE *fp,const arf_t x) {
     static int init;
@@ -512,6 +525,14 @@ computeres:
     arb_set_ui(L->alpha,1);
 
     if(op) {
+      // Self-describing header (see GCACHE_MAGIC): version, degree, the gprec
+      // this grid was computed at, and the sorted analytic mus as exact halved
+      // integers.  read_gfile reads and verifies this before the body.
+      fprintf(fp, "%s %d %lu %ld", GCACHE_MAGIC, GCACHE_VERSION,
+              (unsigned long)L->degree, prec);
+      for(i = 0; i < (long)L->degree; i++)
+        fprintf(fp, " %ld", twomu[i]);
+      fprintf(fp, "\n");
       printarf(fp,m);
       fprintf(fp," 1\n");
     }
@@ -643,11 +664,48 @@ computeres:
     return(true);
   }
 
-  // read a file written previously by computeall
-  bool read_gfile(FILE *infile, Lfunc *L)
+  // Read and validate the GCACHE header (see GCACHE_MAGIC).  Returns false --
+  // so the caller fails loudly with ERR_G_INFILE rather than returning wrong
+  // numbers -- when the file is foreign or from an older format (magic/version
+  // mismatch), describes a different L-function (degree or mus mismatch), or
+  // was computed at too low a precision for the current request
+  // (cached gprec < req_gprec; recall hi_i and max_K grow with gprec).  This
+  // runs before read_gfile allocates anything, so a rejected file leaks nothing.
+  static bool read_gheader(FILE *infile, const Lfunc *L, int64_t req_gprec)
   {
+    char magic[16];
+    int version;
+    unsigned long degree;
+    int64_t cached_gprec;
+    if(fscanf(infile, "%15s %d %lu %" PRId64, magic, &version, &degree, &cached_gprec) != 4)
+      return false;
+    if(strcmp(magic, GCACHE_MAGIC) != 0)
+      return false;
+    if(version != GCACHE_VERSION)
+      return false;
+    if(degree != L->degree)
+      return false;
+    for(uint64_t i = 0; i < L->degree; i++) {
+      long twomu;
+      if(fscanf(infile, "%ld", &twomu) != 1)
+        return false;
+      if(twomu != (long)round(L->mus[i] * 2.0)) // identity: exact halved mu
+        return false;
+    }
+    if(cached_gprec < req_gprec) // sufficiency: cached grid is precise enough
+      return false;
+    return true;
+  }
+
+  // read a file written previously by computeall
+  bool read_gfile(FILE *infile, Lfunc *L, int64_t req_gprec)
+  {
+    if(!read_gheader(infile, L, req_gprec)) // verify before allocating anything
+      return false;
     int64_t m,e,alpha;
     //double dalpha;
+    // C = coeff_bound(degree, 53) is canonical in the degree, which the header
+    // has just verified, so the value read below is safe to trust.
     arb_init(L->C);
     arb_init(L->alpha);
     if(fscanf(infile,"%" PRId64 " %" PRId64 " %" PRId64 "\n",&m,&e,&alpha)!=3)
@@ -701,8 +759,30 @@ computeres:
     bool op = false; // true if we are going to write a cache file
     FILE *ofile = NULL; // file to write to
 
-    // are we in default mode and do we have a cache directory
-    if((L->gprec == 0) && (L->target_prec==DEFAULT_TARGET_PREC) && (L->cache_dir)) {
+    // "Default mode" means the caller left gprec at 0; we then both derive the
+    // working gprec ourselves and may consult the on-disk cache.  Capture that
+    // state before we overwrite L->gprec below.
+    bool use_cache = (L->gprec == 0) && (L->target_prec == DEFAULT_TARGET_PREC)
+                     && (L->cache_dir);
+
+    // Derive the required gprec up front (previously done only on a cache
+    // miss), so it is available to validate a cached file's sufficiency.  The
+    // wprec floor matters: a caller who raises wprec for a large conductor
+    // needs a higher-precision grid than a default run wrote.
+    if(L->gprec == 0)
+    {
+      double gfac = 0.0;
+      for(uint64_t d=0; d < L->degree; d++)
+        gfac += lgamma(0.25 + L->mus[d]/2.0);
+      gfac /= M_LN2;
+      L->gprec = L->target_prec + ceil(gfac) + EXTRA_BITS;
+      if(L->gprec < L->wprec)
+        L->gprec = L->wprec;
+    }
+    if(verbose)
+      printf("g precision set to %" PRId64 " bits\n", L->gprec);
+
+    if(use_cache) {
       char fname[1337];
       char fname1[1024] = "";
       size_t off = 0;
@@ -732,11 +812,11 @@ computeres:
         FILE *infile = fopen(fname, "r");
         if(infile) // we already have this G file in cache
         {
-          bool res = read_gfile(infile, L); // so read it
+          bool res = read_gfile(infile, L, L->gprec); // read + validate it
           fclose(infile);
-          if(res) // everything worked
+          if(res) // header verified and body read: usable for this request
             return ecode;
-          return ecode|ERR_G_INFILE; // fatal error somewhere
+          return ecode|ERR_G_INFILE; // stale/foreign/insufficient: fail loudly
         }
         // we don't have this G file in cache
         ofile = fopen(fname, "w"); // try to open it for writing
@@ -749,18 +829,6 @@ computeres:
       }
     }
 
-    if( L->gprec == 0) // user hasn't told us what to use
-    {
-      double gfac = 0.0;
-      for(uint64_t d=0; d < L->degree; d++)
-        gfac += lgamma(0.25 + L->mus[d]/2.0);
-      gfac /= M_LN2;
-      L->gprec = L->target_prec + ceil(gfac) + EXTRA_BITS;
-      if(L->gprec < L->wprec)
-        L->gprec = L->wprec;
-    }
-    if(verbose)
-      printf("g precision set to %" PRId64 " bits\n", L->gprec);
     computeall(L, -32*M_LN2, (double)L->degree/512, L->gprec, op, ofile);
     if(op)
       fclose(ofile);
