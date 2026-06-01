@@ -705,25 +705,46 @@ computeres:
       char fname[1337];
       char fname1[1024] = "";
       size_t off = 0;
-      for(uint64_t r=0;r<L->degree && off<sizeof(fname1);r++)
-        off += snprintf(fname1+off, sizeof(fname1)-off, "_%.1f", L->mus[r]);
-      snprintf(fname, sizeof(fname), "%s/g%s", L->cache_dir, fname1);
-      FILE *infile = fopen(fname, "r");
-      if(infile) // we already have this G file in cache
-      {
-        bool res = read_gfile(infile, L); // so read it
-        fclose(infile);
-        if(res) // everything worked
-          return ecode;
-        return ecode|ERR_G_INFILE; // fatal error somewhere
+      // Build the cache filename, bailing out if any snprintf hits an encoding
+      // error (returns < 0) or would truncate. snprintf reports the would-be
+      // length, so capture it in an int (off is size_t: adding a negative return
+      // directly would wrap) and advance only once a write fully fit. A truncated
+      // name would drop trailing mus / path chars and let distinct L-functions
+      // collide on one cache file, so on any failure we skip the cache
+      // (best-effort) and compute the G data fresh rather than read or write the
+      // wrong data. These checks bound both writes for any mus and cache_dir --
+      // nothing here relies on a cap on the number or magnitude of the mus.
+      bool name_fits = true;
+      for(uint64_t r=0; r<L->degree; r++) {
+        int n = snprintf(fname1+off, sizeof(fname1)-off, "_%.1f", L->mus[r]);
+        if(n < 0 || (size_t) n >= sizeof(fname1)-off) {
+          name_fits = false;
+          break;
+        }
+        off += (size_t) n;
       }
-      // we don't have this G file in cache
-      ofile = fopen(fname, "w"); // try to open it for writing
-      if( !ofile ) {
-        ecode |= ERR_G_OUTFILE; // couldn't open outfile. Not fatal
-        op = false;
-      } else {
-        op = true; // file open ok so we can output
+      if(name_fits) {
+        int n = snprintf(fname, sizeof(fname), "%s/g%s", L->cache_dir, fname1);
+        name_fits = (n >= 0) && ((size_t) n < sizeof(fname));
+      }
+      if(name_fits) {
+        FILE *infile = fopen(fname, "r");
+        if(infile) // we already have this G file in cache
+        {
+          bool res = read_gfile(infile, L); // so read it
+          fclose(infile);
+          if(res) // everything worked
+            return ecode;
+          return ecode|ERR_G_INFILE; // fatal error somewhere
+        }
+        // we don't have this G file in cache
+        ofile = fopen(fname, "w"); // try to open it for writing
+        if( !ofile ) {
+          ecode |= ERR_G_OUTFILE; // couldn't open outfile. Not fatal
+          op = false;
+        } else {
+          op = true; // file open ok so we can output
+        }
       }
     }
 
