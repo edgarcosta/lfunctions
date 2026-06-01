@@ -63,6 +63,12 @@ public:
   bool operator!=(slong n)     const { return !(*this == n); }
   bool operator< (const ZZ& o) const { return fmpz_cmp(z, o.z) < 0; }
 
+  // fmpz_divisible_si is FLINT's signed-divisor variant; sign of n is ignored
+  // for the divisibility test. divexact is exact division (UB if not divisible,
+  // same contract as fmpz_divexact_si).
+  bool divisible(slong n) const { return fmpz_divisible_si(z, n) != 0; }
+  ZZ   divexact (slong n) const { ZZ r; fmpz_divexact_si(r.z, z, n); return r; }
+
   friend ZZ operator+(const ZZ&, const ZZ&);
   friend ZZ operator-(const ZZ&, const ZZ&);
   friend ZZ operator*(const ZZ&, const ZZ&);

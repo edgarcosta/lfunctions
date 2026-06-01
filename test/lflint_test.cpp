@@ -136,6 +136,19 @@ static void test_comparison_and_map() {
   assert(it->second == 30);
 }
 
+static void test_divisibility() {
+  ZZ minus_twelve(slong{-12});
+  assert( minus_twelve.divisible(slong{4}));
+  assert(!minus_twelve.divisible(slong{5}));
+  ZZ q = minus_twelve.divexact(slong{4});
+  assert(fmpz_get_si(q._fmpz()) == -3);
+
+  // smalljac.cpp:202 pattern: `while(d.divisible(4)) d = d.divexact(4);`
+  ZZ d(slong{-48});
+  while (d.divisible(slong{4})) d = d.divexact(slong{4});
+  assert(fmpz_get_si(d._fmpz()) == -3);
+}
+
 int main() {
   test_default_ctor_is_zero();
   test_construction_and_raw();
@@ -143,5 +156,6 @@ int main() {
   test_arithmetic();
   test_modulo();
   test_comparison_and_map();
+  test_divisibility();
   return 0;
 }
