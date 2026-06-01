@@ -704,9 +704,10 @@ computeres:
     if((L->gprec == 0) && (L->target_prec==DEFAULT_TARGET_PREC) && (L->cache_dir)) {
       char fname[1337];
       char fname1[1024] = "";
-      for(uint64_t r=0;r<L->degree;r++)
-        sprintf(fname1, "%s_%.1f", fname1, L->mus[r]);
-      sprintf(fname, "%s/g%s", L->cache_dir, fname1);
+      size_t off = 0;
+      for(uint64_t r=0;r<L->degree && off<sizeof(fname1);r++)
+        off += snprintf(fname1+off, sizeof(fname1)-off, "_%.1f", L->mus[r]);
+      snprintf(fname, sizeof(fname), "%s/g%s", L->cache_dir, fname1);
       FILE *infile = fopen(fname, "r");
       if(infile) // we already have this G file in cache
       {
