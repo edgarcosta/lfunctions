@@ -20,13 +20,7 @@
 #include <vector>
 #include <flint/fmpz.h>
 #include <flint/acb.h>
-#if defined(__has_include) && __has_include(<flint/fmpzxx.h>)
-#  include <flint/fmpzxx.h>
-#  include <flint/fmpz_polyxx.h>
-#  define HAVE_FLINTXX 1
-#else
-#  define HAVE_FLINTXX 0  // FLINT >= 3.0 dropped the C++ interface (flintxx)
-#endif
+#include "lflint.h"
 
 #include "glfunc.h" // for Lplot_t
 #include "glfunc_internals.h" // for L->degree
@@ -58,41 +52,8 @@ using namespace std::string_literals;
 using std::stringstream;
 using std::vector;
 
-#if HAVE_FLINTXX
-using flint::fmpzxx;
-using flint::fmpz_polyxx;
-#else
-// Minimal drop-in replacement for flint::fmpzxx over the C fmpz_t API,
-// covering exactly the operations the examples use. (FLINT >= 3.0 removed
-// the C++ wrappers.) fmpz_polyxx is not shimmed: nothing built here uses it.
-class fmpzxx {
-  fmpz_t z;
-public:
-  fmpzxx() { fmpz_init(z); }
-  fmpzxx(slong v) { fmpz_init(z); fmpz_set_si(z, v); }
-  fmpzxx(const fmpzxx& o) { fmpz_init(z); fmpz_set(z, o.z); }
-  fmpzxx(fmpzxx&& o) noexcept { fmpz_init(z); fmpz_swap(z, o.z); }
-  fmpzxx& operator=(const fmpzxx& o) { fmpz_set(z, o.z); return *this; }
-  fmpzxx& operator=(fmpzxx&& o) noexcept { fmpz_swap(z, o.z); return *this; }
-  fmpzxx& operator=(slong v) { fmpz_set_si(z, v); return *this; }
-  ~fmpzxx() { fmpz_clear(z); }
-  fmpz* _fmpz() { return z; }
-  const fmpz* _fmpz() const { return z; }
-  const fmpzxx& evaluate() const { return *this; }
-  fmpzxx operator-() const { fmpzxx r; fmpz_neg(r.z, z); return r; }
-  fmpzxx operator%(mp_limb_t n) const { fmpzxx r; fmpz_mod_ui(r.z, z, n); return r; }
-  fmpzxx& operator*=(slong v) { fmpz_mul_si(z, z, v); return *this; }
-  bool operator<(const fmpzxx& o) const { return fmpz_cmp(z, o.z) < 0; }
-  bool operator==(const fmpzxx& o) const { return fmpz_equal(z, o.z); }
-  template<class T> T to() const { return (T) fmpz_get_ui(z); }
-};
-inline std::ostream& operator<<(std::ostream& s, const fmpzxx& x) {
-  char* str = fmpz_get_str(NULL, 10, x._fmpz());
-  s << str;
-  flint_free(str);
-  return s;
-}
-#endif
+using lfun::ZZ;
+using lfun::ZZX;
 
 
 #ifdef WITH_SPACE
@@ -147,17 +108,17 @@ public:
 
 /******************************************************************************
  * in/out operators for various (templated) classes
- *  - operator >> for fmpzxx
+ *  - operator >> for ZZ
  *  - operators << and >> for vector<T>
  *  - operators << and >> for map<T, R>
  *****************************************************************************/
 
-//operator >> for fmpzxx
-istream & operator>>(istream& s, fmpzxx& output) {
+//operator >> for ZZ
+istream & operator>>(istream& s, ZZ& output) {
   stringstream buffer;
   long c;
   if (!s)
-    throw_line("bad fmpzxx input"s);
+    throw_line("bad ZZ input"s);
 
   c = s.peek();
   while (iswspace(c)) {
@@ -165,7 +126,7 @@ istream & operator>>(istream& s, fmpzxx& output) {
     c = s.peek();
   }
   if (c != '-' and not iswdigit(c))
-    throw_line("bad fmpzxx input"s);
+    throw_line("bad ZZ input"s);
 
   //puts the first character
   buffer.put(s.get());
@@ -389,10 +350,10 @@ ostream & operator<<(ostream& s, const map<T, R, Compare>& a)
 
 // retuns the interval [a*2^e, b*2^e] as [a, b, e]
 ostream& operator<<(ostream& s, const arb_t x) {
-  vector<fmpzxx> tmp(3);
-  fmpzxx &a = tmp[0];
-  fmpzxx &b = tmp[1];
-  fmpzxx &e = tmp[2];
+  vector<ZZ> tmp(3);
+  ZZ &a = tmp[0];
+  ZZ &b = tmp[1];
+  ZZ &e = tmp[2];
   arb_get_interval_fmpz_2exp(a._fmpz(), b._fmpz(), e._fmpz(), x);
   s << tmp;
   return s;
@@ -546,8 +507,7 @@ void convertmonomial(T& coeff, long& deg, const string &s, const string &var) {
 }
 */
 
-#if HAVE_FLINTXX
-istream & operator>>(istream&s,  fmpz_polyxx& f){
+istream & operator>>(istream&s,  ZZX& f){
   f = 0;
   long c;
   stringstream buffer;
@@ -621,11 +581,10 @@ istream & operator>>(istream&s,  fmpz_polyxx& f){
     c = s.peek();
   }
   if(c == '+' or c == '-') {
-    fmpz_polyxx g = fmpz_polyxx();
+    ZZX g = ZZX();
     s >> g;
     f += g;
   }
   return s;
 }
-#endif // HAVE_FLINTXX
 
