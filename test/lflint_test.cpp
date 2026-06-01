@@ -231,6 +231,40 @@ static void test_zzx_basic() {
   assert(t.degree() == p.degree());
 }
 
+static void test_zzx_arithmetic() {
+  // p = 1 + 2x + 3x^2
+  ZZX p;
+  p.set_coeff(slong{0}, slong{1});
+  p.set_coeff(slong{1}, slong{2});
+  p.set_coeff(slong{2}, slong{3});
+
+  // q = 4 + 5x
+  ZZX q;
+  q.set_coeff(slong{0}, slong{4});
+  q.set_coeff(slong{1}, slong{5});
+
+  // p += q -> 5 + 7x + 3x^2
+  ZZX r(p);
+  r += q;
+  assert(r.degree() == 2);
+  assert(r.get_coeff(slong{0}).to<slong>() == 5);
+  assert(r.get_coeff(slong{1}).to<slong>() == 7);
+  assert(r.get_coeff(slong{2}).to<slong>() == 3);
+
+  // (1 + T) * (1 - T) == 1 - T^2 — covers degree-shrink via cancellation
+  ZZX one_plus_T;
+  one_plus_T.set_coeff(slong{0}, slong{1});
+  one_plus_T.set_coeff(slong{1}, slong{1});
+  ZZX one_minus_T;
+  one_minus_T.set_coeff(slong{0}, slong{ 1});
+  one_minus_T.set_coeff(slong{1}, slong{-1});
+  one_plus_T *= one_minus_T;
+  assert(one_plus_T.degree() == 2);
+  assert(one_plus_T.get_coeff(slong{0}).to<slong>() ==  1);
+  assert(one_plus_T.get_coeff(slong{1}).is_zero());
+  assert(one_plus_T.get_coeff(slong{2}).to<slong>() == -1);
+}
+
 int main() {
   test_default_ctor_is_zero();
   test_construction_and_raw();
@@ -243,5 +277,6 @@ int main() {
   test_to_conversion();
   test_ostream();
   test_zzx_basic();
+  test_zzx_arithmetic();
   return 0;
 }
