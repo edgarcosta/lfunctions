@@ -12,6 +12,12 @@
 #define OUTPUT_RATIO (8) // we will analyse 1/this of B
 #define TURING_RATIO (16) // and use a further 1/this for Turing
 #define EXTRA_BITS (35) // extra bits of precision for convolves etc.
+// Build the acb_dft rad2 plans (their roots of unity) at wprec + this many bits.
+// FLINT's rad2 root table accumulates ~log2(n) bits of error; computed once and
+// kept tighter than the wprec butterfly arithmetic, the rigorous output balls stay
+// as tight as the old direct-twiddle FFT. Without it FLINT is ~1000x looser at
+// fft_NN=2^16. 32 >> log2(fft_NN/2)=15, with comfortable headroom; cost is one-time.
+#define DFT_PLAN_EXTRA_PREC (32)
 #define verbose (false) // compile-time toggle for all diagnostic printf
 #define BAD_64 (1LL<<62) // sentinel: an arb value did not pin to a unique integer
 
