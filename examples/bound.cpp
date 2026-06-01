@@ -1,3 +1,46 @@
+// Copyright Edgar Costa 2019
+// See LICENSE file for license details.
+/*
+ * Diagnostic/parameter-tuning helper: for a given degree, normalisation, and
+ * Gamma_R shifts (mus), prints
+ *
+ *   ceil(100 * exp(2*pi*(hi_i+0.5)/B)) / 100  =  M / sqrt(N)
+ *
+ * the number of Dirichlet coefficients per unit sqrt(conductor) the library
+ * will need.  Here:
+ *   - one_over_B = degree/512, so B = 512/degree.
+ *   - hi_i (glfunc_internals.h) is the top of the G u-grid: the largest index
+ *     i such that |G(u_i)| > 2^{-prec}; it determines where the G-kernel
+ *     drops below the precision threshold.
+ *   - M (glfunc_internals.h) = floor(sqrt(N) * exp(2*pi*(hi_i+0.5)/B)) is the
+ *     largest coefficient index a_n the library actually uses; it scales as
+ *     sqrt(conductor).
+ *
+ * The printed value M/sqrt(N) depends only on the gamma parameters (degree +
+ * mus) and lets you gauge the coefficient cost of a given parameter choice
+ * before fixing a conductor.  (The critical-line height the library analyses is
+ * the separate fixed quantity T_max = 512/(degree*OUTPUT_RATIO) = 64/degree.)
+ *
+ * Usage:
+ *   bound <degree> <normalisation> <mu_0> <mu_1> ... <mu_{degree-1}>
+ *
+ * Examples:
+ *   - L-function of an elliptic curve over Q (degree 2, weight 2):
+ *       # bound 2 0.5 0 1
+ *    or # bound 2 0 0.5 1.5
+ *   - L-function of a classical modular form of weight w (degree 2):
+ *       # bound 2 (w-1)*0.5 0 1
+ *    or # bound 2 0 (w-1)*0.5 (w-1)*0.5+1
+ *
+ * Why this is print-only and excluded from make check:
+ *   - Requires CLI arguments; there is no argument-free default run.
+ *   - Uses conductor 1 as a placeholder; it never supplies Euler factors.
+ *   - Never calls Lfunc_compute; it only inspects Lfunc_init output.
+ *   - The printed value depends solely on the gamma parameters, not on any
+ *     precomputed mathematical reference value — it is a manual diagnostic
+ *     for gauging coefficient cost, not a regression test.
+ */
+
 #define __STDC_FORMAT_MACROS
 #include "assert.h"
 #include <flint/acb_poly.h>
