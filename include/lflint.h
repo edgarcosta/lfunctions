@@ -52,6 +52,11 @@ public:
   ZZ& operator*=(const ZZ& o) { fmpz_mul  (z, z, o.z); return *this; }
   ZZ& operator*=(slong n)     { fmpz_mul_si(z, z, n); return *this; }
 
+  // Non-negative remainder (0 <= r < |modulus|). Required by
+  // smalljac.cpp:203 (`disc % ZZ(4) != 1` for negative discriminants).
+  ZZ operator%(const ZZ& m) const { ZZ r; fmpz_mod   (r.z, z, m.z); return r; }
+  ZZ operator%(ulong n)     const { ZZ r; fmpz_mod_ui(r.z, z, n);   return r; }
+
   friend ZZ operator+(const ZZ&, const ZZ&);
   friend ZZ operator-(const ZZ&, const ZZ&);
   friend ZZ operator*(const ZZ&, const ZZ&);
