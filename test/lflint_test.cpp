@@ -162,6 +162,20 @@ static void test_pow() {
   assert(p0.is_one());
 }
 
+static void test_to_conversion() {
+  ZZ x(slong{-42});
+  ZZ y(slong{1024});
+  ZZ u(ulong{7});
+
+  assert(x.to<slong>()  == -42);
+  assert(y.to<slong>()  == 1024);
+  assert(u.to<ulong>()  == ulong{7});
+  assert(y.to<double>() == 1024.0);
+  // smalljac.cpp:97 pattern: `(polynomial[i] % pol->mod.n).to<mp_limb_t>()`
+  // mp_limb_t == ulong; same specialisation
+  assert((y % ulong{17}).to<ulong>() == ulong{1024 % 17});
+}
+
 int main() {
   test_default_ctor_is_zero();
   test_construction_and_raw();
@@ -171,5 +185,6 @@ int main() {
   test_comparison_and_map();
   test_divisibility();
   test_pow();
+  test_to_conversion();
   return 0;
 }
