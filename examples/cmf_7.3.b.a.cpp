@@ -1,8 +1,8 @@
 // Copyright Edgar Costa 2019
 // See LICENSE file for license details.
 /*
- * Make up a degree 2 L-function associated to the classical modular form 23.1.b.a
- * http://www.lmfdb.org/L/ModularForm/GL2/Q/holomorphic/23/1/b/a/
+ * Make up a degree 2 L-function associated to the classical modular form 7.3.b.a
+ * http://www.lmfdb.org/L/ModularForm/GL2/Q/holomorphic/7/3/b/a/
  *
  * Change the following two lines, to modify the number of decimal digits printed, or to print raw format (not human friendly)
  */
@@ -80,7 +80,7 @@ using std::vector;
 
 
 // such dictionary can be obtained directly from the sidebar
-// http://www.lmfdb.org/L/ModularForm/GL2/Q/holomorphic/23/1/b/a/
+// http://www.lmfdb.org/L/ModularForm/GL2/Q/holomorphic/7/3/b/a/
 map<int64_t, vector<int64_t>> euler_factors  = {
 {2, { 1, 3, 4 }},
 {3, { 1, 0, -9 }},
