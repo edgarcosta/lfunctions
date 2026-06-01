@@ -5568,16 +5568,107 @@ printf "%s\n" "$as_me: WARNING: unrecognized options: $ac_unrecognized_opts" >&2
 fi
 
 
+# ---- locate dependencies for the configuration report --------------------
+# The AC_CHECK_HEADER / AC_CHECK_LIB / AC_SEARCH_LIBS probes above only report
+# found-or-not, so resolve the actual files the toolchain selected and show
+# them in the summary. Headers come from the preprocessor's include trace
+# (cc -H); libraries from the user-supplied -L dirs first (searched first at
+# link time), then the compiler driver's own resolution (cc -print-file-name).
+
+# canonicalize a path: resolve the directory's symlinks/.. but keep the basename
+# (so a libfoo.so linker-name symlink is reported as libfoo.so, not its target)
+lfun_canon () {
+  case $1 in
+    */*) lfun_cdir=`dirname "$1"`; lfun_cbase=`basename "$1"`
+         lfun_crd=`cd "$lfun_cdir" 2>/dev/null && pwd -P` &&
+           printf '%s/%s\n' "$lfun_crd" "$lfun_cbase" || printf '%s\n' "$1" ;;
+    *)   printf '%s\n' "$1" ;;
+  esac
+}
+
+# echo the absolute path the preprocessor resolves <$1> to (first '. ' line of cc -H)
+lfun_locate_header () {
+  printf '#include <%s>\n' "$1" > conflfunloc.c
+  $CC $CPPFLAGS $lfun_inc_flags -E -H conflfunloc.c >/dev/null 2>conflfunloc.H
+  sed -n 's/^\. //p' conflfunloc.H | head -n 1
+  rm -f conflfunloc.c conflfunloc.H
+}
+
+# echo the absolute path the linker resolves -l$1 to (-L dirs first, then the driver)
+lfun_locate_lib () {
+  for lfun_ld in $LIB_DIRS; do
+    for lfun_le in $SHLIB_EXT a; do
+      if test -e "$lfun_ld/lib$1.$lfun_le"; then lfun_canon "$lfun_ld/lib$1.$lfun_le"; return; fi
+    done
+  done
+  for lfun_le in $SHLIB_EXT a; do
+    lfun_lp=`$CC -print-file-name=lib$1.$lfun_le 2>/dev/null`
+    case $lfun_lp in */*) lfun_canon "$lfun_lp"; return ;; esac
+  done
+}
+
+lfun_flint_h=`lfun_locate_header flint/flint.h`
+lfun_flint_l=`lfun_locate_lib flint`
+lfun_gmp_h=`lfun_locate_header gmp.h`
+lfun_gmp_l=`lfun_locate_lib gmp`
+lfun_mpfr_h=`lfun_locate_header mpfr.h`
+lfun_mpfr_l=`lfun_locate_lib mpfr`
+lfun_psieve_h=`lfun_locate_header primesieve.h`
+lfun_psieve_l=`lfun_locate_lib primesieve`
+
+# FLINT 2.x keeps acb_* in libarb; report it only when AC_SEARCH_LIBS chose -larb.
+lfun_arb_line=
+if test -n "$lfun_arb_lib"
+then :
+  lfun_arb_l=`lfun_locate_lib arb`
+   test -n "$lfun_arb_l" || lfun_arb_l="(linker default search path)"
+   lfun_arb_line="
+    arb        : lib $lfun_arb_l"
+fi
+
+# readable placeholder when a path could not be pinned down (found on a default dir)
+for lfun_v in lfun_flint_h lfun_flint_l lfun_gmp_h lfun_gmp_l lfun_mpfr_h lfun_mpfr_l lfun_psieve_h lfun_psieve_l; do
+  eval "test -n \"\$$lfun_v\" || $lfun_v='(compiler/linker default search path)'"
+done
+
+# `echo $VAR` (unquoted) collapses the leading/duplicate spaces left by the accumulators
+lfun_inc_report=`echo $INC_DIRS`; test -n "$lfun_inc_report" || lfun_inc_report="(none added; compiler default search path)"
+lfun_lib_report=`echo $LIB_DIRS`; test -n "$lfun_lib_report" || lfun_lib_report="(none added; linker default search path)"
+
 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: lfunctions configured:
     os         : $lfun_os
     CC / CXX   : $CC / $CXX
     CFLAGS     : $LFUN_CFLAGS
     CXXFLAGS   : $LFUN_CXXFLAGS
-    shared lib : liblfun.$SHLIB_EXT  ($SHLIB_LDFLAGS)" >&5
+    shared lib : liblfun.$SHLIB_EXT  ($SHLIB_LDFLAGS)
+  dependencies (resolved paths):
+    flint      : hdr $lfun_flint_h
+                 lib $lfun_flint_l$lfun_arb_line
+    gmp        : hdr $lfun_gmp_h
+                 lib $lfun_gmp_l
+    mpfr       : hdr $lfun_mpfr_h
+                 lib $lfun_mpfr_l
+    primesieve : hdr $lfun_psieve_h
+                 lib $lfun_psieve_l
+  search dirs added (from --with-* and pkg-config):
+    include    : $lfun_inc_report
+    library    : $lfun_lib_report" >&5
 printf "%s\n" "$as_me: lfunctions configured:
     os         : $lfun_os
     CC / CXX   : $CC / $CXX
     CFLAGS     : $LFUN_CFLAGS
     CXXFLAGS   : $LFUN_CXXFLAGS
-    shared lib : liblfun.$SHLIB_EXT  ($SHLIB_LDFLAGS)" >&6;}
+    shared lib : liblfun.$SHLIB_EXT  ($SHLIB_LDFLAGS)
+  dependencies (resolved paths):
+    flint      : hdr $lfun_flint_h
+                 lib $lfun_flint_l$lfun_arb_line
+    gmp        : hdr $lfun_gmp_h
+                 lib $lfun_gmp_l
+    mpfr       : hdr $lfun_mpfr_h
+                 lib $lfun_mpfr_l
+    primesieve : hdr $lfun_psieve_h
+                 lib $lfun_psieve_l
+  search dirs added (from --with-* and pkg-config):
+    include    : $lfun_inc_report
+    library    : $lfun_lib_report" >&6;}
 
