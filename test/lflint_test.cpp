@@ -57,9 +57,42 @@ static void test_set_zero_one() {
   assert(!a.is_zero());
 }
 
+static void test_arithmetic() {
+  ZZ two(slong{2});
+  ZZ three(slong{3});
+
+  // unary -
+  ZZ neg = -two;
+  assert(fmpz_get_si(neg._fmpz()) == -2);
+
+  // binary +, -, *
+  ZZ sum  = two + three;
+  ZZ diff = three - two;
+  ZZ prod = two * three;
+  assert(fmpz_get_si(sum._fmpz())  == 5);
+  assert(fmpz_get_si(diff._fmpz()) == 1);
+  assert(fmpz_get_si(prod._fmpz()) == 6);
+
+  // slong * ZZ and ZZ * slong (used in sympow_ECQ: `9*a[8]`, `a[2]*p[1]`)
+  ZZ left  = slong{9} * three;
+  ZZ right = three * slong{9};
+  assert(fmpz_get_si(left._fmpz())  == 27);
+  assert(fmpz_get_si(right._fmpz()) == 27);
+
+  // compound
+  ZZ x(slong{10});
+  x += two;
+  assert(fmpz_get_si(x._fmpz()) == 12);
+  x *= three;
+  assert(fmpz_get_si(x._fmpz()) == 36);
+  x *= slong{2};
+  assert(fmpz_get_si(x._fmpz()) == 72);
+}
+
 int main() {
   test_default_ctor_is_zero();
   test_construction_and_raw();
   test_set_zero_one();
+  test_arithmetic();
   return 0;
 }

@@ -43,6 +43,26 @@ public:
   bool is_one()  const { return fmpz_is_one(z); }
   void set_zero()      { fmpz_zero(z); }
   void set_one()       { fmpz_one(z); }
+
+  // unary
+  ZZ operator-() const { ZZ r; fmpz_neg(r.z, z); return r; }
+
+  // compound assignment
+  ZZ& operator+=(const ZZ& o) { fmpz_add  (z, z, o.z); return *this; }
+  ZZ& operator*=(const ZZ& o) { fmpz_mul  (z, z, o.z); return *this; }
+  ZZ& operator*=(slong n)     { fmpz_mul_si(z, z, n); return *this; }
+
+  friend ZZ operator+(const ZZ&, const ZZ&);
+  friend ZZ operator-(const ZZ&, const ZZ&);
+  friend ZZ operator*(const ZZ&, const ZZ&);
+  friend ZZ operator*(slong,     const ZZ&);
+  friend ZZ operator*(const ZZ&, slong);
 };
+
+inline ZZ operator+(const ZZ& a, const ZZ& b) { ZZ r; fmpz_add(r.z, a.z, b.z); return r; }
+inline ZZ operator-(const ZZ& a, const ZZ& b) { ZZ r; fmpz_sub(r.z, a.z, b.z); return r; }
+inline ZZ operator*(const ZZ& a, const ZZ& b) { ZZ r; fmpz_mul(r.z, a.z, b.z); return r; }
+inline ZZ operator*(slong a,     const ZZ& b) { ZZ r; fmpz_mul_si(r.z, b.z, a); return r; }
+inline ZZ operator*(const ZZ& a, slong b)     { ZZ r; fmpz_mul_si(r.z, a.z, b); return r; }
 
 } // namespace lfun
