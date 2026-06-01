@@ -8,8 +8,7 @@
 //   ZZX  — wraps fmpz_poly_t  (integer polynomial in T)
 //
 // Covers exactly the surface used by this repo's examples; not a
-// general-purpose flintxx replacement. See
-// docs/superpowers/specs/2026-05-29-drop-flintxx-design.md.
+// general-purpose flintxx replacement.
 
 #pragma once
 
