@@ -50,20 +50,20 @@ extern "C"{
     arb_t mu;
     arb_t nu;
     arb_t *nus;
-    arb_t C;
-    arb_t alpha;
+    arb_t C;           // coeff bound: |a_n| <= C*n^alpha
+    arb_t alpha;       // alpha = 1 under Ramanujan (set in g.c)
     //arb_t k0; // no longer used
     //arb_t k2;
-    double one_over_B;
+    double one_over_B; // 1/B = degree/512; the G-kernel u-grid step is 2*pi/B
     arb_t B;
     arb_t two_pi_by_B;
     arb_t pi;
-    int64_t low_i;
-    int64_t hi_i;
-    uint64_t max_K;
-    arb_t eq59;
+    int64_t low_i;     // bottom of G u-grid: floor(u_min/(2*pi/B)), u_min=-32*ln2; reaches the m=1 term
+    int64_t hi_i;      // top of G u-grid: smallest i with |G(u_i)|<=2^-prec; sets M=sqrt(N)*exp(2*pi*(hi_i+.5)/B)
+    uint64_t max_K;    // number of Taylor terms per grid point (first index of Gs)
+    arb_t eq59;        // eq-(59) tail-truncation bound (~ 2^-prec)
 
-    arb_t **Gs;
+    arb_t **Gs;        // Gs[k][i-low_i] = k-th Taylor coeff G^(k)(u_i)/k! at u_i=i*(2*pi/B); built in g.c
 
     // computation related
     uint64_t fft_N;
