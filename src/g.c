@@ -1,7 +1,7 @@
+#include <stdio.h> // must precede <gmp.h>: GMP only declares its FILE* I/O (mpz_inp_str) when <stdio.h> is seen first
 #include <gmp.h>  // must precede FLINT headers so the GMP-interop decls (fmpz_set_mpz) are visible
 #include "glfunc.h"
 #include "glfunc_internals.h"
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
