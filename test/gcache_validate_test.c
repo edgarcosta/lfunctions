@@ -20,7 +20,9 @@
   degree, the sorted mus as exact halved integers, and the gprec it was
   computed at).  On load the library verifies the file is USABLE for the
   current request -- same degree and mus, and cached gprec >= required gprec --
-  and fails loudly (fatal ERR_G_INFILE) instead of returning wrong numbers.
+  and, when it is not, recomputes and overwrites the stale file instead of
+  returning wrong numbers.  (A file whose header is valid but whose body is
+  truncated/corrupt is a genuinely broken file and stays a fatal ERR_G_INFILE.)
 
   We probe at init time via Lfunc_nmax, which reflects hi_i and so reveals an
   undersized grid, exactly as test/gcache_collision_test.c does.
@@ -127,8 +129,11 @@ int main(void) {
   assert(nmax_hi > nmax_default);
 
   // Regression: the elevated request issued against a directory holding only
-  // the cheap default cache must be rejected loudly, never silently reused.
-  assert(fatal_stale);
+  // the cheap default cache must NOT silently reuse it.  The insufficient file
+  // is recomputed and overwritten, yielding the same deep grid (nmax) as a
+  // pristine elevated run -- not a fatal error, and not the stale shallow grid.
+  assert(!fatal_stale);
+  assert(nmax_stale == nmax_hi);
 
   // Sufficiency, not equality: a grid written at HIGH precision must satisfy a
   // later DEFAULT request (cached gprec >= required gprec), so it is reused

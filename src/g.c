@@ -28,6 +28,12 @@ extern "C"{
 #define GCACHE_MAGIC "GCACHE"
 #define GCACHE_VERSION 1
 
+// Outcome of validating a cached file against the current request.  GCACHE_STALE
+// (foreign / old version / different L-function / insufficient precision) means
+// recompute and overwrite the file; GCACHE_CORRUPT (header verified usable but
+// the body then failed to parse) is a genuinely broken file and stays fatal.
+typedef enum { GCACHE_OK, GCACHE_STALE, GCACHE_CORRUPT } gcache_status;
+
 
   static void printarf(FILE *fp,const arf_t x) {
     static int init;
@@ -664,7 +670,7 @@ computeres:
   }
 
   // Read and validate the GCACHE header (see GCACHE_MAGIC).  Returns false --
-  // so the caller fails loudly with ERR_G_INFILE rather than returning wrong
+  // so the caller recomputes (overwriting the file) rather than returning wrong
   // numbers -- when the file is foreign or from an older format (magic/version
   // mismatch), describes a different L-function (degree or mus mismatch), or
   // was computed at too low a precision for the current request
@@ -696,11 +702,17 @@ computeres:
     return true;
   }
 
-  // read a file written previously by computeall
-  bool read_gfile(FILE *infile, Lfunc *L, int64_t req_gprec)
+  // Read a file written previously by computeall, validating it against the
+  // current request first (see read_gheader).  Returns GCACHE_STALE -- so the
+  // caller recomputes and overwrites rather than returning wrong numbers -- when
+  // the header does not match (foreign / old format / different L-function /
+  // insufficient precision); GCACHE_CORRUPT when the header is usable but the
+  // body then fails to parse (a genuinely broken or truncated file, fatal); and
+  // GCACHE_OK when the file is usable and fully read.
+  gcache_status read_gfile(FILE *infile, Lfunc *L, int64_t req_gprec)
   {
     if(!read_gheader(infile, L, req_gprec)) // verify before allocating anything
-      return false;
+      return GCACHE_STALE;
     int64_t m,e,alpha;
     //double dalpha;
     // C = coeff_bound(degree, 53) is canonical in the degree, which the header
@@ -708,14 +720,14 @@ computeres:
     arb_init(L->C);
     arb_init(L->alpha);
     if(fscanf(infile,"%" PRId64 " %" PRId64 " %" PRId64 "\n",&m,&e,&alpha)!=3)
-      return false;
+      return GCACHE_CORRUPT;
     arb_set_si(L->C,m);
     arb_mul_2exp_si(L->C,L->C,e);
     arb_set_si(L->alpha,alpha);
     if(fscanf(infile,"%lf %" PRId64 " %" PRId64 "\n",&L->one_over_B,&L->low_i,&L->hi_i)!=3)
-      return false;
+      return GCACHE_CORRUPT;
     if(fscanf(infile,"%" PRIu64 "",&L->max_K)!=1)
-      return false;
+      return GCACHE_CORRUPT;
 
     fmpz_t a,b;
     mpz_t x,ee;
@@ -725,9 +737,9 @@ computeres:
     mpz_init(ee);
     arb_init(L->eq59);
     if(!mpz_inp_str(x,infile,10))
-      return false;
+      return GCACHE_CORRUPT;
     if(!mpz_inp_str(ee,infile,10))
-      return false;
+      return GCACHE_CORRUPT;
     fmpz_set_mpz(a,x);
     fmpz_set_mpz(b,ee);
     arb_set_fmpz_2exp(L->eq59,a,b);
@@ -738,16 +750,16 @@ computeres:
 
     L->Gs=(arb_t **)malloc(sizeof(arb_t *)*L->max_K);
     if(!L->Gs)
-      return false;
+      return GCACHE_CORRUPT;
     for(uint64_t k=0;k<L->max_K;k++)
     {
       L->Gs[k]=(arb_t *)malloc(sizeof(arb_t)*(L->hi_i-L->low_i+1));
       if(!L->Gs[k])
-        return false;
+        return GCACHE_CORRUPT;
       for(int64_t j=0;j<=L->hi_i-L->low_i;j++)
         arb_init(L->Gs[k][j]);
     }
-    return read_Gs(infile,L);
+    return read_Gs(infile,L) ? GCACHE_OK : GCACHE_CORRUPT;
 
   }
 
@@ -809,16 +821,20 @@ computeres:
       }
       if(name_fits) {
         FILE *infile = fopen(fname, "r");
-        if(infile) // we already have this G file in cache
+        if(infile) // a cache file with this name already exists
         {
-          bool res = read_gfile(infile, L, L->gprec); // read + validate it
+          gcache_status st = read_gfile(infile, L, L->gprec); // validate + read
           fclose(infile);
-          if(res) // header verified and body read: usable for this request
+          if(st == GCACHE_OK) // header verified and body read: usable as-is
             return ecode;
-          return ecode|ERR_G_INFILE; // stale/foreign/insufficient: fail loudly
+          if(st == GCACHE_CORRUPT) // header usable but body unparsable: broken file
+            return ecode|ERR_G_INFILE;
+          // GCACHE_STALE: foreign / old version / different L-function /
+          // insufficient precision.  Fall through to recompute the G data and
+          // overwrite the stale file rather than reuse it or abort.
         }
-        // we don't have this G file in cache
-        ofile = fopen(fname, "w"); // try to open it for writing
+        // cache miss, or a stale file we are about to overwrite
+        ofile = fopen(fname, "w"); // truncates any stale file
         if( !ofile ) {
           ecode |= ERR_G_OUTFILE; // couldn't open outfile. Not fatal
           op = false;
