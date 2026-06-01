@@ -67,7 +67,8 @@ print-%:
 .PHONY: clean check
 
 # Curated regression suite. Exit code is the oracle (assertions are on by default).
-# Stale g_<mu> caches poison results, so scrub them before and after.
+# Stale/colliding g_<mu> caches poison results, so scrub them before the suite
+# and after each binary (different L-functions can share a g_<mu> filename).
 CHECK_BINS = \
 	build/test/dir_test1.exe \
 	build/examples/ec_37.a1.exe \
