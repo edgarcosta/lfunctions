@@ -5,6 +5,19 @@
  * the local data to deduce the local factors from the conjugacy classes
  *
  * python function to generate input provided at the bottom with an example
+ *
+ * Two run modes:
+ *   - Tool mode (argc == 3): `artin <input> <output>` reads Artin-rep local
+ *     data line by line from <input>, computes each L-function, prints a
+ *     summary, and writes a result record per line to <output>. This is the
+ *     real LMFDB data-generation path and is unchanged.
+ *   - Self-test mode (argc == 1): with no arguments, runs an embedded
+ *     regression test on the dimension-2, conductor-47 rep 2.47.5t2.a.a (the
+ *     odd dihedral D5 = 5t2 Artin L-function, i.e. the weight-1 level-47
+ *     dihedral form). It feeds the embedded input line through the exact same
+ *     parse -> lpoly -> Lfunc_compute pipeline the tool mode uses, then asserts
+ *     on certified output: rank, L(1), and the first zero. Exits 0 on success.
+ *   Any other argc prints a usage message and exits nonzero.
  */
 #define __STDC_FORMAT_MACROS
 #define special_values_size 2 // implies computing L(1) ... L(special_values_size)
@@ -776,10 +789,151 @@ void lpoly(const int64_t &p, artin_rep &AR) {
 
 
 
+// Process one input line: parse it into AR, deduce all Euler factors, run
+// Lfunc_compute, print the summary, compute the special values, and write the
+// result record to `output`. On return AR is fully populated (rank, sign,
+// special_values, etc.); the caller owns AR and must artin_rep_clear it.
+// Returns nonzero if non-fatal warnings were collected (other than ERR_SPEC_PREC).
+// Shared verbatim between the tool mode and the embedded self-test so both
+// exercise the identical parse -> lpoly -> Lfunc_compute pipeline.
+int process_line(const string &line, ostream &output, primesieve::iterator &ps, artin_rep &AR) {
+  Lfunc_t &L = AR.L;
+
+  SystemTime start(std::chrono::system_clock::now());
+  std::time_t startt = std::chrono::system_clock::to_time_t(start);
+  cout << "Date:   \t" <<  std::put_time(std::localtime(&startt), "%F %T") << endl;
+
+  // read a line
+  stringstream linestream(line);
+  linestream >> AR;
+  cout << "Starting:\t"<<AR.label<<endl;
+
+  // we need all the local factors p <= target_M
+  uint64_t target_M = Lfunc_nmax(L);
+
+  cout <<"using p <= " << target_M << endl;
+
+  // populate local factors
+  ps.jump_to(0);
+  for(uint64_t p = ps.next_prime(); p <= target_M; p = ps.next_prime())
+    lpoly(int64_t(p), AR);
+
+
+  // do the computation
+  AR.ecode |= Lfunc_compute(L);
+  if(fatal_error(AR.ecode)) {
+    fprint_errors(stderr, AR.ecode);
+    std::abort();
+  }
+
+  printf("Rank = %" PRIu64 "\n",Lfunc_rank(L));
+  printf("Epsilon = ");acb_printd(Lfunc_sign(L),20);printf("\n");
+  printf("Leading Taylor coeff = ");arb_printd(Lfunc_Taylor(L), 20);printf("\n");
+  printf("First zero = ");arb_printd(Lfunc_zeros(L, 0), 20);printf("\n");
+
+  for(size_t i = 0; i < AR.special_values.size(); ++i) {
+    acb_init(&AR.special_values[i]);
+    AR.ecode |= Lfunc_special_value(&AR.special_values[i], L, i + 1, 0);
+    if(fatal_error(AR.ecode)) {
+      fprint_errors(stderr, AR.ecode);
+      std::abort();
+    }
+    printf("L(%lu) = ", i + 1);acb_printd(&AR.special_values[i],20);printf("\n");
+  }
+
+  output << AR << endl;
+  int r = 0;
+  // print any warnings collected along the way
+  // ignore could not achieve target error bound in special value
+  if( AR.ecode != ERR_SUCCESS and AR.ecode != ERR_SPEC_PREC ) {
+    cerr << "Begin warnings for " << AR.label << endl;
+    fprint_errors(stderr, AR.ecode);
+    cerr << "End warnings for " << AR.label << endl;
+    r++;
+  }
+
+  SystemTime end(std::chrono::system_clock::now());
+  std::time_t endt = std::chrono::system_clock::to_time_t(end);
+  double walltime = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+  cout << "Date:   \t" <<  std::put_time(std::localtime(&endt), "%F %T") << endl;
+  cout << "Done:   \t"<< AR.label << "\ttook ";
+  cout << std::setw(6) << std::setfill(' ')  << std::fixed << std::setprecision(2) << walltime/1000 << "s"<< endl << endl;
+
+  return r;
+}
+
+
+// Embedded self-test: run the conductor-47 dimension-2 dihedral rep
+// 2.47.5t2.a.a through the same pipeline as the tool mode and assert on
+// certified output. Golden constants are the certified values printed by this
+// program, independently cross-checked in Magma (Dokchitser L-series built
+// from the a_p of the weight-1 level-47 dihedral form for Q(sqrt(-47)), see
+// the commit message). Returns 0 on success; asserts otherwise.
+int self_test() {
+  // Verbatim 2.47.5t2.a.a line from the bottom-of-file example (no spaces).
+  const string line =
+    "2.47.5t2.a.a:2:47:[1,0,-1,2,-2,1]:[0,1]:5:"
+    "[[[1],[-2],[1]],[[1],[0],[-1]],[[1],[0,0,-1,-1],[1]],[[1],[1,0,1,1],[1]],[[1],[-1]]]:"
+    "[[2,47],[3,5]]:[[[1,1,1,1,1],[1,2,2]],[1,2]]:"
+    "[[[5]],[[[[4,[-47,1]],[3,[47,1]]],[2,3,4,5,1]]]]:[[],[]]";
+
+  primesieve::iterator ps;
+  artin_rep AR;
+  Lfunc_t &L = AR.L;
+
+  // Exercise the output path too (into a stringstream rather than a file).
+  stringstream record;
+  process_line(line, record, ps, AR);
+
+  // --- regression asserts on certified output ---
+  // (1) rank
+  assert(Lfunc_rank(L) == 0);
+
+  // (2) L(1): special_values[0] = L(1) (computed by process_line above).
+  //     Cross-checked against Magma Dokchitser: 0.4506602209473905297...
+  {
+    acb_t ref; acb_init(ref);
+    arb_set_str(acb_realref(ref), "0.45066022094739052973", 300);
+    arb_set_str(acb_imagref(ref), "0", 300);
+    arb_add_error_2exp_si(acb_realref(ref), -50);
+    arb_add_error_2exp_si(acb_imagref(ref), -50);
+    assert(acb_overlaps(&AR.special_values[0], ref));
+    acb_clear(ref);
+  }
+
+  // (3) first zero on the critical line.
+  //     Cross-checked against Magma sign-change bisection: 2.9874346957843450...
+  {
+    arb_t ref; arb_init(ref);
+    arb_set_str(ref, "2.9874346957843450441", 300);
+    arb_add_error_2exp_si(ref, -50);
+    assert(arb_overlaps(Lfunc_zeros(L, 0), ref));
+    arb_clear(ref);
+  }
+
+  cout << "self-test PASSED for " << AR.label << endl;
+  artin_rep_clear(AR);
+  return 0;
+}
+
+
 int main (int argc, char**argv)
 {
   try {
-    assert_print(argc, ==, 3);
+    if(argc == 1) {
+      // no arguments: run the embedded regression self-test
+      int rc = self_test();
+      flint_cleanup();
+      return rc;
+    }
+
+    if(argc != 3) {
+      cerr << "Usage:" << endl;
+      cerr << "  " << argv[0] << " <input> <output>   compute L-data for each line of <input>" << endl;
+      cerr << "  " << argv[0] << "                     run the embedded self-test" << endl;
+      return 1;
+    }
+
     printf("Input: %s\n", argv[1]);
     printf("Output: %s\n", argv[2]);
 
@@ -793,69 +947,8 @@ int main (int argc, char**argv)
 
 
     while(std::getline(input, line)) {
-      SystemTime start(std::chrono::system_clock::now());
-      std::time_t startt = std::chrono::system_clock::to_time_t(start);
-      cout << "Date:   \t" <<  std::put_time(std::localtime(&startt), "%F %T") << endl;
-
       artin_rep AR;
-      Lfunc_t &L = AR.L;
-
-
-      // read a line
-      stringstream linestream(line);
-      linestream >> AR;
-      cout << "Starting:\t"<<AR.label<<endl;
-
-      // we need all the local factors p <= target_M
-      uint64_t target_M = Lfunc_nmax(L);
-
-      cout <<"using p <= " << target_M << endl;
-
-      // populate local factors
-      ps.jump_to(0);
-      for(uint64_t p = ps.next_prime(); p <= target_M; p = ps.next_prime())
-        lpoly(int64_t(p), AR);
-
-
-      // do the computation
-      AR.ecode |= Lfunc_compute(L);
-      if(fatal_error(AR.ecode)) {
-        fprint_errors(stderr, AR.ecode);
-        std::abort();
-      }
-
-      printf("Rank = %" PRIu64 "\n",Lfunc_rank(L));
-      printf("Epsilon = ");acb_printd(Lfunc_sign(L),20);printf("\n");
-      printf("Leading Taylor coeff = ");arb_printd(Lfunc_Taylor(L), 20);printf("\n");
-      printf("First zero = ");arb_printd(Lfunc_zeros(L, 0), 20);printf("\n");
-
-      for(size_t i = 0; i < AR.special_values.size(); ++i) {
-        acb_init(&AR.special_values[i]);
-        AR.ecode |= Lfunc_special_value(&AR.special_values[i], L, i + 1, 0);
-        if(fatal_error(AR.ecode)) {
-          fprint_errors(stderr, AR.ecode);
-          std::abort();
-        }
-        printf("L(%lu) = ", i + 1);acb_printd(&AR.special_values[i],20);printf("\n");
-      }
-
-      output << AR << endl;
-      // print any warnings collected along the way
-      // ignore could not achieve target error bound in special value
-      if( AR.ecode != ERR_SUCCESS and AR.ecode != ERR_SPEC_PREC ) {
-        cerr << "Begin warnings for " << AR.label << endl;
-        fprint_errors(stderr, AR.ecode);
-        cerr << "End warnings for " << AR.label << endl;
-        r++;
-      }
-
-      SystemTime end(std::chrono::system_clock::now());
-      std::time_t endt = std::chrono::system_clock::to_time_t(end);
-      double walltime = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-      cout << "Date:   \t" <<  std::put_time(std::localtime(&endt), "%F %T") << endl;
-      cout << "Done:   \t"<< AR.label << "\ttook ";
-      cout << std::setw(6) << std::setfill(' ')  << std::fixed << std::setprecision(2) << walltime/1000 << "s"<< endl << endl;
-
+      r += process_line(line, output, ps, AR);
       //free memory
       artin_rep_clear(AR);
     }
