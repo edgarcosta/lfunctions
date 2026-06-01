@@ -23,11 +23,29 @@
 */
 
 #include <assert.h>
+#include <dirent.h>
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include "glfunc.h"
+
+// Remove a flat directory (the G cache writes only regular files into it).
+static void cleanup_dir(const char *dir) {
+  DIR *d = opendir(dir);
+  if (d) {
+    struct dirent *e;
+    while ((e = readdir(d)) != NULL) {
+      if (!strcmp(e->d_name, ".") || !strcmp(e->d_name, "..")) continue;
+      char path[1200];
+      snprintf(path, sizeof(path), "%s/%s", dir, e->d_name);
+      remove(path);
+    }
+    closedir(d);
+  }
+  rmdir(dir);
+}
 
 // Compute Lfunc_nmax for the given gamma data, using cache_dir for the
 // G cache.  Uses conductor 1 so nmax reflects the (conductor-independent)
@@ -78,6 +96,12 @@ int main(void) {
   printf("nmax degree-4 [0.5,0.5,1.5,1.5] = %" PRIu64 "\n", m4);
   printf("nmax degree-2 [0.5,1.5] (shared cache dir) = %" PRIu64 "\n", m2_shared);
   printf("nmax degree-2 [0.5,1.5] (pristine cache dir) = %" PRIu64 "\n", m2_ref);
+
+  // Clean up before asserting, so the temp dirs are removed on both the pass
+  // and the (abort-on-assert) failure path.  The printed nmax values above are
+  // enough to diagnose a failure.
+  cleanup_dir(shared_dir);
+  cleanup_dir(ref_dir);
 
   // Sanity: the two L-functions genuinely differ, so the test is meaningful.
   assert(m4 != m2_ref);
