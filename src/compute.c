@@ -105,16 +105,21 @@ void comp_sks(arb_t sks, uint64_t m, int64_t ms, Lfunc *L, int64_t prec)
 }
 
 // just check our G values go down far enough
-void finalise_comp(Lfunc *L)
+Lerror_t finalise_comp(Lfunc *L)
 {
   double two_pi_by_B=L->one_over_B*2*M_PI;
   L->offset=calc_m(1,two_pi_by_B,L->dc);
   if(L->offset<L->low_i)
   {
-    fprintf(stderr,"G values need to go down to %" PRId64 ". We only have down to %" PRId64 ". Exiting.\n",
-        L->offset,L->low_i);
-    exit(0);
+    // The grid floor (fixed at umin=-32 ln2, so degree-dependent only) does not
+    // reach the conductor-dependent offset we need.  Report it as a recoverable
+    // fatal error rather than exit()ing out from under the caller.
+    if(verbose)
+      fprintf(stderr,"G values need to go down to %" PRId64 ". We only have down to %" PRId64 ".\n",
+          L->offset,L->low_i);
+    return ERR_G_EXTENT;
   }
+  return ERR_SUCCESS;
 } /* finalise_comp */
 
 
@@ -350,10 +355,12 @@ Lerror_t Lfunc_compute(Lfunc_t Lf)
     //if( (m + 1) % 100 == 0){printf("sum_{n <= %ld |an/sqrt(n)|=",m+1);arb_printd(L->sum_ans,10);printf("\n");fflush(stdout);}
   }
   if(verbose){printf("sum_{n <= %"  PRIu64 " |an/sqrt(n)|=",L->M);arb_printd(L->sum_ans,10);printf("\n");fflush(stdout);}
-  finalise_comp(L);
+  Lerror_t ecode=finalise_comp(L);
+  if(fatal_error(ecode))
+    return ecode;
   do_convolves(L);
   finish_convolves(L);
-  Lerror_t ecode=do_pre_iFFT_errors(L);
+  ecode|=do_pre_iFFT_errors(L);
   if(fatal_error(ecode))
     return ecode;
   final_ifft(L);

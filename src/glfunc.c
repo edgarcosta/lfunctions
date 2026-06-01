@@ -60,6 +60,10 @@ void fprint_errors(FILE *f, Lerror_t ecode) {
     fprintf(f, "Problem opening cached G data file.\n");
   if (ecode & ERR_G_OUTFILE)
     fprintf(f, "Problem opening file to cache G data.\n");
+  if (ecode & ERR_G_EXTENT)
+    fprintf(f,
+            "G data does not extend low enough for this conductor (the cached "
+            "or computed grid floor is too high).\n");
   if (ecode & ERR_BAD_DEGREE)
     fprintf(f, "The degree of the L-function must be between 1 and %d\n",
             MAX_DEGREE + 1);
