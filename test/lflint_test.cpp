@@ -91,6 +91,11 @@ static void test_arithmetic() {
   assert(fmpz_get_si(x._fmpz()) == 36);
   x *= slong{2};
   assert(fmpz_get_si(x._fmpz()) == 72);
+
+  // ZZ *= ulong (fmpz_mul_ui) — added to avoid sign-narrowing at smalljac.cpp:301 `qn *= q`
+  ZZ y(slong{6});
+  y *= ulong{7};
+  assert(fmpz_get_si(y._fmpz()) == 42);
 }
 
 static void test_modulo() {
@@ -229,6 +234,18 @@ static void test_zzx_basic() {
   ZZX t(p);
   assert(t.get_coeff(slong{3}).to<slong>() == -5);
   assert(t.degree() == p.degree());
+
+  // ZZX move ctor leaves source in degree -1 (valid, destructible)
+  ZZX donor(p);                       // copy of p; degree 3
+  ZZX recv(std::move(donor));
+  assert(recv.degree() == 3);
+  assert(donor.degree() == -1);
+
+  // ZZX move-assign: swap semantics means source gets the target's old state
+  ZZX target;                         // initially degree -1 (empty)
+  target = std::move(recv);           // swap: target ← recv's state (degree 3), recv ← target's old state (degree -1)
+  assert(target.degree() == 3);
+  assert(recv.degree() == -1);
 }
 
 static void test_zzx_arithmetic() {
