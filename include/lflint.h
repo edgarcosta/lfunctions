@@ -105,4 +105,32 @@ template<> inline slong  ZZ::to<slong>()  const { return fmpz_get_si(z); }
 template<> inline ulong  ZZ::to<ulong>()  const { return fmpz_get_ui(z); }
 template<> inline double ZZ::to<double>() const { return fmpz_get_d (z); }
 
+class ZZX {
+  fmpz_poly_t p;
+public:
+  ZZX()                          { fmpz_poly_init(p); }
+  explicit ZZX(slong alloc)      { fmpz_poly_init2(p, alloc); }
+  ZZX(const ZZX& o)              { fmpz_poly_init(p); fmpz_poly_set(p, o.p); }
+  ZZX(ZZX&& o) noexcept          { fmpz_poly_init(p); fmpz_poly_swap(p, o.p); }
+  ~ZZX()                         { fmpz_poly_clear(p); }
+
+  ZZX& operator=(const ZZX& o)     { fmpz_poly_set(p, o.p); return *this; }
+  ZZX& operator=(ZZX&& o) noexcept { fmpz_poly_swap(p, o.p); return *this; }
+  ZZX& operator=(slong n)          { fmpz_poly_set_si(p, n); return *this; }
+
+  fmpz_poly_struct*       _poly()       { return p; }
+  const fmpz_poly_struct* _poly() const { return p; }
+
+  slong degree() const           { return fmpz_poly_degree(p); }
+  void  fit_length(slong n)      { fmpz_poly_fit_length(p, n); }
+
+  ZZ get_coeff(slong i) const {
+    ZZ r;
+    fmpz_poly_get_coeff_fmpz(r._fmpz(), p, i);
+    return r;
+  }
+  void set_coeff(slong i, slong c)        { fmpz_poly_set_coeff_si(p, i, c); }
+  void set_coeff(slong i, const ZZ& c)    { fmpz_poly_set_coeff_fmpz(p, i, c._fmpz()); }
+};
+
 } // namespace lfun

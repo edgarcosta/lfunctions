@@ -8,6 +8,7 @@
 #include "lflint.h"
 
 using lfun::ZZ;
+using lfun::ZZX;
 
 static void test_default_ctor_is_zero() {
   ZZ a;
@@ -195,6 +196,41 @@ static void test_ostream() {
   assert(os3.str() == string("12345678901234567890123"));
 }
 
+static void test_zzx_basic() {
+  ZZX p;
+  assert(p.degree() == -1);          // empty poly has degree -1 per FLINT
+
+  ZZX q(slong{8});                   // capacity hint; still degree -1
+  assert(q.degree() == -1);
+
+  // set/get round-trip including negative coeff
+  p.set_coeff(slong{3}, slong{-5});
+  p.set_coeff(slong{1}, ZZ(slong{7}));
+  assert(p.degree() == 3);
+  assert(p.get_coeff(slong{3}).to<slong>() == -5);
+  assert(p.get_coeff(slong{1}).to<slong>() ==  7);
+  assert(p.get_coeff(slong{2}).is_zero());
+  assert(p.get_coeff(slong{0}).is_zero());
+
+  // fit_length does not raise degree if no coefficients beyond it are set
+  ZZX r;
+  r.set_coeff(slong{0}, slong{1});
+  r.fit_length(slong{16});
+  assert(r.degree() == 0);
+
+  // operator= from int (constant) — used in examples_tools.h: `f = 0;`
+  ZZX s;
+  s.set_coeff(slong{2}, slong{99});
+  assert(s.degree() == 2);
+  s = slong{0};
+  assert(s.degree() == -1);
+
+  // copy ctor
+  ZZX t(p);
+  assert(t.get_coeff(slong{3}).to<slong>() == -5);
+  assert(t.degree() == p.degree());
+}
+
 int main() {
   test_default_ctor_is_zero();
   test_construction_and_raw();
@@ -206,5 +242,6 @@ int main() {
   test_pow();
   test_to_conversion();
   test_ostream();
+  test_zzx_basic();
   return 0;
 }
