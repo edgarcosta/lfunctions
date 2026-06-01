@@ -64,4 +64,24 @@ $(BUILD_DIRS): % :
 print-%:
 	@echo '$*=$($*)'
 
-.PHONY: clean
+.PHONY: clean check
+
+# Curated regression suite. Exit code is the oracle (assertions are on by default).
+# Stale g_<mu> caches poison results, so scrub them before and after.
+CHECK_BINS = \
+	build/test/dir_test1.exe \
+	build/examples/ec_37.a1.exe \
+	build/examples/ec_389.a1.exe \
+	build/examples/ec_5077.a1.exe
+
+check: all
+	@rm -f g_[0-9]*
+	@fail=0; \
+	for t in $(CHECK_BINS); do \
+	  printf 'RUN  %s\n' "$$t"; \
+	  if ./$$t >$$t.log 2>&1; then printf 'PASS %s\n' "$$t"; rm -f $$t.log; \
+	  else rc=$$?; printf 'FAIL %s (rc=%s)\n' "$$t" "$$rc"; cat $$t.log; rm -f $$t.log; fail=1; fi; \
+	done; \
+	rm -f g_[0-9]*; \
+	if [ $$fail -ne 0 ]; then echo 'CHECK FAILED'; exit 1; fi; \
+	echo 'CHECK PASSED'

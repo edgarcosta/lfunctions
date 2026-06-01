@@ -6,7 +6,7 @@ Makefile
 .?*
 
 # g files
-g_*_*
+g_[0-9]*
 
 # Prerequisites
 *.d
