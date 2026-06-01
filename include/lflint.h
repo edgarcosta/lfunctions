@@ -22,8 +22,22 @@ namespace lfun {
 class ZZ {
   fmpz_t z;
 public:
-  ZZ() { fmpz_init(z); }
-  ~ZZ() { fmpz_clear(z); }
+  ZZ()                       { fmpz_init(z); }
+  ZZ(slong n)                { fmpz_init(z); fmpz_set_si(z, n); }
+  ZZ(ulong n)                { fmpz_init(z); fmpz_set_ui(z, n); }
+  ZZ(const ZZ& o)            { fmpz_init(z); fmpz_set(z, o.z); }
+  // Move: init the target to 0 first, then swap. This leaves the moved-from
+  // object in a valid (zero) state that fmpz_clear can safely handle.
+  ZZ(ZZ&& o) noexcept        { fmpz_init(z); fmpz_swap(z, o.z); }
+  ~ZZ()                      { fmpz_clear(z); }
+
+  ZZ& operator=(const ZZ& o)     { fmpz_set(z, o.z); return *this; }
+  ZZ& operator=(ZZ&& o) noexcept { fmpz_swap(z, o.z); return *this; }
+  ZZ& operator=(slong n)         { fmpz_set_si(z, n); return *this; }
+  ZZ& operator=(ulong n)         { fmpz_set_ui(z, n); return *this; }
+
+  fmpz*       _fmpz()       { return z; }
+  const fmpz* _fmpz() const { return z; }
 
   bool is_zero() const { return fmpz_is_zero(z); }
 };
