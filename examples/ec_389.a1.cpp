@@ -242,7 +242,6 @@ int main ()
   assert(arb_overlaps(Lfunc_Taylor(L), bsd));
   arb_clear(bsd);
 
-  //FIXME add asserts and these two lines to intro text
   // ~ 0.133768432546318414418290373661
   acb_t ctmp;
   acb_init(ctmp);
@@ -253,6 +252,15 @@ int main ()
   }
   printf("L(1.5) = ");acb_printd(ctmp, DIGITS);printf("\n");
   if (RAW) cout<<"RAW: "<<ctmp << endl;
+  { // regression assert: L(1.5)
+    acb_t ref; acb_init(ref);
+    arb_set_str(acb_realref(ref), "0.13376843254631841442", 300);
+    arb_set_str(acb_imagref(ref), "0", 300);
+    arb_add_error_2exp_si(acb_realref(ref), -50);
+    arb_add_error_2exp_si(acb_imagref(ref), -50);
+    assert(acb_overlaps(ctmp, ref));
+    acb_clear(ref);
+  }
   // ~ 0.552975867046450192416260240311
   ecode|=Lfunc_special_value(ctmp, L, 2.5,0.0);
   if(fatal_error(ecode)) {
@@ -270,6 +278,13 @@ int main ()
     arb_printd(zeros+i, DIGITS);
     printf("\n");
     if (RAW) cout<<"RAW: "<<zeros + i<< endl;
+  }
+  { // regression assert: first zero
+    arb_t ref; arb_init(ref);
+    arb_set_str(ref, "2.8760990712604652018", 300);
+    arb_add_error_2exp_si(ref, -50);
+    assert(arb_overlaps(zeros + 0, ref));
+    arb_clear(ref);
   }
 
   printf("Z-plot in [0, 10]:\n");
