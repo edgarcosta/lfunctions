@@ -45,7 +45,7 @@ extern "C"{
     int64_t wprec; // internal working precision in bits = target_prec + decay + EXTRA_BITS
     int64_t gprec; // precision in bits used by the G/gamma-factor computation (>= wprec)
     char *cache_dir; // directory for cached G-data; used only in default-precision mode
-    int self_dual; // self-dual? DK(-1)/NO(0)/YES(1); YES skips dual-side zeros & Turing
+    int self_dual; // self-dual? DK(-1)/NO(0)/YES(1); YES skips dual-side zero-finding (Turing then doubles the L-side)
     int rank; // analytic rank = order of vanishing at s=1/2; DK(-1) until computed
     arb_t mu; // scalar -1/2+(1+sum mus)/r (Artin Lemma 5.2); unused
     arb_t nu; // scalar 1/2+(2/r)*sum(nus); shift param for the error bounds (Lemma 2/5)
@@ -123,7 +123,7 @@ extern "C"{
     arb_t u_pi_by_H2; // -pi/h^2: coefficient of (t-k/A)^2 in the Gaussian window
     arb_t u_A; // upsampling sample rate = A*u_stride (= A, since u_stride = 1)
     arb_t u_one_over_A; // 1/u_A: the upsampling grid spacing in t
-    arb_t *u_values[2]; // per-side raw samples of -Lambda (full buffer incl. left guard)
+    arb_t *u_values[2]; // per-side raw samples of Lambda, sign-normalized so Lambda(0)>=0 (full buffer incl. left guard)
     arb_t *u_values_off[2]; // view into u_values past the guard: index k = Lam(k/A)
     // Lam(t)=eps^1/2 N^it/2 prod gamma_r(1/2+it+mu_j) L(1/2+it)
     uint64_t u_no_values; // element count of each u_values[side]
