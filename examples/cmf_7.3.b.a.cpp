@@ -67,6 +67,7 @@ Z-plot in [0, 10]:
 #include <flint/fmpz.h>
 //#include <flint/fmpzxx.h>
 #include <flint/acb_poly.h>
+#include <cassert>
 #include "glfunc_internals.h"
 //#include "examples_tools.h"
 
@@ -195,6 +196,15 @@ int main ()
   }
   printf("L(1) = ");acb_printd(ctmp, DIGITS);printf("\n");
   if (RAW) cout<<"RAW: "<<ctmp << endl;
+  { // regression assert: L(1)
+    acb_t ref; acb_init(ref);
+    arb_set_str(acb_realref(ref), "0.19673558706889585505", 300);
+    arb_set_str(acb_imagref(ref), "0", 300);
+    arb_add_error_2exp_si(acb_realref(ref), -50);
+    arb_add_error_2exp_si(acb_imagref(ref), -50);
+    assert(acb_overlaps(ctmp, ref));
+    acb_clear(ref);
+  }
   ecode|=Lfunc_special_value(ctmp, L, 2,0.0);
   if(fatal_error(ecode)) {
     fprint_errors(stderr, ecode);
@@ -211,6 +221,13 @@ int main ()
     arb_printd(zeros+i, DIGITS);
     printf("\n");
     if (RAW) cout<<"RAW: "<<zeros + i<< endl;
+  }
+  { // regression assert: first zero
+    arb_t ref; arb_init(ref);
+    arb_set_str(ref, "7.2145891812871844435", 300);
+    arb_add_error_2exp_si(ref, -50);
+    assert(arb_overlaps(zeros + 0, ref));
+    arb_clear(ref);
   }
 
   printf("Z-plot in [0, 10]:\n");
