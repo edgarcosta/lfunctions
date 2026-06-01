@@ -18,7 +18,7 @@
  *
  */
 
-#include <acb_poly.h>
+#include <flint/acb_poly.h>
 #include <assert.h>
 #include <ctype.h>
 #include <inttypes.h>
@@ -325,7 +325,7 @@ int main(int argc, char** argv) {
       return -1;
     }
     printf("Rank = %" PRIu64 "\n", Lfunc_rank(L->L));
-    printf("Epsilon = ");acb_printd(Lfunc_epsilon(L->L),20);printf("\n");
+    printf("Epsilon = ");acb_printd(Lfunc_sign(L->L),20);printf("\n");
     printf("Leading Taylor coeff = ");arb_printd(Lfunc_Taylor(L->L), 20);printf("\n");
     printf("First zero = ");arb_printd(Lfunc_zeros(L->L, 0), 20);printf("\n");
 

@@ -1,6 +1,6 @@
 #define __STDC_FORMAT_MACROS
 #include "assert.h"
-#include "acb_poly.h"
+#include <flint/acb_poly.h>
 #include "glfunc.h"
 #include "glfunc_internals.h"
 

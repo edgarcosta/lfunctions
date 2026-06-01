@@ -1,12 +1,13 @@
 #include "glfunc.h"
 #include "glfunc_internals.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <math.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/wait.h>
-#include <arb_poly.h>
+#include <flint/arb_poly.h>
 
 #ifdef __cplusplus
 extern "C"{

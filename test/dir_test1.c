@@ -7,7 +7,7 @@ L-function and print some stuff out.
 */
 #include <assert.h>
 #include <inttypes.h>
-#include "acb_poly.h"
+#include <flint/acb_poly.h>
 #include "glfunc.h"
 #include "primesieve.h"
 

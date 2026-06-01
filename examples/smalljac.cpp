@@ -437,7 +437,7 @@ ostream& operator<<(ostream &s, curve &C) {
   // second moment
   s << std::setprecision(17) << C.second_moment << ":";
   // root number
-  s << Lfunc_epsilon(L) <<":";
+  s << Lfunc_sign(L) <<":";
   // r = rank
   s << Lfunc_rank(L) << ":";
   // L(1/2)^r / r! as arb
@@ -506,7 +506,7 @@ int main (int argc, char**argv) {
 
       // we use printn to match SAGE's _repr_
       printf("\tRank = %" PRIu64 "\n",Lfunc_rank(L));
-      printf("\tEpsilon = ");acb_printn(Lfunc_epsilon(L) ,20, 0);printf("\n");
+      printf("\tEpsilon = ");acb_printn(Lfunc_sign(L) ,20, 0);printf("\n");
       printf("\tFirst non-zero Taylor coeff = ");arb_printn(Lfunc_Taylor(L), 20, 0);printf("\n");
       printf("\tFirst zero = ");arb_printn(Lfunc_zeros(L, 0), 20, 0);printf("\n");
 

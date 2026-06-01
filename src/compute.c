@@ -1,6 +1,8 @@
-#include <acb_poly.h>
+#include <flint/acb_poly.h>
 #include "glfunc.h"
 #include "glfunc_internals.h"
+#include <stdlib.h>
+#include <math.h>
 
 #ifdef __cplusplus
 extern "C"{

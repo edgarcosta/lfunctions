@@ -2,8 +2,10 @@
 #define _GLFUNC_INTERNAL
 
 #include "inttypes.h"
-#include "flint/acb.h"
+#include <flint/acb.h>
 #include <stdbool.h>
+#include <stdlib.h>
+#include <math.h>
 #include "glfunc.h"
 
 

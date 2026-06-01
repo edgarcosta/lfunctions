@@ -1,4 +1,4 @@
-#include "flint/acb_poly.h"
+#include <flint/acb_poly.h>
 #include "glfunc_internals.h"
 
 #ifdef __cplusplus
