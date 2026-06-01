@@ -255,13 +255,15 @@ void curve_clear(curve &C) {
 
 
 void remove_riemann_shift(ZZX& L, const unsigned long p, const unsigned long shift){
-  fmpzxx ppower(p);
-  ppower = pow(ppower, shift);
-  for(int i = 1; i <= L.degree(); ++i)
-    L.coeff(i) += ppower*L.coeff(i-1);
-
-  assert_print(L.lead(), ==, 0);
-  L._normalise();
+  ZZ ppower(static_cast<ulong>(p));
+  ppower = pow(ppower, static_cast<ulong>(shift));
+  const slong d = L.degree();          // capture BEFORE the loop
+  for(slong i = 1; i <= d; ++i)
+    L.set_coeff(i, L.get_coeff(i) + ppower * L.get_coeff(i-1));
+  // Dividing out (1 - p^shift·T) zeroes the degree-d coefficient;
+  // set_coeff auto-normalises, so exact division drops the degree by
+  // exactly one. This replaces the old lead()==0 / _normalise() pair.
+  assert_print(L.degree(), ==, d - 1);
 }
 
 // implemented at the bottom
