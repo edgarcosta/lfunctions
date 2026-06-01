@@ -21,14 +21,16 @@
 #include <string>
 #include <vector>
 #include <flint/fmpz.h>
-#include <flint/fmpzxx.h>
+//#include <flint/fmpzxx.h>  // removed: FLINT 3.x dropped flintxx; fmpzxx comes from examples_tools.h
 #include <flint/nmod_poly.h>
+#include <flint/nmod_poly_factor.h>
 #include <flint/fq_nmod.h>
 #include <flint/fq_nmod_poly.h>
+#include <flint/fq_nmod_poly_factor.h>
 #include <flint/ulong_extras.h>
 #include <flint/perm.h>
 #include <primesieve.hpp>
-#include <acb_poly.h>
+#include <flint/acb_poly.h>
 #include "glfunc.h"
 #include "examples_tools.h"
 
@@ -704,7 +706,7 @@ ostream& operator<<(ostream &s, artin_rep &AR) {
 
   s << AR.label <<":";
   // root number
-  s << Lfunc_epsilon(L) <<":";
+  s << Lfunc_sign(L) <<":";
   // r = rank
   s << Lfunc_rank(L) << ":";
   // L(1/2)^r / r! as arb
@@ -823,7 +825,7 @@ int main (int argc, char**argv)
       }
 
       printf("Rank = %" PRIu64 "\n",Lfunc_rank(L));
-      printf("Epsilon = ");acb_printd(Lfunc_epsilon(L),20);printf("\n");
+      printf("Epsilon = ");acb_printd(Lfunc_sign(L),20);printf("\n");
       printf("Leading Taylor coeff = ");arb_printd(Lfunc_Taylor(L), 20);printf("\n");
       printf("First zero = ");arb_printd(Lfunc_zeros(L, 0), 20);printf("\n");
 

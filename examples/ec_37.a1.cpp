@@ -72,6 +72,7 @@ Z-plot in [0, 10]:
 #include "glfunc.h"
 #include "glfunc_internals.h"
 //#include "examples_tools.h"
+#include <cassert>
 
 //using flint::fmpzxx;
 using std::cout;
@@ -179,6 +180,13 @@ int main ()
   printf("First non-zero Taylor coeff = ");
   arb_printd(Lfunc_Taylor(L),DIGITS);
   printf("\n");
+  if (RAW) cout<<"RAW: "<<Lfunc_Taylor(L) << endl;
+  arb_t bsd;
+  char bsd_str[] = "0.305999773834052301820483683321676474452637774590771998534541832481016050469290169911495257337795897237898682879524967997997869651621709648704953228700";
+  arb_init(bsd);
+  arb_set_str(bsd, bsd_str, 400);
+  assert(arb_overlaps(Lfunc_Taylor(L), bsd));
+  arb_clear(bsd);
 
   printf("Zeros\n");
   // we could use Lfunc_zeros(L, 1) for the dual L-function

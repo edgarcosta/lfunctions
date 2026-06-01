@@ -9,7 +9,7 @@ PREFIX="" #"/usr/local"
 FLINT_DIR="" # "/usr/local"
 GMP_DIR="" #"/usr/local"
 PRIMESIEVE_DIR="" #"/usr/local"
-ARB_DIR="" #"/usr/local"
+#ARB_DIR="" #"/usr/local" -- arb is merged into FLINT (>=3.0); no separate -larb
 MPFR_DIR="" #"/usr/local"
 SMALLJAC_DIR="" #"/usr/local"
 FF_POLY_DIR="" #"/usr/local"
@@ -389,7 +389,13 @@ fi
 # include paths
 
 INCS="-I'\$(CURDIR)/include'"
+SEEN_INC_DIRS=""
 for INC_DIR in ${INC_DIRS}; do
+   # dedupe, and skip standard system dirs: forcing -isystem/usr/include
+   # ahead of the toolchain dirs breaks libstdc++'s #include_next <stdlib.h>
+   case " ${SEEN_INC_DIRS} " in *" ${INC_DIR} "*) continue;; esac
+   SEEN_INC_DIRS="${SEEN_INC_DIRS} ${INC_DIR}"
+   case "${INC_DIR}" in /usr/include|/usr/local/include) continue;; esac
    INCS="${INCS} -isystem${INC_DIR}"
 done
 

@@ -1,5 +1,6 @@
 #include "glfunc.h"
 #include "glfunc_internals.h"
+#include <math.h>
 
 
 

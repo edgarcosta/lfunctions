@@ -416,6 +416,13 @@ int main ()
   printf("First non-zero Taylor coeff = ");
   arb_printd(Lfunc_Taylor(L),DIGITS);
   printf("\n");
+  if (RAW) cout<<"RAW: "<<Lfunc_Taylor(L) << endl;
+  arb_t bsd;
+  char bsd_str[] = "1.73184990011930068979197508506015284495439272927616821328741317175655866241628546665635605522560167370696322002493812745881488860601965106244574237598";
+  arb_init(bsd);
+  arb_set_str(bsd, bsd_str, 400);
+  assert(arb_overlaps(Lfunc_Taylor(L), bsd));
+  arb_clear(bsd);
 
   acb_t ctmp;
   acb_init(ctmp);

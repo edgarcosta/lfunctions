@@ -1,6 +1,8 @@
 #include "glfunc_internals.h"
-#include "acb.h"
-#include "acb_hypgeom.h"
+#include <flint/acb.h>
+#include <flint/acb_hypgeom.h>
+#include <stdlib.h>
+#include <math.h>
 
 #ifdef __cplusplus
 extern "C"{

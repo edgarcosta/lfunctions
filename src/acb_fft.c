@@ -1,4 +1,4 @@
-#include "acb.h"
+#include <flint/acb.h>
 #include "inttypes.h"
 
 void acb_initfft(acb_t *w, uint64_t n, int64_t prec)

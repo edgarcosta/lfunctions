@@ -19,9 +19,14 @@
 #include <string>
 #include <vector>
 #include <flint/fmpz.h>
-#include <flint/fmpzxx.h>
-#include <flint/fmpz_polyxx.h>
-#include <acb.h>
+#include <flint/acb.h>
+#if defined(__has_include) && __has_include(<flint/fmpzxx.h>)
+#  include <flint/fmpzxx.h>
+#  include <flint/fmpz_polyxx.h>
+#  define HAVE_FLINTXX 1
+#else
+#  define HAVE_FLINTXX 0  // FLINT >= 3.0 dropped the C++ interface (flintxx)
+#endif
 
 #include "glfunc.h" // for Lplot_t
 #include "glfunc_internals.h" // for L->degree
@@ -53,8 +58,41 @@ using namespace std::string_literals;
 using std::stringstream;
 using std::vector;
 
+#if HAVE_FLINTXX
 using flint::fmpzxx;
 using flint::fmpz_polyxx;
+#else
+// Minimal drop-in replacement for flint::fmpzxx over the C fmpz_t API,
+// covering exactly the operations the examples use. (FLINT >= 3.0 removed
+// the C++ wrappers.) fmpz_polyxx is not shimmed: nothing built here uses it.
+class fmpzxx {
+  fmpz_t z;
+public:
+  fmpzxx() { fmpz_init(z); }
+  fmpzxx(slong v) { fmpz_init(z); fmpz_set_si(z, v); }
+  fmpzxx(const fmpzxx& o) { fmpz_init(z); fmpz_set(z, o.z); }
+  fmpzxx(fmpzxx&& o) noexcept { fmpz_init(z); fmpz_swap(z, o.z); }
+  fmpzxx& operator=(const fmpzxx& o) { fmpz_set(z, o.z); return *this; }
+  fmpzxx& operator=(fmpzxx&& o) noexcept { fmpz_swap(z, o.z); return *this; }
+  fmpzxx& operator=(slong v) { fmpz_set_si(z, v); return *this; }
+  ~fmpzxx() { fmpz_clear(z); }
+  fmpz* _fmpz() { return z; }
+  const fmpz* _fmpz() const { return z; }
+  const fmpzxx& evaluate() const { return *this; }
+  fmpzxx operator-() const { fmpzxx r; fmpz_neg(r.z, z); return r; }
+  fmpzxx operator%(mp_limb_t n) const { fmpzxx r; fmpz_mod_ui(r.z, z, n); return r; }
+  fmpzxx& operator*=(slong v) { fmpz_mul_si(z, z, v); return *this; }
+  bool operator<(const fmpzxx& o) const { return fmpz_cmp(z, o.z) < 0; }
+  bool operator==(const fmpzxx& o) const { return fmpz_equal(z, o.z); }
+  template<class T> T to() const { return (T) fmpz_get_ui(z); }
+};
+inline std::ostream& operator<<(std::ostream& s, const fmpzxx& x) {
+  char* str = fmpz_get_str(NULL, 10, x._fmpz());
+  s << str;
+  flint_free(str);
+  return s;
+}
+#endif
 
 
 #ifdef WITH_SPACE
@@ -426,7 +464,7 @@ ostream& ostream_zeros(ostream& s, const Lfunc_t L, uint64_t side=0, bool checke
  * GCD and LCM for int64_t using n_gcd_full from flint
  */
 inline int64_t gcd(const int64_t a, const int64_t b) {
-  return int64_t(n_gcd_full(
+  return int64_t(n_gcd(
         a >= 0 ? mp_limb_t(a) : mp_limb_t(-a),
         b >= 0 ? mp_limb_t(b) : mp_limb_t(-b)));
 }
@@ -508,6 +546,7 @@ void convertmonomial(T& coeff, long& deg, const string &s, const string &var) {
 }
 */
 
+#if HAVE_FLINTXX
 istream & operator>>(istream&s,  fmpz_polyxx& f){
   f = 0;
   long c;
@@ -588,4 +627,5 @@ istream & operator>>(istream&s,  fmpz_polyxx& f){
   }
   return s;
 }
+#endif // HAVE_FLINTXX
 

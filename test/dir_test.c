@@ -3,7 +3,7 @@
 */
 
 #include <inttypes.h>
-#include "acb_poly.h"
+#include <flint/acb_poly.h>
 #include "glfunc.h"
 
 // compute the Euler poly for p
