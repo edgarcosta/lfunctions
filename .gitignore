@@ -4,6 +4,7 @@ Makefile
 
 # Hidden files
 .?*
+!.github
 
 # g files
 g_[0-9]*
