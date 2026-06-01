@@ -1,3 +1,4 @@
+#include <gmp.h>  // must precede FLINT headers so the GMP-interop decls (fmpz_set_mpz) are visible
 #include "glfunc.h"
 #include "glfunc_internals.h"
 #include <stdio.h>

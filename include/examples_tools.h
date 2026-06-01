@@ -60,7 +60,7 @@ using lfun::ZZX;
   const std::string comma = ", "s;
 #else
   const std::string comma = ","s;
-#endif;
+#endif
 
 
 
@@ -135,11 +135,7 @@ istream & operator>>(istream& s, ZZ& output) {
     buffer.put(s.get());
     c = s.peek();
   }
-  mpz_t tmp;
-  mpz_init(tmp);
-  gmp_sscanf(buffer.str().c_str(),"%Zd", tmp);
-  fmpz_set_mpz(output._fmpz(), tmp);
-  mpz_clear(tmp);
+  fmpz_set_str(output._fmpz(), buffer.str().c_str(), 10);
   return s;
 }
 
