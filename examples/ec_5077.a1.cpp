@@ -430,6 +430,15 @@ int main ()
   }
   printf("L(1.5) = ");acb_printd(ctmp, DIGITS);printf("\n");
   if (RAW) cout<<"RAW: "<<ctmp << endl;
+  { // regression assert: L(1.5)
+    acb_t ref; acb_init(ref);
+    arb_set_str(acb_realref(ref), "0.086781447504949672575", 300);
+    arb_set_str(acb_imagref(ref), "0", 300);
+    arb_add_error_2exp_si(acb_realref(ref), -50);
+    arb_add_error_2exp_si(acb_imagref(ref), -50);
+    assert(acb_overlaps(ctmp, ref));
+    acb_clear(ref);
+  }
   // ~ 0.510863948654827254260483653705
   ecode|=Lfunc_special_value(ctmp, L, 2.5,0.0);
   if(fatal_error(ecode)) {
@@ -448,6 +457,13 @@ int main ()
     arb_printd(zeros+i, DIGITS);
     printf("\n");
     if (RAW) cout<<"RAW: "<<zeros + i<< endl;
+  }
+  { // regression assert: first zero
+    arb_t ref; arb_init(ref);
+    arb_set_str(ref, "2.0524728584799397697", 300);
+    arb_add_error_2exp_si(ref, -50);
+    assert(arb_overlaps(zeros + 0, ref));
+    arb_clear(ref);
   }
 
   printf("Z-plot in [0, 10]:\n");
