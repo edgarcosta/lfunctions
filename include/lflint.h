@@ -57,6 +57,12 @@ public:
   ZZ operator%(const ZZ& m) const { ZZ r; fmpz_mod   (r.z, z, m.z); return r; }
   ZZ operator%(ulong n)     const { ZZ r; fmpz_mod_ui(r.z, z, n);   return r; }
 
+  bool operator==(const ZZ& o) const { return fmpz_equal   (z, o.z) != 0; }
+  bool operator==(slong n)     const { return fmpz_equal_si(z, n)   != 0; }
+  bool operator!=(const ZZ& o) const { return !(*this == o); }
+  bool operator!=(slong n)     const { return !(*this == n); }
+  bool operator< (const ZZ& o) const { return fmpz_cmp(z, o.z) < 0; }
+
   friend ZZ operator+(const ZZ&, const ZZ&);
   friend ZZ operator-(const ZZ&, const ZZ&);
   friend ZZ operator*(const ZZ&, const ZZ&);
