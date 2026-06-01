@@ -48,8 +48,18 @@ static void test_construction_and_raw() {
   assert(fmpz_get_ui(g._fmpz()) == 9);
 }
 
+static void test_set_zero_one() {
+  ZZ a(slong{42});
+  a.set_zero();
+  assert(a.is_zero());
+  a.set_one();
+  assert(a.is_one());
+  assert(!a.is_zero());
+}
+
 int main() {
   test_default_ctor_is_zero();
   test_construction_and_raw();
+  test_set_zero_one();
   return 0;
 }

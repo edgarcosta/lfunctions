@@ -40,6 +40,9 @@ public:
   const fmpz* _fmpz() const { return z; }
 
   bool is_zero() const { return fmpz_is_zero(z); }
+  bool is_one()  const { return fmpz_is_one(z); }
+  void set_zero()      { fmpz_zero(z); }
+  void set_one()       { fmpz_one(z); }
 };
 
 } // namespace lfun
