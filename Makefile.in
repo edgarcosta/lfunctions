@@ -96,6 +96,7 @@ CHECK_BINS = \
 	build/examples/ec_5077.a1.exe \
 	build/examples/tau.exe \
 	build/examples/cmf_7.3.b.a.exe \
+	build/examples/cmf_23.1.b.a.exe \
 	build/examples/dir.exe
 
 check: all
