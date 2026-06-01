@@ -74,7 +74,8 @@ CHECK_BINS = \
 	build/examples/ec_389.a1.exe \
 	build/examples/ec_5077.a1.exe \
 	build/examples/tau.exe \
-	build/examples/cmf_7.3.b.a.exe
+	build/examples/cmf_7.3.b.a.exe \
+	build/examples/dir.exe
 
 check: all
 	@rm -f g_[0-9]*
@@ -83,7 +84,7 @@ check: all
 	  printf 'RUN  %s\n' "$$t"; \
 	  if ./$$t >$$t.log 2>&1; then printf 'PASS %s\n' "$$t"; rm -f $$t.log; \
 	  else rc=$$?; printf 'FAIL %s (rc=%s)\n' "$$t" "$$rc"; cat $$t.log; rm -f $$t.log; fail=1; fi; \
+	  rm -f g_[0-9]*; \
 	done; \
-	rm -f g_[0-9]*; \
 	if [ $$fail -ne 0 ]; then echo 'CHECK FAILED'; exit 1; fi; \
 	echo 'CHECK PASSED'
