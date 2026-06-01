@@ -61,3 +61,10 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+# Autotools
+autom4te.cache/
+aclocal.m4
+config.log
+config.status
+configure~

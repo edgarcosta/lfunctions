@@ -1,5 +1,19 @@
-#  Copyright (C)  2016-2017 Edgar Costa
+# This file is processed by config.status to produce Makefile -- do NOT edit Makefile.
+#  Copyright (C)  2016-2026 Edgar Costa
 #  See the file LICENSE for license details.
+
+SHELL = /bin/sh
+
+CC = @CC@
+CXX = @CXX@
+CFLAGS = @LFUN_CFLAGS@
+CXXFLAGS = @LFUN_CXXFLAGS@
+INCS = @INCS@
+LIBS = @LIBS@
+JOBS = @JOBS@
+SHLIB_EXT = @SHLIB_EXT@
+SHLIB_LDFLAGS = @SHLIB_LDFLAGS@
+RPATH_FLAGS = @RPATH_FLAGS@
 
 MAKEFLAGS+=-j$(JOBS)
 
@@ -7,6 +21,7 @@ SOURCE_DIRS = src
 BUILD_DIRS = $(patsubst %, build/%, $(SOURCE_DIRS)) build/test build/examples $(patsubst %, build/%/test, $(SOURCE_DIRS))
 AT=@
 define NEWLINE
+
 
 endef
 
@@ -32,10 +47,10 @@ executables: $(EXECUTABLES)
 
 test: $(TESTS)
 
-lib: build/liblfun.so
+lib: build/liblfun.$(SHLIB_EXT)
 
-build/liblfun.so: $(OBJS) $(HEADERS) | build_dirs
-	$(CC) $(CFLAGS) -shared $(INCS) $(OBJS) -o $@ $(LIBS)
+build/liblfun.$(SHLIB_EXT): $(OBJS) $(HEADERS) | build_dirs
+	$(CC) $(CFLAGS) $(SHLIB_LDFLAGS) $(INCS) $(OBJS) -o $@ $(LIBS)
 
 build/%.o: %.c $(HEADERS) | build_dirs
 	$(CC) $(CFLAGS) $(INCS) -c $< -o $@;
@@ -44,16 +59,21 @@ build/%.o: %.cpp $(HEADERS) | build_dirs
 	$(CXX) $(CXXFLAGS) $(INCS) -c $< -o $@;
 
 $(TESTS) : %.exe : %.o $(OBJS)
-	$(CXX) $(CXXFLAGS) $(INCS) $^ -o $@ $(LIBS)
+	$(CXX) $(CXXFLAGS) $(INCS) $^ -o $@ $(LIBS) $(RPATH_FLAGS)
 
 build/%.valgrind : %.c $(SOURCES)
 	$(CC) $(CFLAGS) $(INCS) $^ -o $@ $(LIBS)
 
-build/%.valgrind : %.c $(SOURCES)
+build/%.valgrind : %.cpp $(SOURCES)
 	$(CXX) $(CXXFLAGS) $(INCS) $^ -o $@ $(LIBS)
 
 $(EXECUTABLES) : %.exe : %.o $(OBJS)
-	$(CXX) $(CXXFLAGS) $(INCS) $^ -o $@ $(LIBS)
+	$(CXX) $(CXXFLAGS) $(INCS) $^ -o $@ $(LIBS) $(RPATH_FLAGS)
+
+# Regenerate the committed ./configure from configure.ac (maintainers; needs autoconf).
+# Phony so `make configure` always regenerates when requested.
+configure:
+	autoreconf -i
 
 build_dirs: $(BUILD_DIRS)
 
@@ -64,7 +84,7 @@ $(BUILD_DIRS): % :
 print-%:
 	@echo '$*=$($*)'
 
-.PHONY: clean check
+.PHONY: clean check configure
 
 # Curated regression suite. Exit code is the oracle (assertions are on by default).
 # Stale/colliding g_<mu> caches poison results, so scrub them before the suite
