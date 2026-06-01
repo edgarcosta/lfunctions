@@ -67,14 +67,11 @@ Z-plot in [0, 10]:
 #include <string>
 #include <vector>
 #include <flint/fmpz.h>
-//#include <flint/fmpzxx.h>
 #include <flint/acb_poly.h>
 #include "glfunc.h"
 #include "glfunc_internals.h"
-//#include "examples_tools.h"
 #include <cassert>
 
-//using flint::fmpzxx;
 using std::cout;
 using std::endl;
 using std::int64_t;
