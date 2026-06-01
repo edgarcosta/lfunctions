@@ -131,6 +131,9 @@ public:
   }
   void set_coeff(slong i, slong c)        { fmpz_poly_set_coeff_si(p, i, c); }
   void set_coeff(slong i, const ZZ& c)    { fmpz_poly_set_coeff_fmpz(p, i, c._fmpz()); }
+
+  ZZX& operator+=(const ZZX& o) { fmpz_poly_add(p, p, o.p); return *this; }
+  ZZX& operator*=(const ZZX& o) { fmpz_poly_mul(p, p, o.p); return *this; }
 };
 
 } // namespace lfun
