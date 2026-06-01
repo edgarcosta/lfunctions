@@ -1,6 +1,7 @@
 // Unit tests for lfun::ZZ and lfun::ZZX (lflint.h).
 // Plain <cassert>; exits 0 on success.
 #include <cassert>
+#include <map>
 #include <utility>
 #include "lflint.h"
 
@@ -107,11 +108,40 @@ static void test_modulo() {
   assert(fmpz_get_si((ten % ulong{3})._fmpz()) == 1);
 }
 
+static void test_comparison_and_map() {
+  ZZ a(slong{5});
+  ZZ b(slong{5});
+  ZZ c(slong{7});
+
+  assert(a == b);
+  assert(!(a == c));
+  assert(a != c);
+  assert(!(a != b));
+  assert(a == slong{5});
+  assert(a != slong{6});
+
+  // ordering (for std::map keys)
+  assert(a < c);
+  assert(!(c < a));
+  assert(!(a < b));    // equal — strict less must be false
+
+  // actual std::map usage
+  std::map<ZZ, int> m;
+  m[ZZ(slong{2})] = 20;
+  m[ZZ(slong{1})] = 10;
+  m[ZZ(slong{3})] = 30;
+  auto it = m.begin();
+  assert(it->second == 10); ++it;
+  assert(it->second == 20); ++it;
+  assert(it->second == 30);
+}
+
 int main() {
   test_default_ctor_is_zero();
   test_construction_and_raw();
   test_set_zero_one();
   test_arithmetic();
   test_modulo();
+  test_comparison_and_map();
   return 0;
 }
