@@ -5,22 +5,22 @@
 #include <flint/acb_poly.h>
 #include <stdbool.h>
 
-#define DK (-1) // don't know
-#define YES (1)
-#define NO (0)
+#define DK (-1) // tri-state "don't know" (for self_dual / rank)
+#define YES (1) // tri-state "yes" (for self_dual / rank)
+#define NO (0) // tri-state "no" (for self_dual / rank)
 
-//#define BUTHE
-#define TURING
+//#define BUTHE // if defined, verify RH via Buthe's method (off by default)
+#define TURING // if defined, verify RH via Booker/Turing's method (default)
 
 #define MAX_DEGREE (9) // if increasing, need more integrals in buthe.c
 // and probably need to take a good look at g.c
-#define MAX_R MAX_DEGREE
-#define MAX_ZEROS (256)
-#define DEFAULT_TARGET_PREC (100)
+#define MAX_R MAX_DEGREE // alias for MAX_DEGREE (max degree r); sizes the Buthe tables
+#define MAX_ZEROS (256) // hard cap on the number of zeros found/stored per side
+#define DEFAULT_TARGET_PREC (100) // default target precision in bits when none is given
 // error codes
 // those in lower 32 bits are fatal
 // those in upper 32 bits are warnings
-#define ERR_SUCCESS (0)
+#define ERR_SUCCESS (0) // no error
 // fatalities
 #define ERR_NO_DATA (1) // the first two Lambda(t) values contained zero. Totally fatal
 #define ERR_ZERO_ERROR (2) // some unexpected error isolating zeros
@@ -30,7 +30,7 @@
 #define ERR_OOM (8) // out of memory error
 #define ERR_UPSAMPLE (16) // something bad happened trying to upsample
 #define ERR_MU_HALF (32) // mus should be 1/2 integers
-#define ERR_M_ERROR (64)
+#define ERR_M_ERROR (64) // fatal: failed to compute the M (coeff-count) bound (M_error Lemma 2)
 #define ERR_STAT_POINT (128) // fatal error in stat_point
 #define ERR_SPEC_VALUE (256) // fatal error in Special Value
 #define ERR_G_INFILE ((uint64_t) 512) // fatal error reading g_data from cache
