@@ -73,7 +73,8 @@ CHECK_BINS = \
 	build/examples/ec_37.a1.exe \
 	build/examples/ec_389.a1.exe \
 	build/examples/ec_5077.a1.exe \
-	build/examples/tau.exe
+	build/examples/tau.exe \
+	build/examples/cmf_7.3.b.a.exe
 
 check: all
 	@rm -f g_[0-9]*
