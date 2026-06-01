@@ -149,6 +149,19 @@ static void test_divisibility() {
   assert(fmpz_get_si(d._fmpz()) == -3);
 }
 
+static void test_pow() {
+  ZZ two(slong{2});
+  ZZ p10 = lfun::pow(two, ulong{10});
+  assert(fmpz_get_si(p10._fmpz()) == 1024);
+
+  ZZ minus_three(slong{-3});
+  ZZ p3 = lfun::pow(minus_three, ulong{3});
+  assert(fmpz_get_si(p3._fmpz()) == -27);
+
+  ZZ p0 = lfun::pow(minus_three, ulong{0});
+  assert(p0.is_one());
+}
+
 int main() {
   test_default_ctor_is_zero();
   test_construction_and_raw();
@@ -157,5 +170,6 @@ int main() {
   test_modulo();
   test_comparison_and_map();
   test_divisibility();
+  test_pow();
   return 0;
 }

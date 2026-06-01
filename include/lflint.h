@@ -74,6 +74,7 @@ public:
   friend ZZ operator*(const ZZ&, const ZZ&);
   friend ZZ operator*(slong,     const ZZ&);
   friend ZZ operator*(const ZZ&, slong);
+  friend ZZ pow(const ZZ&, ulong);
 };
 
 inline ZZ operator+(const ZZ& a, const ZZ& b) { ZZ r; fmpz_add(r.z, a.z, b.z); return r; }
@@ -81,5 +82,7 @@ inline ZZ operator-(const ZZ& a, const ZZ& b) { ZZ r; fmpz_sub(r.z, a.z, b.z); r
 inline ZZ operator*(const ZZ& a, const ZZ& b) { ZZ r; fmpz_mul(r.z, a.z, b.z); return r; }
 inline ZZ operator*(slong a,     const ZZ& b) { ZZ r; fmpz_mul_si(r.z, b.z, a); return r; }
 inline ZZ operator*(const ZZ& a, slong b)     { ZZ r; fmpz_mul_si(r.z, a.z, b); return r; }
+
+inline ZZ pow(const ZZ& a, ulong e) { ZZ r; fmpz_pow_ui(r.z, a.z, e); return r; }
 
 } // namespace lfun
