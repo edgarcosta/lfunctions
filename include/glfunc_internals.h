@@ -3,6 +3,7 @@
 
 #include "inttypes.h"
 #include <flint/acb.h>
+#include <flint/acb_dft.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <math.h>
@@ -80,8 +81,8 @@ extern "C"{
     arb_t one_over_A; // 1/A as a ball; the t-grid spacing (sample i has imag part i/A)
     arf_t arf_one_over_A; // 1/A as an arf_t; unused
     acb_t *G; // length-fft_N acb scratch staging one Gs[k] column per convolution
-    acb_t *w; // twiddle factors for length fft_N
-    acb_t *ww; // ditto for fft_NN
+    acb_dft_rad2_t plan_N; // FLINT rad2 DFT plan, length fft_N (convolutions)
+    acb_dft_rad2_t plan_NN; // FLINT rad2 DFT plan, length fft_NN (final iFFT)
     arb_t *zeros[2]; // zero ordinates t on the critical line; [0]=L, [1]=dual L
     double eta; // contour-tilt knob in delta=(1-eta)*pi/2; =0, only feeds delta
     arb_t delta; // contour offset (1-eta)*pi/2 = pi/2; only feeds (unused) exp_delta

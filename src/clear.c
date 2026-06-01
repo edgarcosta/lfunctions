@@ -96,18 +96,9 @@ extern "C"{
 	  acb_cclear(L->G[i]);
 	free(L->G);
       }
-    if(L->w)
-      {
-	for(uint64_t i=0;i<L->fft_N/2;i++)
-	  acb_cclear(L->w[i]);
-	free(L->w);
-      }
-    if(L->ww)
-      {
-	for(uint64_t i=0;i<L->fft_NN/2;i++)
-	  acb_cclear(L->ww[i]);
-	free(L->ww);
-      }
+    // FLINT rad2 DFT plans (replace the hand-rolled w/ww twiddle tables)
+    acb_dft_rad2_clear(L->plan_N);
+    acb_dft_rad2_clear(L->plan_NN);
     if(L->kres)
       {
 	for(uint64_t i=0;i<L->fft_N;i++)
