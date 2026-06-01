@@ -2,6 +2,8 @@
 // Plain <cassert>; exits 0 on success.
 #include <cassert>
 #include <map>
+#include <sstream>
+#include <string>
 #include <utility>
 #include "lflint.h"
 
@@ -176,6 +178,23 @@ static void test_to_conversion() {
   assert((y % ulong{17}).to<ulong>() == ulong{1024 % 17});
 }
 
+static void test_ostream() {
+  using std::ostringstream;
+  using std::string;
+
+  ostringstream os1; os1 << ZZ(slong{42});
+  assert(os1.str() == string("42"));
+
+  ostringstream os2; os2 << ZZ(slong{-13});
+  assert(os2.str() == string("-13"));
+
+  // multi-limb (10^25 doesn't fit in 64 bits)
+  ZZ big;
+  fmpz_set_str(big._fmpz(), "12345678901234567890123", 10);
+  ostringstream os3; os3 << big;
+  assert(os3.str() == string("12345678901234567890123"));
+}
+
 int main() {
   test_default_ctor_is_zero();
   test_construction_and_raw();
@@ -186,5 +205,6 @@ int main() {
   test_divisibility();
   test_pow();
   test_to_conversion();
+  test_ostream();
   return 0;
 }
