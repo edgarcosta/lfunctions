@@ -343,7 +343,7 @@ Lerror_t init_upsampling(Lfunc *L)
   arb_set_d(L->u_H, h);
   L->u_N=H;
   if(verbose){printf("Upsampling H set to ");arb_printd(L->u_H,20);printf("\n");}
-  arb_init(L->u_pi_by_H2); // -1/2H^2
+  arb_init(L->u_pi_by_H2); // -pi/H^2
   arb_inv(L->u_pi_by_H2,L->u_H,prec); // 1/H
   arb_mul(L->u_pi_by_H2,L->u_pi_by_H2,L->u_pi_by_H2,prec); // 1/H^2
   arb_mul(L->u_pi_by_H2,L->u_pi_by_H2,L->pi,prec);
