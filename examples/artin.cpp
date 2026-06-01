@@ -21,6 +21,7 @@
 #include <string>
 #include <vector>
 #include <flint/fmpz.h>
+#include <flint/nmod.h>
 #include <flint/nmod_poly.h>
 #include <flint/nmod_poly_factor.h>
 #include <flint/fq_nmod.h>
@@ -199,13 +200,13 @@ void powers_sum(fq_nmod_t res,
                 const vector<int64_t> &powers,
                 const fq_nmod_ctx_t ctx) {
   fq_nmod_zero(res, ctx);
-  const fmpz *p = fq_nmod_ctx_prime(ctx);
+  ulong p = ctx->mod.n;
   fmpz_t tmp;
   fmpz_init(tmp);
   fq_nmod_t power;
   fq_nmod_init2(power, ctx);
   for(auto &j : powers) {
-    fmpz_pow_ui(tmp, p, j);
+    fmpz_ui_pow_ui(tmp, p, j);
     fq_nmod_pow(power, r, tmp, ctx);
     fq_nmod_add(res, res, power, ctx);
   }
@@ -373,7 +374,7 @@ inline bool operator<(const pair<size_t, const fq_nmod_struct*>& a,
 void frobenius_permutation(vector<size_t> &res,
                            const vector<fq_nmod_struct> &roots,
                            const fq_nmod_ctx_t ctx) {
-  uint64_t p = fmpz_get_ui(fq_nmod_ctx_prime(ctx));
+  uint64_t p = ctx->mod.n;
   vector<pair<size_t, const fq_nmod_struct*> > roots_ext(roots.size());
   vector<pair<size_t, const fq_nmod_struct*> >roots_frob_ext(roots.size());
   vector<fq_nmod_struct> roots_frob(roots.size());

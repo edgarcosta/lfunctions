@@ -228,7 +228,7 @@ void Lfunc_rational_init(Lfunc_rational_t L) {
 int Lfunc_rational_set_s(Lfunc_rational_t L, char *s) {
 
   char **tokens;
-  size_t tokens_length;
+  size_t tokens_length = 0;
   int status = 0;
 
   status = split(s, ':', &tokens, &tokens_length);
