@@ -86,21 +86,21 @@ print-%:
 
 .PHONY: clean check configure
 
-# Curated regression suite. Exit code is the oracle (assertions are on by default).
+# Regression suite. Exit code is the oracle (assertions are on by default).
 # Stale/colliding g_<mu> caches poison results, so scrub them before the suite
 # and after each binary (different L-functions can share a g_<mu> filename).
-CHECK_BINS = \
-	build/test/dir_test1.exe \
-	build/test/gcache_validate_test.exe \
-	build/examples/ec_37.a1.exe \
-	build/examples/ec_389.a1.exe \
-	build/examples/ec_5077.a1.exe \
-	build/examples/tau.exe \
-	build/examples/cmf_7.3.b.a.exe \
-	build/examples/cmf_23.1.b.a.exe \
-	build/examples/cmf_25.12.a.a.exe \
-	build/examples/artin.exe \
-	build/examples/dir.exe
+#
+# Every test/ and examples/ binary runs under `make check` automatically --
+# drop in a new source file and it joins the suite, no edit here required.
+# CHECK_EXCLUDE is the deny-list: binaries that require command-line arguments
+# or input files (they assert on argc / print a usage message and exit nonzero
+# without args) and so cannot run unattended. Only add an entry here if a
+# binary needs arguments. (artin runs an embedded self-test when given none.)
+CHECK_EXCLUDE = \
+	examples/bound \
+	examples/rational
+
+CHECK_BINS = $(filter-out $(addprefix build/, $(addsuffix .exe, $(CHECK_EXCLUDE))), $(TESTS) $(EXECUTABLES))
 
 check: all
 	@rm -f g_[0-9]*
