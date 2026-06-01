@@ -83,6 +83,7 @@ public:
   friend ZZ operator*(slong,     const ZZ&);
   friend ZZ operator*(const ZZ&, slong);
   friend ZZ pow(const ZZ&, ulong);
+  friend std::ostream& operator<<(std::ostream&, const ZZ&);
 };
 
 inline ZZ operator+(const ZZ& a, const ZZ& b) { ZZ r; fmpz_add(r.z, a.z, b.z); return r; }
@@ -92,6 +93,13 @@ inline ZZ operator*(slong a,     const ZZ& b) { ZZ r; fmpz_mul_si(r.z, b.z, a); 
 inline ZZ operator*(const ZZ& a, slong b)     { ZZ r; fmpz_mul_si(r.z, a.z, b); return r; }
 
 inline ZZ pow(const ZZ& a, ulong e) { ZZ r; fmpz_pow_ui(r.z, a.z, e); return r; }
+
+inline std::ostream& operator<<(std::ostream& s, const ZZ& x) {
+  char* str = fmpz_get_str(nullptr, 10, x.z);
+  s << str;
+  flint_free(str);
+  return s;
+}
 
 template<> inline slong  ZZ::to<slong>()  const { return fmpz_get_si(z); }
 template<> inline ulong  ZZ::to<ulong>()  const { return fmpz_get_ui(z); }
