@@ -21,7 +21,6 @@
 #include <string>
 #include <vector>
 #include <flint/fmpz.h>
-//#include <flint/fmpzxx.h>  // removed: FLINT 3.x dropped flintxx; fmpzxx comes from examples_tools.h
 #include <flint/nmod_poly.h>
 #include <flint/nmod_poly_factor.h>
 #include <flint/fq_nmod.h>
@@ -69,10 +68,10 @@ typedef std::chrono::time_point<std::chrono::system_clock> SystemTime ;
 
 
 
-// converts vector<fmpzxx> to a fq_nmod_poly_t
+// converts vector<ZZ> to a fq_nmod_poly_t
 // if neg, returns f(-x) or -f(-x) to keep it monic, in case it was monic
 void conv(fq_nmod_poly_t res,
-          const vector<fmpzxx> &polynomial,
+          const vector<ZZ> &polynomial,
           const fq_nmod_ctx_t ctx,
           const bool &neg = false) {
   fq_nmod_poly_fit_length(res, polynomial.size(), ctx);
@@ -83,16 +82,16 @@ void conv(fq_nmod_poly_t res,
   for(size_t i = 0; i < polynomial.size(); ++i) {
     fq_nmod_set_fmpz(
         tmp,
-        (neg and i % 2 == parity) ? (-polynomial[i]).evaluate()._fmpz() : polynomial[i]._fmpz(),
+        (neg and i % 2 == parity) ? (-polynomial[i])._fmpz() : polynomial[i]._fmpz(),
         ctx);
     fq_nmod_poly_set_coeff(res, i, tmp, ctx);
   }
   fq_nmod_clear(tmp, ctx);
 }
 
-// converts vector<fmpzxx> to a nmod_poly_t
+// converts vector<ZZ> to a nmod_poly_t
 void conv(nmod_poly_t pol,
-          const vector<fmpzxx> &polynomial) {
+          const vector<ZZ> &polynomial) {
   nmod_poly_fit_length(pol, polynomial.size());
   for(size_t i = 0; i < polynomial.size(); ++i)
     nmod_poly_set_coeff_ui(pol, i,
@@ -101,7 +100,7 @@ void conv(nmod_poly_t pol,
 
 // computes the roots of split polynomial over Fq
 void split_roots(vector<fq_nmod_struct> &res,
-                 const vector<fmpzxx> &polynomial,
+                 const vector<ZZ> &polynomial,
                  const fq_nmod_ctx_t ctx) {
   // if not empty, we will leak memory
   assert_print(res.size(), ==, 0);
@@ -175,7 +174,7 @@ void split_roots(vector<fq_nmod_struct> &res,
 
 // given p, figures out the cycle type of Frobenious
 void cycle_type(vector<size_t>& res,
-                const vector<fmpzxx> &polynomial,
+                const vector<ZZ> &polynomial,
                 const int64_t &p) {
   nmod_poly_t pol;
   nmod_poly_init2(pol, p, polynomial.size());
@@ -218,7 +217,7 @@ void powers_sum(fq_nmod_t res,
 void alpha_res(mp_limb_t &res,
                const vector<fq_nmod_struct> &roots,
                const vector<int64_t> &powers,
-               const vector<fmpzxx> &gamma_polynomial,
+               const vector<ZZ> &gamma_polynomial,
                const fq_nmod_ctx_t ctx) {
 
   fq_nmod_poly_t gamma;
@@ -255,7 +254,7 @@ void alpha_res(mp_limb_t &res,
 
 void conjugacy_class_matcher_res_alt(size_t &c,
                                      const mp_limb_t &alpha,
-                                     const vector< pair<size_t, vector<fmpzxx> > > *root_of,
+                                     const vector< pair<size_t, vector<ZZ> > > *root_of,
                                      const int64_t &p) {
   size_t max_len = 0;
   for(const auto &elt: *root_of) {
@@ -425,7 +424,7 @@ void alpha_alt(mp_limb_t &res,
 }
 
 
-void conv(vector<acb_poly_struct> &local_factors, const vector< vector< vector< fmpzxx > > > &local_factors_int, const size_t &n, const int64_t &prec) {
+void conv(vector<acb_poly_struct> &local_factors, const vector< vector< vector< ZZ > > > &local_factors_int, const size_t &n, const int64_t &prec) {
   assert_print(local_factors.size(), ==, 0);
   local_factors.resize(local_factors_int.size());
   acb_t tmp;
@@ -446,7 +445,7 @@ void conv(vector<acb_poly_struct> &local_factors, const vector< vector< vector< 
   }
 
   for(size_t i = 0; i < local_factors_int.size(); ++i) {
-    const vector< vector<fmpzxx> > &pzz = local_factors_int[i];
+    const vector< vector<ZZ> > &pzz = local_factors_int[i];
     acb_poly_init(&local_factors[i]);
     acb_poly_fit_length(&local_factors[i], pzz.size());
     for(size_t j = 0; j < pzz.size(); ++j) {
@@ -467,12 +466,12 @@ void conv(vector<acb_poly_struct> &local_factors, const vector< vector< vector< 
 
 typedef struct {
   // index(C) --> gamma_C
-  vector< pair<size_t, vector<fmpzxx> > > root_of;
+  vector< pair<size_t, vector<ZZ> > > root_of;
   vector<size_t> permutation;
 } alt_data;
 
 istream & operator>>(istream& s, alt_data& out) {
-  pair<vector< pair<size_t, vector<fmpzxx> > >, vector<size_t>> p;
+  pair<vector< pair<size_t, vector<ZZ> > >, vector<size_t>> p;
   if( !(s >> p) )
     throw_line("bad alt data"s);
   out.root_of = p.first;
@@ -491,13 +490,13 @@ ostream& operator<<(ostream& s, const alt_data& a)
 
 typedef struct {
   // index(C) --> gamma_C
-  vector< pair<size_t, vector<fmpzxx> > > root_of;
+  vector< pair<size_t, vector<ZZ> > > root_of;
   vector<int64_t> powers;
-  vector<fmpzxx> gamma_polynomial;
+  vector<ZZ> gamma_polynomial;
 } res_data;
 
 istream & operator>>(istream& s, res_data& out) {
-  pair<vector< pair<size_t, vector<fmpzxx> > >, vector<vector<fmpzxx> > > p;
+  pair<vector< pair<size_t, vector<ZZ> > >, vector<vector<ZZ> > > p;
   if( !(s >> p) )
     throw_line("bad res data"s);
   out.root_of = p.first;
@@ -533,7 +532,7 @@ typedef struct {
   int64_t conductor;
 
   // artin field
-  vector<fmpzxx> polynomial;
+  vector<ZZ> polynomial;
 
   // mus
   double* mus;
@@ -552,7 +551,7 @@ typedef struct {
   array<acb_struct, special_values_size> special_values;
 
   // p -> conjugacy class
-  map<fmpzxx, size_t> hard_primes;
+  map<ZZ, size_t> hard_primes;
 
   // cycle type -> type
   //  0 = cyc
@@ -661,7 +660,7 @@ istream & operator>>(istream & is, artin_rep &o)
         break;
       case 6:
         {
-          vector< vector< vector<fmpzxx> > > local_factors_int;
+          vector< vector< vector<ZZ> > > local_factors_int;
           if(!(ss >> local_factors_int))
             throw_line("bad local factors"s);
           conv(o.local_factors, local_factors_int, o.n, Lfunc_wprec(o.L));
@@ -728,7 +727,7 @@ ostream& operator<<(ostream &s, artin_rep &AR) {
 void lpoly(const int64_t &p, artin_rep &AR) {
   size_t c;
   // is a hard prime?
-  auto hp = AR.hard_primes.find(fmpzxx(p));
+  auto hp = AR.hard_primes.find(ZZ(p));
   if( hp != AR.hard_primes.end() ) {
     c = hp->second;
   } else {
@@ -751,7 +750,7 @@ void lpoly(const int64_t &p, artin_rep &AR) {
       split_roots(roots, AR.polynomial, ctx);
 
       mp_limb_t alpha;
-      const vector< pair<size_t, vector<fmpzxx> > > *root_of_data;
+      const vector< pair<size_t, vector<ZZ> > > *root_of_data;
       if(type == 2) {
         const res_data &data = AR.res[ct];
         root_of_data = &data.root_of;
