@@ -89,10 +89,29 @@ static void test_arithmetic() {
   assert(fmpz_get_si(x._fmpz()) == 72);
 }
 
+static void test_modulo() {
+  ZZ neg(slong{-5});
+  ZZ three(slong{3});
+
+  // ZZ % ZZ — fmpz_mod, non-negative
+  ZZ r1 = neg % three;
+  assert(fmpz_get_si(r1._fmpz()) == 1);   // (-5) mod 3 == 1 (NOT -2)
+
+  // ZZ % ulong — fmpz_mod_ui, non-negative
+  ZZ r2 = neg % ulong{3};
+  assert(fmpz_get_si(r2._fmpz()) == 1);
+
+  // positive sanity
+  ZZ ten(slong{10});
+  assert(fmpz_get_si((ten % three)._fmpz()) == 1);
+  assert(fmpz_get_si((ten % ulong{3})._fmpz()) == 1);
+}
+
 int main() {
   test_default_ctor_is_zero();
   test_construction_and_raw();
   test_set_zero_one();
   test_arithmetic();
+  test_modulo();
   return 0;
 }
