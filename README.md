@@ -13,7 +13,7 @@ It majorly depends on:
  
 which depend on:
 
- - [FLINT: Fast Library for Number Theory](http://flintlib.org/) (for Arb)
+ - [FLINT: Fast Library for Number Theory](http://flintlib.org/) — version ≥ 3.0, which now bundles Arb (no separate Arb install needed)
  - [GMP: GNU Multiple Precision Arithmetic Library](https://gmplib.org/) (for FLINT)
  - [MPFR: GNU Multiple Precision Floating-Point Reliably](http://www.mpfr.org/) (for FLINT)
 
@@ -32,10 +32,10 @@ cd lfunctions
 ./configure <options>
 ```
 
-3. If any of these libraries are installed in some other location than the default path `/usr/local`, pass `--with-arb=...`, `--with-primesieve=...`, `--with-gmp=...`, `--with-mpfr=...`, or `--with-flint=...` with the correct path to configure (type ./configure --help to show more options).
+3. If any of these libraries are installed in some other location than the default path `/usr/local`, pass `--with-flint=...`, `--with-primesieve=...`, `--with-gmp=...`, or `--with-mpfr=...` with the correct path to configure (type ./configure --help to show more options).
 
 Note that with exception of `primesieve`, all these libraries are already provided by [SageMath](http://www.sagemath.org/),
-and one can do `--with-arb=<SAGE_DIR>/local/`
+and one can do `--with-flint=<SAGE_DIR>/local/`
 
 4. Compile everything by doing
 ```
@@ -44,7 +44,7 @@ make
 
 5. You can use it as shared library, the inteface is defined in 
 interface is defined in `include/glfunc.h` and the shared library is provided in
-`build/liblfun.so` 
+`build/liblfun.so` (or `build/liblfun.dylib` on macOS).
 
 
 
