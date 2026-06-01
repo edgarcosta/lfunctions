@@ -69,6 +69,14 @@ public:
   bool divisible(slong n) const { return fmpz_divisible_si(z, n) != 0; }
   ZZ   divexact (slong n) const { ZZ r; fmpz_divexact_si(r.z, z, n); return r; }
 
+  // Conversion. Supported T: slong, ulong, double. Any other T fires a
+  // dependent static_assert when instantiated (loud compile error, not
+  // a silent wrong value).
+  template<class T> T to() const {
+    static_assert(!sizeof(T*), "ZZ::to<T>: only slong, ulong, double are supported");
+    return T{};  // unreachable; satisfies return-type checker
+  }
+
   friend ZZ operator+(const ZZ&, const ZZ&);
   friend ZZ operator-(const ZZ&, const ZZ&);
   friend ZZ operator*(const ZZ&, const ZZ&);
@@ -84,5 +92,9 @@ inline ZZ operator*(slong a,     const ZZ& b) { ZZ r; fmpz_mul_si(r.z, b.z, a); 
 inline ZZ operator*(const ZZ& a, slong b)     { ZZ r; fmpz_mul_si(r.z, a.z, b); return r; }
 
 inline ZZ pow(const ZZ& a, ulong e) { ZZ r; fmpz_pow_ui(r.z, a.z, e); return r; }
+
+template<> inline slong  ZZ::to<slong>()  const { return fmpz_get_si(z); }
+template<> inline ulong  ZZ::to<ulong>()  const { return fmpz_get_ui(z); }
+template<> inline double ZZ::to<double>() const { return fmpz_get_d (z); }
 
 } // namespace lfun
