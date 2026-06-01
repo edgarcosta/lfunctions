@@ -60,8 +60,6 @@ int main() {
 #include <flint/flint.h>
 #include <flint/fmpz.h>
 #include <flint/fmpz_poly.h>
-#include <flint/fmpzxx.h>
-#include <flint/fmpz_polyxx.h>
 #include <flint/nmod_poly.h>
 #include <flint/fq_nmod.h>
 #include <flint/fq_nmod_poly.h>
@@ -77,9 +75,6 @@ int main() {
 
 using std::array;
 using std::strcpy;
-using flint::fmpzxx;
-using flint::fmpqxx;
-using flint::fmpz_polyxx;
 
 #define M61UI		0x1FFFFFFFFFFFFFFFUL		// this should raise a compile-time error on 32-bit machines
 
@@ -108,7 +103,7 @@ typedef struct {
   bool cm; // only applies for genus 1
 
   // the bad local factors
-  multimap<int64_t, vector<fmpzxx>> bad_factors;
+  multimap<int64_t, vector<ZZ>> bad_factors;
 
   // Sym^d(L(C))
   int symdegree;
@@ -118,14 +113,14 @@ typedef struct {
 
 
   // nf field stuff
-  fmpz_polyxx nf_poly;
-  fmpzxx nf_disc;
+  ZZX nf_poly;
+  ZZ nf_disc;
   unsigned long lastq;
-  fmpz_polyxx last_local_factor;
+  ZZX last_local_factor;
   vector<bool> touched; // the euler factors already used
 
   //stores ap, p < 2^13
-  array<fmpzxx, APHASH_MAXPI> ap;
+  array<ZZ, APHASH_MAXPI> ap;
 
   //2nd moment approximation
   double second_moment;
@@ -200,7 +195,7 @@ istream &operator>>(istream &is, curve &o)
           fmpz_poly_discriminant(o.nf_disc._fmpz(), o.nf_poly._poly());
           // make it maximal at 2
           while( o.nf_disc.divisible(4) ) { o.nf_disc = o.nf_disc.divexact(4); }
-          if ( (o.nf_disc % fmpzxx(4)) != 1 ) o.nf_disc *= 4;
+          if ( (o.nf_disc % ZZ(4)) != 1 ) o.nf_disc *= 4;
         }
         o.degree = 2*o.genus*o.nf_degree;
         if(o.symdegree > 1) {
@@ -259,7 +254,7 @@ void curve_clear(curve &C) {
 }
 
 
-void remove_riemann_shift(fmpz_polyxx& L, const unsigned long p, const unsigned long shift){
+void remove_riemann_shift(ZZX& L, const unsigned long p, const unsigned long shift){
   fmpzxx ppower(p);
   ppower = pow(ppower, shift);
   for(int i = 1; i <= L.degree(); ++i)
@@ -271,7 +266,7 @@ void remove_riemann_shift(fmpz_polyxx& L, const unsigned long p, const unsigned 
 
 // implemented at the bottom
 // sets L to Sym^d L
-void sympow_ECQ(fmpz_polyxx& L, const int &symdegree);
+void sympow_ECQ(ZZX& L, const int &symdegree);
 
 int smalljac_callback(
      __attribute__((unused)) smalljac_curve_t c,
@@ -283,7 +278,7 @@ int smalljac_callback(
 
   curve *C = (curve *)arg;
   static acb_poly_t local_factor;
-  static fmpz_polyxx local_factor_zz;
+  static ZZX local_factor_zz;
   static bool init = false;
   if(!init) {
     acb_poly_init(local_factor);
@@ -298,7 +293,7 @@ int smalljac_callback(
       local_factor_zz.set_coeff(i + 1, a[i]);
     // complete with the functional equation
     if( n == C->genus) {
-      fmpzxx qn(q);
+      ZZ qn(q);
       for(int i = C->genus + 1; i <= 2*C->genus; ++i) {
         local_factor_zz.set_coeff(i, local_factor_zz.get_coeff(2*C->genus - i)*qn);
         qn *= q;
@@ -319,7 +314,7 @@ int smalljac_callback(
   if(C->nf_degree == 2){
     if(n_is_square(q)) {
       q = n_sqrt(q); // so we call Lfunc_use_lpoly accordingly
-      fmpz_polyxx local_factor_zz2(2*local_factor_zz.degree() + 1);
+      ZZX local_factor_zz2(2*local_factor_zz.degree() + 1);
       for(long i=0; i <= 2*local_factor_zz.degree(); ++i) {
         if(i%2 == 0)
           local_factor_zz2.set_coeff(i, local_factor_zz.get_coeff(i/2));
@@ -329,7 +324,7 @@ int smalljac_callback(
       if(C->lastq == q) {
         local_factor_zz *= C->last_local_factor;
       } else {
-        C->last_local_factor = fmpz_polyxx(local_factor_zz);
+        C->last_local_factor = ZZX(local_factor_zz);
         use_lpoly = false;
       }
     }
@@ -354,16 +349,16 @@ int smalljac_callback(
     _acb_poly_set_length(local_factor, local_factor_zz.degree() + 1);
     for(long i = 0; i <= local_factor_zz.degree(); ++i) {
       // acb_poly_get_coeff_ptr(local_factor, i) = local_factor->coeffs + i
-      acb_set_fmpz(local_factor->coeffs + i, local_factor_zz.coeff(i)._fmpz());
+      acb_set_fmpz(local_factor->coeffs + i, local_factor_zz.get_coeff(i)._fmpz());
     }
     Lfunc_use_lpoly(C->L, q, local_factor);
     C->touched[q] = true;
     if(local_factor_zz.degree() >= 1) {
       if( q <= APHASH_MAXP ) {
-        C->ap[primes_dict[(int16_t)q]] = -local_factor_zz.coeff(1);
+        C->ap[primes_dict[(int16_t)q]] = -local_factor_zz.get_coeff(1);
       }
       // += ap^2 / p^w = (ap/n^(w/2))^2
-      C->second_moment += pow(local_factor_zz.coeff(1).to<double>(), 2)/pow(double(q), C->symdegree);
+      C->second_moment += pow(local_factor_zz.get_coeff(1).to<double>(), 2)/pow(double(q), C->symdegree);
     }
   }
   //acb_poly_clear(local_factor);
@@ -385,7 +380,7 @@ long populate_local_factors(curve &C) {
     acb_poly_init(local_factor);
     acb_poly_fit_length(local_factor, C.degree + 1);
     for(const auto &it : C.bad_factors){
-      assert_print(C.nf_disc % fmpzxx(it.first), ==, 0);
+      assert_print(C.nf_disc % ZZ(it.first), ==, 0);
       if( it.first <= (long) bound ) {
         _acb_poly_set_length(local_factor, it.second.size());
         for(size_t i = 0; i < it.second.size(); ++i) {
@@ -562,12 +557,12 @@ int main (int argc, char**argv) {
 
 
 
-void sympow_ECQ(fmpz_polyxx& L, const int &symdegree) {
+void sympow_ECQ(ZZX& L, const int &symdegree) {
   assert_print(symdegree, <=, 8);
   assert_print(L.degree(), ==, 2);
   assert_print(L.get_coeff(0).is_one(), ==, true);
-  static array<fmpzxx, 21> a;
-  static array<fmpzxx, 37> p;
+  static array<ZZ, 21> a;
+  static array<ZZ, 37> p;
   const array<int, 7> maxapower = {2, 4, 6, 9, 12, 16, 20};
   const array<int, 7> maxppower = {3, 6, 10, 15, 21, 28, 36};
 
@@ -726,8 +721,8 @@ out += r"""
 assert_print(symdegree, <=, {max_symdeg});
 assert_print(L.degree(), ==, 2);
 assert_print(L.get_coeff(0).is_one(), ==, true);
-static std::array<fmpzxx, {maxa1}> a;
-static std::array<fmpzxx, {maxp1}> p;
+static std::array<ZZ, {maxa1}> a;
+static std::array<ZZ, {maxp1}> p;
 const std::array<int, {length}> maxapower = {maxapower};
 const std::array<int, {length}> maxppower = {maxppower};
 """.format(max_symdeg=max_symdeg,
@@ -793,7 +788,7 @@ out += r"""
       throw_line("we cannot get here!"s);
     }
 """
-out = 'void sympow_ECQ(fmpz_polyxx& L, const int &symdegree) {' + out + '\n}'
+out = 'void sympow_ECQ(ZZX& L, const int &symdegree) {' + out + '\n}'
 print(out)
 */
 
