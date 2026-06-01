@@ -146,14 +146,6 @@ extern "C"{
   // from glfunc_g.c
   Lerror_t compute_g(Lfunc *);
 
-  // from acb_fft.c
-  void acb_initfft(acb_t *w, uint64_t n, uint64_t prec);
-  void acb_fft(acb_t *x, uint64_t n, acb_t *w, uint64_t prec);
-  void acb_ifft(acb_t *x, uint64_t n, acb_t *w, uint64_t prec);
-  void acb_convolve(acb_t *res, acb_t *x, acb_t *y, uint64_t n, acb_t *w, uint64_t prec);
-  void acb_convolve1(acb_t *res, acb_t *x, acb_t *y, uint64_t n, acb_t *w, uint64_t prec);
-  void acb_convolve2(acb_t *res, acb_t *x, acb_t *y, uint64_t n, acb_t *w, uint64_t prec);
-
   // from error.c
   void abs_gamma(arb_t res, acb_t s, Lfunc *L, int64_t prec);
   void init_ftwiddle_error(Lfunc *L, int64_t prec);
