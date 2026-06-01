@@ -97,6 +97,7 @@ CHECK_BINS = \
 	build/examples/tau.exe \
 	build/examples/cmf_7.3.b.a.exe \
 	build/examples/cmf_23.1.b.a.exe \
+	build/examples/cmf_25.12.a.a.exe \
 	build/examples/dir.exe
 
 check: all

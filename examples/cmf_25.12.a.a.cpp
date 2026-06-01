@@ -1,7 +1,7 @@
 // Copyright Edgar Costa 2019
 // See LICENSE file for license details.
 /*
- * Make up a degree 2 L-function associated to the classical modular form 23.1.b.a
+ * Make up a degree 2 L-function associated to the classical modular form 25.12.a.a
  * https://www.lmfdb.org/ModularForm/GL2/Q/holomorphic/25/12/a/a/
  *
  * Change the following two lines, to modify the number of decimal digits printed, or to print raw format (not human friendly)
@@ -12,45 +12,34 @@
  * with DIGITS = 20 and RAW = False, running this file should generate something
  * comparable to:
 Order of vanishing = 0
-Epsilon = (1 + 0j)  +/-  (2.52e-114, 2.24e-57j)
-First non-zero Taylor coeff = 0.33298177148293397364 +/- 8.2499e-57
-L(1) = (0.19673558706889585505 + 5.1688917606710579456e-57j)  +/-  (1.16e-38, 1.16e-38j)
-L(2) = (0.46721176888437312394 - 1.2275191787387591289e-56j)  +/-  (2.75e-38, 2.75e-38j)
+Epsilon = (1.0000000000000000000 + 0j)  +/-  (9.59e-104, 4.38e-52j)
+First non-zero Taylor coeff = 2.3573722738933456389 +/- 1.6265e-51
+L(1) = (364965.60485831434308 + 0.00081806356038705015127j)  +/-  (5.84e+2, 1.00e+3j)
+L(2) = (57140.220519766063563 + 5.5635477242815001228e-14j)  +/-  (1.01e-7, 6.62e-8j)
 First 10 zeros
-Zero 0 = 7.2145891812871844435 +/- 1.3364e-51
-Zero 1 = 9.2568107485814985876 +/- 1.0691e-50
-Zero 2 = 10.580974854111851196 +/- 1.3685e-48
-Zero 3 = 12.965859683008166209 +/- 1.3685e-48
-Zero 4 = 15.648104672594291642 +/- 7.0065e-46
-Zero 5 = 16.796003155249041724 +/- 7.0065e-46
-Zero 6 = 18.404976306799735748 +/- 1.121e-44
-Zero 7 = 19.213914502107617614 +/- 8.9683e-44
-Zero 8 = 20.72321683128359949 +/- 1.7937e-43
-Zero 9 = 22.543649261523556672 +/- 1.1479e-41
+Zero 0 = 1.2521055080217079202 +/- 2.2421e-44
+Zero 1 = 2.8663117829294118922 +/- 1.4013e-45
+Zero 2 = 4.5142977865922327037 +/- 2.8026e-45
+Zero 3 = 7.5598700385509993010 +/- 2.1895e-47
+Zero 4 = 8.3258354537392895351 +/- 8.7581e-47
+Zero 5 = 9.3485234343846508216 +/- 2.1895e-47
+Zero 6 = 10.446349369085456678 +/- 2.1895e-47
+Zero 7 = 12.933820963892282617 +/- 7.0065e-46
+Zero 8 = 13.832442737850603893 +/- 2.8026e-45
+Zero 9 = 14.830138630976254483 +/- 1.1210e-44
 Z-plot in [0, 10]:
-0.00	0.33	                              |-o
-0.50	0.36	                              |-o
-1.00	0.45	                              |--o
-1.50	0.61	                              |---o
-2.00	0.85	                              |-----o
-2.50	1.18	                              |-------o
-3.00	1.58	                              |----------o
-3.50	2.04	                              |--------------o
-4.00	2.49	                              |-----------------o
-4.50	2.86	                              |--------------------o
-5.00	3.01	                              |---------------------o
-5.50	2.85	                              |--------------------o
-6.00	2.32	                              |----------------o
-6.50	1.45	                              |---------o
-7.00	0.43	                              |--o
-7.21	zero	                              Z
-7.50	-0.49	                           o--|
-8.00	-1.00	                       o------|
-8.50	-0.94	                       o------|
-9.00	-0.37	                            o-|
-9.26	zero	                              Z
-9.50	0.32	                              |-o
-10.00	0.63	                              |---o
+0.00	2.36	                              |----------------o
+1.25	zero	                              Z
+1.60	-0.79	                         o----|
+2.87	zero	                              Z
+3.20	0.88	                              |-----o
+4.51	zero	                              Z
+4.80	-1.49	                   o----------|
+6.41	-5.00	------------------------------|
+7.56	zero	                              Z
+8.01	0.33	                              |-o
+8.33	zero	                              Z
+9.61	0.52	                              |--o
  */
 #define __STDC_FORMAT_MACROS
 #include <chrono>
@@ -66,6 +55,7 @@ Z-plot in [0, 10]:
 #include <vector>
 #include <flint/fmpz.h>
 #include <flint/acb_poly.h>
+#include <cassert>
 #include "glfunc.h"
 
 
@@ -336,6 +326,15 @@ int main ()
     std::abort();
   }
   printf("L(2) = ");acb_printd(ctmp, DIGITS);printf("\n");
+  { // regression assert: L(2)
+    acb_t ref; acb_init(ref);
+    arb_set_str(acb_realref(ref), "57140.220519766063563", 300);
+    arb_set_str(acb_imagref(ref), "0", 300);
+    arb_add_error_2exp_si(acb_realref(ref), -50);
+    arb_add_error_2exp_si(acb_imagref(ref), -50);
+    assert(acb_overlaps(ctmp, ref));
+    acb_clear(ref);
+  }
   acb_clear(ctmp);
 
   printf("First 10 zeros\n");
@@ -346,6 +345,14 @@ int main ()
     arb_printd(zeros+i, DIGITS);
     printf("\n");
     if (RAW) cout<<"RAW: "<<zeros + i<< endl;
+  }
+
+  { // regression assert: first zero
+    arb_t ref; arb_init(ref);
+    arb_set_str(ref, "1.2521055080217079202", 300);
+    arb_add_error_2exp_si(ref, -50);
+    assert(arb_overlaps(zeros + 0, ref));
+    arb_clear(ref);
   }
 
   printf("Z-plot in [0, 10]:\n");
