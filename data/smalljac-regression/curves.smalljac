@@ -1,0 +1,55 @@
+# LMFDB-sourced regression curves, in smalljac's INPUT format.
+#
+# This file is consumed by the (out-of-tree) smalljac driver, which counts
+# points to produce good Euler factors and emits the rational.exe input format
+#   label:degree:conductor:weight:[mus]:[[euler_factors]]
+# documented at the top of examples/rational.c.
+#
+# Format of each data line (5 colon-separated fields; see the parsing loop in
+# the removed examples/smalljac.cpp, git commit 660d3c8~1):
+#   label:symdegree:conductor:curve_str:bad_euler_factors
+# where
+#   * label             LMFDB label of the curve.
+#   * symdegree         symmetric-power degree. Always 1 here: we compute L(C)
+#                       itself, not Sym^k L(C). (smalljac uses field 1 to drive
+#                       the symmetric-power Euler-factor formulas for E/Q.)
+#   * conductor         the arithmetic conductor of the L-function.
+#   * curve_str         the defining equation:
+#                         - elliptic curve  : [a1,a2,a3,a4,a6]  (5 a-invariants)
+#                         - genus 2 curve   : [f(x), h(x)]  for y^2 + h(x) y = f(x)
+#   * bad_euler_factors [[p1,p2,...],[Lp1,Lp2,...]] : the bad primes and their
+#                       local L-factors Lp(T) = sum coeff_i T^i (low->high degree).
+#
+# Provenance, selection rationale, exact LMFDB queries, and the matching
+# certified reference values are in README.md and reference.txt in this dir.
+# Lines are sorted by (L-degree, conductor). Blank lines and #-comments ignored.
+# L-degree = 2 for elliptic curves, 4 for genus 2 Jacobians (= 2*genus, with
+# symdegree 1). It is derived by smalljac, not stored on the line.
+
+# ---------------------------------------------------------------------------
+# L-degree 2 : elliptic curves over Q, one per analytic rank 0..4
+# curve_str = [a1,a2,a3,a4,a6];  bad factor 1-T (split), 1+T (non-split), 1 (additive)
+# ---------------------------------------------------------------------------
+11.a2:1:11:[0,-1,1,-10,-20]:[[11],[[1,-1]]]
+37.a1:1:37:[0,0,1,-1,0]:[[37],[[1,1]]]
+389.a1:1:389:[0,1,1,-2,0]:[[389],[[1,-1]]]
+5077.a1:1:5077:[0,0,1,-7,6]:[[5077],[[1,1]]]
+234446.a1:1:234446:[1,-1,0,-79,289]:[[2,117223],[[1,1],[1,-1]]]
+
+# ---------------------------------------------------------------------------
+# L-degree 4 : genus 2 Jacobians over Q
+# curve_str = [f(x), h(x)] for y^2 + h(x) y = f(x)
+# ---------------------------------------------------------------------------
+
+# -- generic (geometrically simple, End = Q, Sato-Tate USp(4)), ranks 0..3 --
+249.a.249.1:1:249:[x + x^2, 1 + x^3]:[[3,83],[[1,2,0,-3],[1,-1,83,-83]]]
+587.a.587.1:1:587:[-x - x^2, 1 + x + x^3]:[[587],[[1,35,551,-587]]]
+3319.a.3319.1:1:3319:[x^3 + 2*x^4 + x^5, 1 + x + x^3]:[[3319],[[1,-73,3245,3319]]]
+25913.a.25913.1:1:25913:[-2*x - x^2 + x^3, 1 + x + x^3]:[[25913],[[1,-62,25974,-25913]]]
+
+# -- square case: Jac ~ E x E, so L(C) = L(E)^2 (End_alg = M_2(Q)), rank 0 --
+# every zero appears with multiplicity 2; a strong structural check.
+196.a.21952.1:1:196:[1 + 3*x + 6*x^2 + 7*x^3 + 6*x^4 + 3*x^5 + x^6, x + x^2]:[[2,7],[[1,2,1],[1,-2,1]]]
+
+# -- product case: Jac ~ E1 x E2 (non-isogenous), L(C) = L(E1) L(E2) (End_alg = Q x Q), rank 0 --
+294.a.294.1:1:294:[x^2 + x^4, 1 + x^3]:[[2,3,7],[[1,2,3,2],[1,1,1,-3],[1,0,-1]]]

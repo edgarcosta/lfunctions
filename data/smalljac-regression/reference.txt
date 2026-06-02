@@ -1,0 +1,57 @@
+# Certified reference values for the curves in curves.smalljac.
+#
+# Source: LMFDB lfunc_lfunctions, joined to the curve via
+#   - elliptic curves : lfunc_instances.url = 'EllipticCurve/Q/<cond>/<class>'
+#   - genus 2 curves  : g2c_curves."Lhash" = lfunc_lfunctions."Lhash"
+# (exact SQL in README.md). Pulled 2026-06-02 from the LMFDB mirror.
+#
+# rational.exe (examples/rational.c) prints, for each curve:
+#     Rank   = Lfunc_rank(L)
+#     Epsilon= Lfunc_sign(L)              -> root number below
+#     Leading Taylor coeff = Lfunc_Taylor(L)        -> leading_term below
+#     First zero = Lfunc_zeros(L, 0)                -> first_zero below
+# These three (+ the root number) are the quantities a CI assertion compares.
+#
+# Conventions (all analytic normalization, central point on the critical line):
+#   * rank          = LMFDB order_of_vanishing = analytic rank at the center.
+#   * root_number   = sign of the functional equation (LMFDB root_number);
+#                     |root_number| = 1 always (a free mathematical invariant
+#                     to assert independent of LMFDB).
+#   * leading_term  = first non-zero Taylor coefficient of L at the central
+#                     point (LMFDB leading_term). For rank 0 this is the central
+#                     value L(1/2)_analytic. Verified to agree to all printed
+#                     digits with the asserts in examples/ec_{37,389,5077}.a1.cpp.
+#   * first_zero    = smallest strictly positive zero ordinate
+#                     (LMFDB positive_zeros[0]).
+#
+# Accuracy / suggested assertion tolerance (see README.md "Tolerances"):
+#   * elliptic curves : LMFDB accuracy = 100 bits; the strings below carry
+#                       ~16 sig. figs, all correct. Safe to assert to 1e-12.
+#   * genus 2 curves  : LMFDB stores these zeros/values as ~15-16 digit floats
+#                       with no certified accuracy field. Assert to 1e-11.
+#   The library itself returns certified arb balls; the looser tolerance is for
+#   the *reference* string, not the computed ball. Use arb_contains / overlaps.
+#
+# Field order (whitespace = single TAB-or-spaces is fine; columns are labelled):
+#   label  lfunc_label  degree  rank  root_number  leading_term  first_zero
+
+# --- elliptic curves (L-degree 2) ---
+11.a2        2-11-1.1-c1-0-0        2  0   1  0.253841860856  6.362613894713089
+37.a1        2-37-1.1-c1-0-1        2  1  -1  0.305999773834  5.003170014006659
+389.a1       2-389-1.1-c1-0-29      2  2   1  0.759316500288  2.876099071260465
+5077.a1      2-5077-1.1-c1-0-410    2  3  -1  1.73184990012   2.052472858479940
+234446.a1    2-234446-1.1-c1-0-2    2  4   1  8.9438473959    1.733532247157827
+
+# --- genus 2 Jacobians (L-degree 4) ---
+# generic (End = Q, USp(4)), ranks 0..3
+249.a.249.1      4-249-1.1-c1e2-0-0    4  0   1  0.131549507011  4.454191054818854
+587.a.587.1      4-587-1.1-c1e2-0-0    4  1  -1  0.111351511064  4.545060166082759
+3319.a.3319.1    4-3319-1.1-c1e2-0-0   4  2   1  0.192363162224  3.568075918259732
+25913.a.25913.1  4-25913-1.1-c1e2-0-0  4  3  -1  0.391214027645  2.890220730296206
+
+# square case  L(C) = L(E)^2  (End = M_2(Q));  note: first_zero is DOUBLE
+# (positive_zeros = [5.5792868..., 5.5792868..., 7.5757110..., ...]).
+196.a.21952.1    4-14e2-1.1-c1e2-0-0   4  0   1  0.109047665191  5.579286817429504
+
+# product case  L(C) = L(E1) L(E2), E1 not isogenous to E2  (End = Q x Q)
+294.a.294.1      4-294-1.1-c1e2-0-0    4  0   1  0.148968979954  4.135590840507737
