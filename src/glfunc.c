@@ -139,12 +139,16 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
   L->mus = (double *)malloc(sizeof(double) * L->degree);
   if (!L->mus) {
     ecode[0] |= ERR_OOM;
+    free(L);
     return (Lfunc_t)NULL;
   }
   for (i = 0; i < L->degree; i++) {
     L->mus[i] = Lp->mus[i] + Lp->normalisation; // alg->anal
     if (!is_half_int(L->mus[i])) {
       ecode[0] |= ERR_MU_HALF;
+      // only L and L->mus are live here (no arb_t initialised yet)
+      free(L->mus);
+      free(L);
       return (Lfunc_t)NULL;
     }
   }
@@ -354,8 +358,6 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
   for (size_t i = 0; i < L->allocated_M; ++i)
     acb_init(L->ans[i]);
 
-  arb_init(L->ftwiddle_error);
-
   arb_clear(tmp);
 
 #ifdef BUTHE
@@ -395,7 +397,11 @@ Lfunc_t Lfunc_init(uint64_t degree, uint64_t conductor, double normalisation,
   Lp.gprec = 0; // We will try to do something sensible
   Lp.wprec = 0; // ditto
 
-  return Lfunc_init_advanced(&Lp, ecode);
+  // Lfunc_init_advanced copies Lp.mus into L->mus, so this scratch array is ours
+  // to free; otherwise it leaks (Lp is a stack local that goes out of scope).
+  Lfunc_t L = Lfunc_init_advanced(&Lp, ecode);
+  free(Lp.mus);
+  return L;
 }
 
 int64_t Lfunc_wprec(Lfunc_t Lf) {
