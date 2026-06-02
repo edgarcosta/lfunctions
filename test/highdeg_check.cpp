@@ -88,7 +88,7 @@ int main(int argc, char **argv) {
   uint64_t nmax = Lfunc_nmax(L);
 
   // EXPECT line (optional — absent => nmax query)
-  int exp_rank = -1, tolerate_rh = 0;
+  int exp_rank = -1, tolerate_rh = 0, expect_power = 0;
   double eps_re = 0, eps_im = 0, z1_err = 0, taylor_err = 0;
   std::string z1s, taylors = "NA";
   bool have_expect = false;
@@ -98,7 +98,7 @@ int main(int argc, char **argv) {
     std::string kw; s3 >> kw;
     if (kw == "EXPECT") {
       have_expect = true;
-      s3 >> exp_rank >> eps_re >> eps_im >> z1s >> z1_err >> taylors >> taylor_err >> tolerate_rh;
+      s3 >> exp_rank >> eps_re >> eps_im >> z1s >> z1_err >> taylors >> taylor_err >> tolerate_rh >> expect_power;
     } else {
       in.seekg(after_mus);  // line was a factor; rewind
     }
@@ -167,6 +167,17 @@ int main(int argc, char **argv) {
 
   ec |= Lfunc_compute(L);
   printf("degree=%lu conductor=%lu nmax=%lu primes=%lu\n", degree, conductor, nmax, count);
+
+  if (expect_power) {
+    // This object has a repeated primitive factor (e.g. L = L(E)^2): the power
+    // guard must reject it up front with ERR_POWER. Assert that and skip the value
+    // checks (it is intentionally not computed). Positive guard regression.
+    check((ec & ERR_POWER) != 0, "power-rejected",
+          "guard must reject this repeated-factor object with ERR_POWER");
+    fprintf(stderr, "ecode: "); fprint_errors(stderr, ec);
+    acb_poly_clear(poly); fmpz_clear(z); acb_clear(c); Lfunc_clear(L);
+    return g_fail;
+  }
 
   // (0) no fatal error; RH warning tolerated only when declared
   check(!fatal_error(ec), "no-fatal", "");

@@ -272,12 +272,13 @@ objects:
       taylor_err: 1.0e-12
       tolerate_rh_error: true
 
-  # ---- known-unsupported: square of an elliptic curve (L = L(E)^2) ----
+  # ---- square of an elliptic curve (L = L(E)^2): rejected by the power guard ----
   # Jac(196.a) ~_Q E^2 with E = 14.a (conductor 14), so L = L(14.a)^2 and every zero
-  # is doubled. The library cannot yet resolve repeated factors / double zeros, so this
-  # is expected to FAIL: it is marked `xfail` and wired into the suite now, so that when
-  # square support lands, deleting `xfail` promotes it to a real test. smalljac still
-  # computes its (squared) Euler factors fine; the failure is in the L-function solver.
+  # is doubled. The power guard detects the repeated factor (perfect-square Euler
+  # factors and a perfect-square conductor 196 = 14^2) and rejects it up front with
+  # ERR_POWER, so `expect_power` makes this a positive regression: the driver asserts
+  # the rejection. smalljac still computes its (squared) Euler factors fine. When square
+  # support (extraction, bead w70.2) lands, replace `expect_power` with the value checks.
   - label: "196.a"          # geom_end_alg "M_2(Q)", ST E_1: Q-isogenous to E^2 (= 14.a^2)
     kind: genus2
     curve: "[[1,3,6,7,6,3,1],[0,1,1]]"
@@ -286,8 +287,8 @@ objects:
     bad_factors:            # (1+T)^2 at 2 and (1-T)^2 at 7 -- squares, since L = L(E)^2
       2: [1, 2, 1]
       7: [1, -2, 1]
-    xfail: "Jac ~_Q E^2 (14.a^2); L = L(E)^2 has repeated factors / doubled zeros not yet supported"
-    expected:               # the L(14.a)^2 values, ready for when square support lands
+    expect_power: true      # guard must reject L = L(14.a)^2 with ERR_POWER (repeated factor / doubled zeros)
+    expected:               # the L(14.a)^2 values; checked once extraction (w70.2) lands, ignored while expect_power is set
       rank: 0
       epsilon: [1.0, 0.0]
       first_zero: "5.57928681743"
