@@ -96,7 +96,11 @@ extern "C"{
 	  acb_cclear(L->G[i]);
 	free(L->G);
       }
-    // FLINT rad2 DFT plans (replace the hand-rolled w/ww twiddle tables)
+    // FLINT rad2 DFT plans (replace the hand-rolled w/ww twiddle tables). Cleared
+    // unconditionally: acb_dft_rad2_t is an embedded [1] array (no pointer to
+    // NULL-guard), and Lfunc_init_advanced returns NULL on every error path -- never
+    // a partial L -- so Lfunc_clear runs only after both plans are built. Keep both
+    // acb_dft_rad2_init calls (glfunc.c) ahead of any error-return to preserve this.
     acb_dft_rad2_clear(L->plan_N);
     acb_dft_rad2_clear(L->plan_NN);
     if(L->kres)
