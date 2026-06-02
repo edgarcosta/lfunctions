@@ -37,10 +37,22 @@ static void cb(acb_poly_t poly, uint64_t p, int d, int64_t prec, void *param){
     linear_factor(a, chi5(p));
     linear_factor(b, chi7(p));
     acb_poly_mul(poly, a, b, prec);                 // (1-chi5 T)(1-chi7 T)
-  } else {
+  } else if(kind==3) {
     linear_factor(a, chi3(p));
     acb_poly_mul(b, a, a, prec);                    // (1-chi3 T)^2
     acb_poly_mul(poly, b, b, prec);                 // (1-chi3 T)^4
+  } else if(kind==4){
+    // synthetic: (1 - 0.5 T)^2 -- a non-squarefree factor with |a_p| = 1, so the 2nd
+    // moment stays ~1 (below POWER_MOMENT_THRESHOLD). It is NOT a real arithmetic Euler
+    // factor; it exists only to drive the guard's moment signal below threshold so that,
+    // at conductor 25 (=5^2), ONLY the conductor perfect-power signal can trigger the reject.
+    acb_t half;
+    acb_init(half);
+    acb_set_d(half, -0.5);
+    acb_poly_one(a);
+    acb_poly_set_coeff_acb(a, 1, half);   // 1 - 0.5 T
+    acb_poly_mul(poly, a, a, prec);        // (1 - 0.5 T)^2
+    acb_clear(half);
   }
   acb_poly_clear(a); acb_poly_clear(b);
 }
@@ -96,6 +108,16 @@ int main(void){
   Lerror_t e4 = run(L4, 3);
   Lfunc_clear(L4);
   assert(e4 & ERR_POWER);
+
+  // 5. synthetic pure square: 2nd moment ~1 (below threshold) but conductor 25 = 5^2.
+  //    No squarefree full-degree factor + moment < 3.5, so ONLY the conductor signal
+  //    can reject. Fails without the conductor trigger (the moment alone lets it through).
+  ecode = ERR_SUCCESS;
+  Lfunc_t L5 = Lfunc_init(2, 25, 0.0, mus2, &ecode);
+  assert(!fatal_error(ecode));
+  Lerror_t e5 = run(L5, 4);
+  Lfunc_clear(L5);
+  assert(e5 & ERR_POWER);
 
   printf("power_guard_test: all assertions passed\n");
   return 0;

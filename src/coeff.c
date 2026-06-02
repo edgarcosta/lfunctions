@@ -3,6 +3,7 @@
 #include "glfunc_internals.h"
 #include "primesieve.h"
 #include <flint/acb_mat.h>
+#include <flint/ulong_extras.h>
 
 #ifdef __cplusplus
 extern "C"{
@@ -222,15 +223,29 @@ void use_lpoly(Lfunc *L, uint64_t p, const acb_poly_t f)
 
 }
 
+// Cheap, exact "is L a pure power?" tell from the conductor alone: cond(M^k) = cond(M)^k,
+// so a pure power has a perfect-k-th-power conductor. Necessary, not sufficient (a primitive
+// can have a perfect-power conductor), so this only ever corroborates -- Signal 1 (the
+// squarefree certificate) is what keeps the guard from false-rejecting such primitives.
+static bool conductor_is_perfect_power(uint64_t N)
+{
+  if(N < 4)            // 0,1,2,3 are not (nontrivial) perfect powers
+    return false;
+  ulong root;
+  return n_is_perfect_power(&root, (ulong) N) != 0;
+}
+
 // Power / repeated-factor guard. Call at the top of Lfunc_compute, after the Euler
 // factors have been supplied (so the signals are populated). Returns ERR_POWER if L
 // looks like a perfect power / has a repeated primitive factor and the caller did not
 // set allow_nonprimitive; ERR_SUCCESS otherwise.
 //
-// Belt-and-suspenders (sound, not complete): reject ONLY when BOTH
-//   (1) no supplied full-degree local factor was proven squarefree, AND
-//   (2) the empirical 2nd moment (1/#) sum |a_p|^2 >= POWER_MOMENT_THRESHOLD.
-// (1) alone certifies a genuine primitive as safe, so a primitive is never false-rejected.
+// Belt-and-suspenders (sound, not complete): reject ONLY when (1) is false, AND (2a OR 2b):
+//   (1)  some supplied full-degree local factor was proven squarefree, OR
+//   (2a) the empirical 2nd moment (1/#) sum |a_p|^2 >= POWER_MOMENT_THRESHOLD, OR
+//   (2b) the conductor is a perfect power (cond(M^k)=cond(M)^k, exact tell for PURE powers).
+// (1) alone certifies a genuine primitive as safe and is checked FIRST, so a primitive is
+// never false-rejected even if it happens to have a perfect-power conductor.
 Lerror_t power_guard(Lfunc *L)
 {
   if(L->allow_nonprimitive == YES)   // caller opted out of the guard
@@ -239,18 +254,21 @@ Lerror_t power_guard(Lfunc *L)
     return ERR_SUCCESS;
   if(L->moment_count == 0)           // no good primes seen; can't judge -> proceed
     return ERR_SUCCESS;
+  // Signal 2a (heuristic): empirical 2nd moment >= threshold.
   arb_t S, thresh, diff;
   arb_init(S);
   arb_init(thresh);
   arb_init(diff);
-  arb_div_ui(S, L->moment_sum, L->moment_count, L->wprec); // empirical 2nd moment
+  arb_div_ui(S, L->moment_sum, L->moment_count, L->wprec);
   arb_set_d(thresh, POWER_MOMENT_THRESHOLD);
   arb_sub(diff, S, thresh, L->wprec);
-  bool power_like = arb_is_positive(diff); // S - threshold > 0 for the whole ball
+  bool moment_like = arb_is_positive(diff); // S - threshold > 0 for the whole ball
   arb_clear(diff);
   arb_clear(thresh);
   arb_clear(S);
-  return power_like ? ERR_POWER : ERR_SUCCESS;
+  // Signal 2b (cheap exact tell for PURE powers): cond is a perfect k-th power.
+  bool conductor_like = conductor_is_perfect_power(L->conductor);
+  return (moment_like || conductor_like) ? ERR_POWER : ERR_SUCCESS;
 }
 
 void Lfunc_use_lpoly(Lfunc_t Lf, uint64_t p, const acb_poly_t poly)
