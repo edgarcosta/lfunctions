@@ -26,6 +26,10 @@ AC_ARG_ENABLE([assert],
 AC_ARG_ENABLE([gdb],
   [AS_HELP_STRING([--disable-gdb], [do not add -g debug symbols])],
   [], [enable_gdb=yes])
+AC_ARG_ENABLE([sanitize],
+  [AS_HELP_STRING([--enable-sanitize],
+     [build with -fsanitize=address,undefined -fno-omit-frame-pointer (ASan/UBSan; for CI/debugging)])],
+  [], [enable_sanitize=no])
 
 AC_ARG_WITH([flint],      [AS_HELP_STRING([--with-flint=DIR],      [location of FLINT (>=3.0; provides Arb)])])
 AC_ARG_WITH([gmp],        [AS_HELP_STRING([--with-gmp=DIR],        [location of GMP])])
@@ -133,6 +137,15 @@ AS_IF([test "x$enable_gdb"    != xno], [lfun_base="$lfun_base -g"])
 AS_IF([test "x$enable_assert" =  xno], [lfun_base="$lfun_base -DNDEBUG"])
 AS_IF([test "x$lfun_user_cflags_set"   = xyes], [LFUN_CFLAGS=$lfun_user_cflags],     [LFUN_CFLAGS="$lfun_base -std=gnu11"])
 AS_IF([test "x$lfun_user_cxxflags_set" = xyes], [LFUN_CXXFLAGS=$lfun_user_cxxflags], [LFUN_CXXFLAGS="$lfun_base -std=c++1z"])
+
+# --enable-sanitize: append ASan/UBSan to the *final* flags (whether default or
+# user-supplied) so it applies regardless of CFLAGS. The Makefile link rules use
+# $(CFLAGS)/$(CXXFLAGS), so the same flags drive both compile and link (libasan
+# must be present at link time). Default off => normal build is unchanged.
+lfun_sanitize_flags="-fsanitize=address,undefined -fno-omit-frame-pointer"
+AS_IF([test "x$enable_sanitize" = xyes],
+  [LFUN_CFLAGS="$LFUN_CFLAGS $lfun_sanitize_flags"
+   LFUN_CXXFLAGS="$LFUN_CXXFLAGS $lfun_sanitize_flags"])
 
 # ---- parallel jobs = ncpu + 1 (replaces the python3 call) ----------------
 lfun_ncpu=`getconf _NPROCESSORS_ONLN 2>/dev/null || nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 1`

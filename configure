@@ -709,6 +709,7 @@ ac_user_opts='
 enable_option_checking
 enable_assert
 enable_gdb
+enable_sanitize
 with_flint
 with_gmp
 with_mpfr
@@ -1345,6 +1346,9 @@ Optional Features:
   --enable-FEATURE[=ARG]  include FEATURE [ARG=yes]
   --disable-assert        compile with -DNDEBUG (turns asserts off)
   --disable-gdb           do not add -g debug symbols
+  --enable-sanitize       build with -fsanitize=address,undefined
+                          -fno-omit-frame-pointer (ASan/UBSan; for
+                          CI/debugging)
 
 Optional Packages:
   --with-PACKAGE[=ARG]    use PACKAGE [ARG=yes]
@@ -3899,6 +3903,14 @@ else $as_nop
   enable_gdb=yes
 fi
 
+# Check whether --enable-sanitize was given.
+if test ${enable_sanitize+y}
+then :
+  enableval=$enable_sanitize;
+else $as_nop
+  enable_sanitize=no
+fi
+
 
 
 # Check whether --with-flint was given.
@@ -4400,6 +4412,17 @@ then :
   LFUN_CXXFLAGS=$lfun_user_cxxflags
 else $as_nop
   LFUN_CXXFLAGS="$lfun_base -std=c++1z"
+fi
+
+# --enable-sanitize: append ASan/UBSan to the *final* flags (whether default or
+# user-supplied) so it applies regardless of CFLAGS. The Makefile link rules use
+# $(CFLAGS)/$(CXXFLAGS), so the same flags drive both compile and link (libasan
+# must be present at link time). Default off => normal build is unchanged.
+lfun_sanitize_flags="-fsanitize=address,undefined -fno-omit-frame-pointer"
+if test "x$enable_sanitize" = xyes
+then :
+  LFUN_CFLAGS="$LFUN_CFLAGS $lfun_sanitize_flags"
+   LFUN_CXXFLAGS="$LFUN_CXXFLAGS $lfun_sanitize_flags"
 fi
 
 # ---- parallel jobs = ncpu + 1 (replaces the python3 call) ----------------
