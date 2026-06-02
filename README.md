@@ -7,17 +7,18 @@ For details of the methods we refer to:
 
 
 ## Dependencies
-It majorly depends on:
- - [Arb - a C library for arbitrary-precision ball arithmetic](http://arblib.org/)
+
+The primary dependencies are:
+
+ - [FLINT: Fast Library for Number Theory](http://flintlib.org/) — version ≥ 3.0. Since FLINT 3.0 the Arb ball-arithmetic library is merged into FLINT (the `flint/acb.h`, `flint/arb.h`, … headers live in FLINT, and the `acb_*`/`arb_*` symbols are in `libflint`), so **no separate Arb install is needed**.
  - [primesieve - Fast prime number generator](https://github.com/kimwalisch/primesieve)
- 
-which depend on:
 
- - [FLINT: Fast Library for Number Theory](http://flintlib.org/) — version ≥ 3.0, which now bundles Arb (no separate Arb install needed)
- - [GMP: GNU Multiple Precision Arithmetic Library](https://gmplib.org/) (for FLINT)
- - [MPFR: GNU Multiple Precision Floating-Point Reliably](http://www.mpfr.org/) (for FLINT)
+FLINT in turn pulls in:
 
-However, [SageMath](http://www.sagemath.org/) comes with all this libraries. 
+ - [GMP: GNU Multiple Precision Arithmetic Library](https://gmplib.org/)
+ - [MPFR: GNU Multiple Precision Floating-Point Reliably](http://www.mpfr.org/)
+
+[SageMath](http://www.sagemath.org/) already ships FLINT (≥ 3.0), GMP, and MPFR; with Sage you only need to install `primesieve` separately. 
 
 ## Installation
 
