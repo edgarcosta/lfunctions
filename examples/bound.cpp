@@ -9,9 +9,9 @@
  * the number of Dirichlet coefficients per unit sqrt(conductor) the library
  * will need.  Here:
  *   - one_over_B = degree/512, so B = 512/degree.
- *   - hi_i (glfunc_internals.h) is the top of the G u-grid: the largest index
- *     i such that |G(u_i)| > 2^{-prec}; it determines where the G-kernel
- *     drops below the precision threshold.
+ *   - hi_i (glfunc_internals.h) is the top of the G u-grid: the smallest index
+ *     i such that |G(u_i)| <= 2^{-prec}; it marks where the G-kernel first
+ *     drops to or below the precision threshold.
  *   - M (glfunc_internals.h) = floor(sqrt(N) * exp(2*pi*(hi_i+0.5)/B)) is the
  *     largest coefficient index a_n the library actually uses; it scales as
  *     sqrt(conductor).
