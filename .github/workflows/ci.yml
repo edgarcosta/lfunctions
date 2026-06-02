@@ -18,3 +18,25 @@ jobs:
         run: make
       - name: Test
         run: make check
+
+  sanitizers:
+    runs-on: ubuntu-latest
+    env:
+      # Abort the run on any ASan/UBSan finding so CI fails loudly; print full
+      # UBSan stack traces. LeakSanitizer is on by default for ASan on Linux.
+      ASAN_OPTIONS: halt_on_error=1:detect_leaks=1:abort_on_error=1
+      UBSAN_OPTIONS: halt_on_error=1:print_stacktrace=1:abort_on_error=1
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libflint-dev libprimesieve-dev
+      - name: Configure (sanitizers)
+        # ./configure carries --enable-sanitize (committed, generated from
+        # configure.ac), so no autotools regeneration step is needed.
+        run: ./configure --enable-sanitize
+      - name: Build
+        run: make
+      - name: Test under ASan/UBSan
+        run: make check
