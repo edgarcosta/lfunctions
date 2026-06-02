@@ -193,6 +193,7 @@ void init_ftwiddle_error(Lfunc *L, int64_t prec)
   arb_clear(two_pi);
   arb_clear(E);
   arb_clear(four_by_pi2);
+  arb_clear(beta);
 
 }
 
@@ -323,22 +324,31 @@ bool M_error(arb_t res, arb_t x, Lfunc *L, int64_t prec)
 #define BIG_ZETAD (1.001) // zeta([10,infinty]) in [1,1.001]
 void djp_zeta(arb_t res, const arb_t x, slong prec)
 {
+  // big_zeta / big_zetad are process-lifetime cached constants; init once.
+  // (The previous code never set init=true, so it re-ran arb_init every call,
+  // leaking big_zetad's heap mantissa each time -- numerically a no-op since
+  // the constants are recomputed identically.)
   static bool init=false;
-  static arb_t big_zeta,big_zetad,z;
-  
+  static arb_t big_zeta,big_zetad;
   if(!init)
     {
       arb_init(big_zeta);
       arb_init(big_zetad);
-      arb_init(z);
       arb_set_ui(big_zeta,1);
       arb_set_d(big_zetad,BIG_ZETAD);
       arb_union(big_zetad,big_zetad,big_zeta,prec);
       arb_set_ui(big_zeta,BIG_ZETA);
+      init=true;
     }
-      
+
+  // z is pure scratch: compute x-big_zeta, test its sign, discard. Keep it a
+  // plain local (init+clear each call) so its heap mantissa is not leaked.
+  arb_t z;
+  arb_init(z);
   arb_sub(z,x,big_zeta,prec);
-  if(arb_is_positive(z)) // very large x
+  bool very_large_x = arb_is_positive(z);
+  arb_clear(z);
+  if(very_large_x) // very large x
     {
       arb_set(res,big_zetad);
       return;
