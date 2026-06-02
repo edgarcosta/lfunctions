@@ -74,6 +74,7 @@ extern "C"{
     
     arb_cclear(L->one_over_root_N);
     arb_cclear(L->sum_ans);
+    arb_cclear(L->moment_sum);
     arb_cclear(L->u_H);
     arb_cclear(L->u_pi_by_H2);
     arb_cclear(L->u_A);

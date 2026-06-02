@@ -351,6 +351,9 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
 
   arb_init(L->one_over_root_N);
   arb_init(L->sum_ans);
+  arb_init(L->moment_sum);       // power-guard 2nd-moment accumulator (starts at 0)
+  L->moment_count = 0;
+  L->seen_sqfree_fulldeg = false;
   acb_init(L->sign);
   acb_init(L->sqrt_sign);
   L->allocated_M = 8192;

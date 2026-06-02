@@ -24,6 +24,8 @@
 #endif
 
 #define MAX_L (10) // maximum differential allowed in upsampling
+#define POWER_SQFREE_PROBES (256)     // max full-degree primes tested for squarefree-ness by the power guard
+#define POWER_MOMENT_THRESHOLD (3.5)  // 2nd moment >= this (and no squarefree factor seen) => reject as a repeated-factor L
 
 
 #define COMPUTE_ZEROS // compile-time switch: enable the zero-finding phase
@@ -116,6 +118,9 @@ extern "C"{
 
     // power/repeated-factor guard (see power_guard in coeff.c)
     int allow_nonprimitive;   // copied from Lparams; YES(1) bypasses the guard
+    bool seen_sqfree_fulldeg; // a full-degree local factor was proven squarefree => no repeated factor
+    arb_t moment_sum;         // running sum of |a_p|^2 over full-degree (good) primes
+    uint64_t moment_count;    // number of full-degree primes folded into moment_sum
 
     int64_t offset; // FFT bin index of a_1 = calc_m(1); used only for a bounds check
 
@@ -170,6 +175,9 @@ extern "C"{
   Lerror_t turing_check_RH(Lfunc *L, int64_t);
 #endif
   
+  // from coeff.c
+  Lerror_t power_guard(Lfunc *L);
+
   // from compute.c
   void lfunc_compute(Lfunc *L);
 
