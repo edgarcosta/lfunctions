@@ -70,6 +70,7 @@ extern "C"{
     int self_dual; // -1 = DK, 0 = No, 1 = Yes
     int rank; // -1 = DK
     char *cache_dir;
+    int allow_nonprimitive; // if YES(1), bypass the power/repeated-factor guard (ERR_POWER); default NO(0)
   } Lparams_t;
 
   typedef struct{

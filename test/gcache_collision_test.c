@@ -63,6 +63,7 @@ static uint64_t nmax_in(uint64_t degree, double normalisation,
   Lp.cache_dir = (char *)cache_dir;
   Lp.gprec = 0;                    // required for the cache path
   Lp.wprec = 0;
+  Lp.allow_nonprimitive = NO;
 
   Lerror_t ecode = ERR_SUCCESS;
   Lfunc_t L = Lfunc_init_advanced(&Lp, &ecode);

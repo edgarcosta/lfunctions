@@ -114,6 +114,9 @@ extern "C"{
 
     bool nmax_called; // true if user/system has called Lfunc_nmax
 
+    // power/repeated-factor guard (see power_guard in coeff.c)
+    int allow_nonprimitive;   // copied from Lparams; YES(1) bypasses the guard
+
     int64_t offset; // FFT bin index of a_1 = calc_m(1); used only for a bounds check
 
     uint64_t u_N; // upsampling kernel half-width = ceil(A^2 h^2/2); kernel = 2*u_N+1 pts
