@@ -272,9 +272,12 @@ void final_ifft(Lfunc *L)
       printf("\n");
     }
   }
-  // FLINT's FORWARD transform has kernel e(-jk/n) -- exactly the project's old
-  // unnormalised "acb_ifft" (forward-then-reverse). No 1/n is applied here; the only
-  // 1/n in the whole pipeline lives inside the convolutions above.
+  // The old "acb_ifft" was the *unnormalised inverse* DFT (forward FFT then index-
+  // reverse, kernel e(+jk/n)); FLINT's forward transform uses the opposite-sign kernel
+  // e(-jk/n). They are not the same transform in general, but do_pre_iFFT_errors made
+  // L->res Hermitian (res[NN-k]=conj(res[k])), and on Hermitian data the forward and
+  // inverse DFTs coincide and are real-valued -- so this is an exact drop-in. No 1/n
+  // here; the only 1/n in the pipeline lives inside the convolutions above.
   acb_dft_rad2_precomp_inplace((acb_ptr)L->res, L->plan_NN, prec);
   if(verbose){printf("iFFT done.\n");fflush(stdout);}
 

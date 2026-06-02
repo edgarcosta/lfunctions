@@ -3,11 +3,13 @@
    switch to FLINT's acb_dft, and guards the numerical tightness that the
    hand-rolled radix-2 FFT used to provide.
 
-   Convention.  The project's old "acb_ifft" was forward-then-reverse, i.e.
-       F-[v](k) = sum_j v_j e(-jk/n)          (NO 1/n)
-   FLINT's *forward* acb_dft uses exactly the kernel e(-jk/n), so the old
-   unnormalised acb_ifft maps to FLINT's FORWARD transform -- NOT its inverse,
-   which carries the 1/n.  The cyclic convolution keeps 1/n applied exactly once.
+   Convention.  FLINT's *forward* acb_dft has kernel e(-jk/n) (NO 1/n); Part A pins it
+   and the cyclic convolution (which carries 1/n exactly once) against golden values at
+   n=4.  The project's old "acb_ifft" was the *unnormalised inverse* DFT (a forward FFT
+   then index-reverse, kernel e(+jk/n)) -- the opposite-sign transform, not FLINT's
+   forward one.  src/compute.c's final iFFT can still use the forward transform because
+   the data it feeds is Hermitian (do_pre_iFFT_errors: res[NN-k]=conj(res[k])), and on
+   Hermitian input the forward and inverse DFTs coincide and are real-valued.
 
    Tightness (upstream flintlib/flint#2709).  FLINT's rad2 root table accumulates ~log2(n) bits of error, which
    at fft_NN = 2^16 makes a naive plan ~1000x looser than the old FFT (which
