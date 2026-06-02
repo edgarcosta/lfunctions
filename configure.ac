@@ -189,6 +189,37 @@ lfun_locate_lib () {
   done
 }
 
+# install prefix of a resolved path: the part before its first include/lib/lib64
+# component (so /usr/local/include/flint/flint.h -> /usr/local, /usr/lib64/x -> /usr).
+# Empty for a default-search placeholder or an unrecognized layout (e.g. an in-tree
+# .libs build), which suppresses the split check below rather than risk a false alarm.
+lfun_prefix_of () {
+  case $1 in
+    "("*)        return ;;                           # default-search placeholder
+    */include/*) lfun_pp=${1%%/include/*} ;;
+    */lib/*)     lfun_pp=${1%%/lib/*} ;;
+    */lib64/*)   lfun_pp=${1%%/lib64/*} ;;
+    *)           return ;;                           # unrecognized layout
+  esac
+  # resolve symlinks/.. so a symlinked install prefix (e.g. SAGE_LOCAL) is not seen as
+  # split: locate_lib already canonicalizes the lib path but locate_header does not.
+  lfun_rp=`cd "$lfun_pp" 2>/dev/null && pwd -P` && printf '%s\n' "$lfun_rp" || printf '%s\n' "$lfun_pp"
+}
+
+# warn (non-fatal) when a dependency's header and library come from different install
+# prefixes: the build would compile against one copy and link another -- a silent ABI
+# mismatch. Pass --with-NAME=DIR to pin both to the same prefix.
+lfun_check_split () { # NAME HEADER LIB
+  lfun_hp=`lfun_prefix_of "$2"`
+  lfun_lp=`lfun_prefix_of "$3"`
+  AS_IF([test -n "$lfun_hp" && test -n "$lfun_lp" && test "x$lfun_hp" != "x$lfun_lp"],
+    [AC_MSG_WARN([$1 header and library resolve to different prefixes --])
+     AC_MSG_WARN([  you may compile against one $1 and link another:])
+     AC_MSG_WARN([    hdr $2])
+     AC_MSG_WARN([    lib $3])
+     AC_MSG_WARN([  pass --with-$1=DIR to pin both.])])
+}
+
 lfun_flint_h=`lfun_locate_header flint/flint.h`
 lfun_flint_l=`lfun_locate_lib flint`
 lfun_gmp_h=`lfun_locate_header gmp.h`
@@ -214,6 +245,12 @@ done
 # `echo $VAR` (unquoted) collapses the leading/duplicate spaces left by the accumulators
 lfun_inc_report=`echo $INC_DIRS`; test -n "$lfun_inc_report" || lfun_inc_report="(none added; compiler default search path)"
 lfun_lib_report=`echo $LIB_DIRS`; test -n "$lfun_lib_report" || lfun_lib_report="(none added; linker default search path)"
+
+# flag dependencies whose header and library come from different installs (non-fatal)
+lfun_check_split flint      "$lfun_flint_h"  "$lfun_flint_l"
+lfun_check_split gmp        "$lfun_gmp_h"    "$lfun_gmp_l"
+lfun_check_split mpfr       "$lfun_mpfr_h"   "$lfun_mpfr_l"
+lfun_check_split primesieve "$lfun_psieve_h" "$lfun_psieve_l"
 
 AC_MSG_NOTICE([lfunctions configured:
     os         : $lfun_os
