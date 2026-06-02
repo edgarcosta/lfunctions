@@ -34,6 +34,10 @@ void fprint_errors(FILE *f, Lerror_t ecode) {
     fprintf(f, "Fatal error in stationary point routine.\n");
   if (ecode & ERR_SPEC_VALUE)
     fprintf(f, "Fatal error in special value routine.\n");
+  if (ecode & ERR_POWER)
+    fprintf(f, "L-function appears to be a perfect power or to have a repeated "
+               "primitive factor (doubled zeros); set Lparams.allow_nonprimitive "
+               "to compute anyway.\n");
   // warnings
   if (ecode & ERR_INSUFF_EULER)
     fprintf(f, "Don't appear to have enough Euler factors.\n");
