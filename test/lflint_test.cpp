@@ -92,7 +92,8 @@ static void test_arithmetic() {
   x *= slong{2};
   assert(fmpz_get_si(x._fmpz()) == 72);
 
-  // ZZ *= ulong (fmpz_mul_ui) — added to avoid sign-narrowing at smalljac.cpp:301 `qn *= q`
+  // ZZ *= ulong (fmpz_mul_ui) — multiply by an unsigned value without
+  // narrowing it through slong (pattern `qn *= q`, q a ulong)
   ZZ y(slong{6});
   y *= ulong{7};
   assert(fmpz_get_si(y._fmpz()) == 42);
@@ -151,7 +152,7 @@ static void test_divisibility() {
   ZZ q = minus_twelve.divexact(slong{4});
   assert(fmpz_get_si(q._fmpz()) == -3);
 
-  // smalljac.cpp:202 pattern: `while(d.divisible(4)) d = d.divexact(4);`
+  // realistic usage — strip all factors of 4: `while (d.divisible(4)) d = d.divexact(4);`
   ZZ d(slong{-48});
   while (d.divisible(slong{4})) d = d.divexact(slong{4});
   assert(fmpz_get_si(d._fmpz()) == -3);
@@ -179,7 +180,7 @@ static void test_to_conversion() {
   assert(y.to<slong>()  == 1024);
   assert(u.to<ulong>()  == ulong{7});
   assert(y.to<double>() == 1024.0);
-  // smalljac.cpp:97 pattern: `(polynomial[i] % pol->mod.n).to<mp_limb_t>()`
+  // realistic usage — reduce mod n, then narrow: `(coeff % n).to<mp_limb_t>()`
   // mp_limb_t == ulong; same specialisation
   assert((y % ulong{17}).to<ulong>() == ulong{1024 % 17});
 }
