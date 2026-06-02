@@ -18,6 +18,8 @@
 // kept tighter than the wprec butterfly arithmetic, the rigorous output balls stay
 // as tight as the old direct-twiddle FFT. Without it FLINT is ~1000x looser at
 // fft_NN=2^16. 32 >> log2(fft_NN/2)=15, with comfortable headroom; cost is one-time.
+// Upstream issue (still present in FLINT 3.6.0): flintlib/flint#2709 -- revisit/shrink
+// this margin if/when the rad2 root table is computed at boosted precision upstream.
 #define DFT_PLAN_EXTRA_PREC (32)
 #define verbose (false) // compile-time toggle for all diagnostic printf
 #define BAD_64 (1LL<<62) // sentinel: an arb value did not pin to a unique integer

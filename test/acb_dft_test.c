@@ -9,7 +9,7 @@
    unnormalised acb_ifft maps to FLINT's FORWARD transform -- NOT its inverse,
    which carries the 1/n.  The cyclic convolution keeps 1/n applied exactly once.
 
-   Tightness.  FLINT's rad2 root table accumulates ~log2(n) bits of error, which
+   Tightness (upstream flintlib/flint#2709).  FLINT's rad2 root table accumulates ~log2(n) bits of error, which
    at fft_NN = 2^16 makes a naive plan ~1000x looser than the old FFT (which
    computed every twiddle directly).  Building the plan at wprec + DFT_PLAN_EXTRA_PREC
    restores tightness (the old hand-rolled FFT was empirically ~0.5-0.6x, i.e. the
