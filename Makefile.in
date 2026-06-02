@@ -84,7 +84,7 @@ $(BUILD_DIRS): % :
 print-%:
 	@echo '$*=$($*)'
 
-.PHONY: clean check configure
+.PHONY: clean check check-highdeg configure
 
 # Regression suite. Exit code is the oracle (assertions are on by default).
 # Stale/colliding g_<mu> caches poison results, so scrub them before the suite
@@ -98,7 +98,8 @@ print-%:
 # binary needs arguments. (artin runs an embedded self-test when given none.)
 CHECK_EXCLUDE = \
 	examples/bound \
-	examples/rational
+	examples/rational \
+	test/highdeg_check
 
 CHECK_BINS = $(filter-out $(addprefix build/, $(addsuffix .exe, $(CHECK_EXCLUDE))), $(TESTS) $(EXECUTABLES))
 
@@ -113,3 +114,34 @@ check: all
 	done; \
 	if [ $$fail -ne 0 ]; then echo 'CHECK FAILED'; exit 1; fi; \
 	echo 'CHECK PASSED'
+
+# High-degree regression suite (bead lfunctions-8dz): degree 2-9 objects whose
+# good Euler factors come from smalljac's lpdata and whose certified outputs are
+# checked against LMFDB / Pari golden values in test/highdeg/objects.yaml.
+# BACKEND=smalljac (default, needs a genus-2 lpdata) or pari (needs Sage) selects
+# the genus-2 good-factor source; ec/sympow always use lpdata. Run from a clean
+# cache dir; degree>=3 emits a tolerated ERR_RH_ERROR (bead lfunctions-0zo).
+BACKEND ?= smalljac
+LPDATA ?= /usr/local/bin/lpdata
+HIGHDEG_OBJECTS ?= test/highdeg/objects.yaml
+check-highdeg: all
+	@rm -f g_[0-9]*
+	@fail=0; xpass=0; \
+	for entry in $$(python3 -c "import yaml;print(' '.join(o['label']+':'+('1' if o.get('xfail') else '0') for o in yaml.safe_load(open('$(HIGHDEG_OBJECTS)'))['objects']))"); do \
+	  label=$${entry%%:*}; xf=$${entry##*:}; \
+	  inf=build/test/highdeg_$$label.in; logf=build/test/highdeg_$$label.log; \
+	  printf 'RUN  %s\n' "$$label"; \
+	  if BACKEND=$(BACKEND) LPDATA=$(LPDATA) python3 test/highdeg/gen.py "$$label" \
+	        --driver build/test/highdeg_check.exe --objects $(HIGHDEG_OBJECTS) > $$inf 2>$$logf \
+	     && ./build/test/highdeg_check.exe $$inf; then ok=1; else ok=0; fi; \
+	  if [ "$$xf" = 1 ]; then \
+	    if [ $$ok = 0 ]; then printf 'XFAIL %s (known-unsupported)\n' "$$label"; \
+	    else printf 'XPASS %s (now passes -- delete `xfail` in objects.yaml to promote it)\n' "$$label"; xpass=1; fi; \
+	  else \
+	    if [ $$ok = 1 ]; then printf 'PASS %s\n' "$$label"; \
+	    else printf 'FAIL %s\n' "$$label"; cat $$logf; fail=1; fi; \
+	  fi; \
+	  rm -f $$inf $$logf g_[0-9]*; \
+	done; \
+	if [ $$fail -ne 0 ]; then echo 'CHECK-HIGHDEG FAILED'; exit 1; fi; \
+	if [ $$xpass -ne 0 ]; then echo 'CHECK-HIGHDEG PASSED (with XPASS -- see above)'; else echo 'CHECK-HIGHDEG PASSED'; fi
