@@ -308,6 +308,15 @@ Lerror_t Lfunc_compute(Lfunc_t Lf)
 
   int64_t prec=L->wprec;
 
+  // Reject perfect powers / repeated-factor L-functions up front: their doubled
+  // zeros break zero-finding (stat_point -> ERR_DBL_ZERO -> RH count mismatch).
+  // The caller can override via Lparams.allow_nonprimitive.
+  {
+    Lerror_t guard = power_guard(L);
+    if(fatal_error(guard))
+      return guard;
+  }
+
   #ifdef BUTHE
   buthe_Wf_error(L); // add the error for the missing tail
   if(verbose){printf("Buthe Wf = ");arb_printd(L->buthe_Wf,20);printf("\n");fflush(stdout);}

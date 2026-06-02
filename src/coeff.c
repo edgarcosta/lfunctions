@@ -2,6 +2,7 @@
 #include "glfunc.h"
 #include "glfunc_internals.h"
 #include "primesieve.h"
+#include <flint/acb_mat.h>
 
 #ifdef __cplusplus
 extern "C"{
@@ -84,6 +85,42 @@ uint64_t Lfunc_nmax(Lfunc_t Lf)
   return L->M;
 }
 
+// Rigorously decide whether the polynomial f (degree d >= 1) is squarefree
+// (distinct roots), via res(f, f') computed as the Sylvester-matrix determinant.
+// Returns true ONLY if the determinant ball provably excludes zero, so a `true`
+// is a rigorous certificate that f has no repeated root. A `false` means either
+// f has a repeated root or the balls were too wide to decide -- both are safe to
+// treat as "not certified squarefree".
+static bool poly_is_squarefree_certified(const acb_poly_t f, int64_t prec)
+{
+  slong d = acb_poly_degree(f);
+  if(d < 1)
+    return false;
+  acb_poly_t fp;
+  acb_poly_init(fp);
+  acb_poly_derivative(fp, f, prec);     // f', degree d-1
+  slong n = 2*d - 1;                    // Sylvester matrix of (f, f') is n x n
+  acb_mat_t S;
+  acb_mat_init(S, n, n);
+  acb_mat_zero(S);
+  // top d-1 rows: coeffs of f (highest degree first), row i shifted right by i
+  for(slong i = 0; i < d-1; i++)
+    for(slong j = 0; j <= d; j++)
+      acb_poly_get_coeff_acb(acb_mat_entry(S, i, i+j), f, d-j);
+  // bottom d rows: coeffs of f' (highest degree first), row i shifted right by i
+  for(slong i = 0; i < d; i++)
+    for(slong j = 0; j <= d-1; j++)
+      acb_poly_get_coeff_acb(acb_mat_entry(S, d-1+i, i+j), fp, (d-1)-j);
+  acb_t det;
+  acb_init(det);
+  acb_mat_det(det, S, prec);
+  bool sqfree = !acb_contains_zero(det);
+  acb_clear(det);
+  acb_mat_clear(S);
+  acb_poly_clear(fp);
+  return sqfree;
+}
+
 #ifdef BUTHE
 void use_inv_lpoly(Lfunc *L, uint64_t p, acb_poly_t c, acb_poly_t f, uint64_t prec)
   #else
@@ -151,6 +188,26 @@ void use_lpoly(Lfunc *L, uint64_t p, const acb_poly_t f)
   //if(p<=11){printf("Inverted poly\n");
   //acb_poly_printd(inv_poly,20);printf("\n------------------\n");
   //}
+  // ---- power-guard detection signals, accumulated over full-degree (good) primes ----
+  // a_p (analytic) is the T^1 coefficient of the inverse local factor.
+  if(acb_poly_degree(f) == (slong)L->degree)
+  {
+    acb_t ap;
+    arb_t aap;
+    acb_init(ap);
+    arb_init(aap);
+    acb_poly_get_coeff_acb(ap, inv_poly, 1);
+    acb_abs(aap, ap, prec);            // |a_p|
+    arb_mul(aap, aap, aap, prec);      // |a_p|^2
+    arb_add(L->moment_sum, L->moment_sum, aap, prec);
+    L->moment_count++;
+    // one squarefree full-degree factor rigorously certifies "no repeated factor"
+    if(!L->seen_sqfree_fulldeg && L->moment_count <= POWER_SQFREE_PROBES)
+      if(poly_is_squarefree_certified(f, prec))
+        L->seen_sqfree_fulldeg = true;
+    arb_clear(aap);
+    acb_clear(ap);
+  }
   #ifdef BUTHE
   use_inv_lpoly(L,p,inv_poly,n_poly,prec);
 #else
@@ -163,6 +220,37 @@ void use_lpoly(Lfunc *L, uint64_t p, const acb_poly_t f)
   acb_poly_clear(n_poly);
   acb_poly_clear(inv_poly);
 
+}
+
+// Power / repeated-factor guard. Call at the top of Lfunc_compute, after the Euler
+// factors have been supplied (so the signals are populated). Returns ERR_POWER if L
+// looks like a perfect power / has a repeated primitive factor and the caller did not
+// set allow_nonprimitive; ERR_SUCCESS otherwise.
+//
+// Belt-and-suspenders (sound, not complete): reject ONLY when BOTH
+//   (1) no supplied full-degree local factor was proven squarefree, AND
+//   (2) the empirical 2nd moment (1/#) sum |a_p|^2 >= POWER_MOMENT_THRESHOLD.
+// (1) alone certifies a genuine primitive as safe, so a primitive is never false-rejected.
+Lerror_t power_guard(Lfunc *L)
+{
+  if(L->allow_nonprimitive == YES)   // caller opted out of the guard
+    return ERR_SUCCESS;
+  if(L->seen_sqfree_fulldeg)         // rigorous certificate: no repeated factor
+    return ERR_SUCCESS;
+  if(L->moment_count == 0)           // no good primes seen; can't judge -> proceed
+    return ERR_SUCCESS;
+  arb_t S, thresh, diff;
+  arb_init(S);
+  arb_init(thresh);
+  arb_init(diff);
+  arb_div_ui(S, L->moment_sum, L->moment_count, L->wprec); // empirical 2nd moment
+  arb_set_d(thresh, POWER_MOMENT_THRESHOLD);
+  arb_sub(diff, S, thresh, L->wprec);
+  bool power_like = arb_is_positive(diff); // S - threshold > 0 for the whole ball
+  arb_clear(diff);
+  arb_clear(thresh);
+  arb_clear(S);
+  return power_like ? ERR_POWER : ERR_SUCCESS;
 }
 
 void Lfunc_use_lpoly(Lfunc_t Lf, uint64_t p, const acb_poly_t poly)
