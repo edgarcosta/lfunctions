@@ -1,0 +1,363 @@
+# High-degree certified regression objects (bead lfunctions-8dz), conforming to
+# INTERFACES.md section A. Objects, ranks, root numbers, and bad Euler factors come
+# from the LMFDB (https://www.lmfdb.org): elliptic-curve leading L-values from
+# ec_mwbsd.special_value and bad reduction types from ec_localdata; genus-2 eqn /
+# analytic_rank / root_number / leading_coeff / bad_lfactors from g2c_curves; degree-2
+# first zeros from lfunc_search.z1. Symmetric-power data (Sym^2,4,5,6,7,8 of 11.a) and
+# the rank-5 curve 19047851.a1 (absent from lfunc_search) were computed with Pari/GP via
+# Sage 10.8 (lfunsympow / lfuncreate, lfunorderzero, lfunzeros, lfunrootres/ellrootno).
+# Bad factors are stored already-Sym^k'd, ascending; the driver injects them verbatim.
+
+objects:
+  # ---- (1) Six elliptic curves, ranks 0-5 (degree 2) ----
+  - label: "11.a1"
+    kind: ec
+    curve: "[0,-1,1,-10,-20]"
+    sym: 1
+    conductor: 11
+    bad_factors:
+      11: [1, -1]            # split multiplicative, a_11 = +1
+    expected:
+      rank: 0
+      epsilon: [1.0, 0.0]
+      first_zero: "6.36261389471308870139"
+      first_zero_err: 1.0e-15
+      taylor: "0.25384186085591068433775892335043887465"
+      taylor_err: 1.0e-12
+      tolerate_rh_error: false
+
+  - label: "37.a1"
+    kind: ec
+    curve: "[0,0,1,-1,0]"
+    sym: 1
+    conductor: 37
+    bad_factors:
+      37: [1, 1]             # non-split multiplicative, a_37 = -1
+    expected:
+      rank: 1
+      epsilon: [-1.0, 0.0]
+      first_zero: "5.00317001400665869534627315571"
+      first_zero_err: 1.0e-15
+      taylor: "0.30599977383405230182048368332169132525"
+      taylor_err: 1.0e-12
+      tolerate_rh_error: false
+
+  - label: "389.a1"
+    kind: ec
+    curve: "[0,1,1,-2,0]"
+    sym: 1
+    conductor: 389
+    bad_factors:
+      389: [1, -1]           # split multiplicative, a_389 = +1
+    expected:
+      rank: 2
+      epsilon: [1.0, 0.0]
+      first_zero: "2.87609907126046520176342609472"
+      first_zero_err: 1.0e-15
+      taylor: "0.75931650028842677023019260789484245311"
+      taylor_err: 1.0e-12
+      tolerate_rh_error: false
+
+  - label: "5077.a1"
+    kind: ec
+    curve: "[0,0,1,-7,6]"
+    sym: 1
+    conductor: 5077
+    bad_factors:
+      5077: [1, 1]           # non-split multiplicative, a_5077 = -1
+    expected:
+      rank: 3
+      epsilon: [-1.0, 0.0]
+      first_zero: "2.05247285847993976968922276314"
+      first_zero_err: 1.0e-15
+      taylor: "1.7318499001193006897919750850614576885"
+      taylor_err: 1.0e-12
+      tolerate_rh_error: false
+
+  - label: "234446.a1"
+    kind: ec
+    curve: "[1,-1,0,-79,289]"
+    sym: 1
+    conductor: 234446
+    bad_factors:
+      2: [1, 1]              # non-split multiplicative, a_2 = -1
+      117223: [1, -1]        # split multiplicative, a_117223 = +1
+    expected:
+      rank: 4
+      epsilon: [1.0, 0.0]
+      first_zero: "1.733532247157827"
+      first_zero_err: 1.0e-9
+      taylor: "8.9438473959008890464175916832904152377"
+      taylor_err: 1.0e-12
+      tolerate_rh_error: false
+
+  - label: "19047851.a1"
+    kind: ec
+    curve: "[0,0,1,-79,342]"
+    sym: 1
+    conductor: 19047851
+    bad_factors:
+      19047851: [1, 1]       # non-split multiplicative, a_p = -1
+    expected:
+      rank: 5
+      epsilon: [-1.0, 0.0]
+      first_zero: "1.395690883758116943365776702611921093653"
+      first_zero_err: 1.0e-15
+      taylor: "30.285687553864516827653775999631857179"
+      taylor_err: 1.0e-12
+      tolerate_rh_error: false
+
+  # ---- (2) Five genus-2 curves, ranks 0-4 (degree 4) ----
+  - label: "169.a"
+    kind: genus2
+    curve: "[[0,0,0,0,1,1],[1,1,0,1]]"
+    sym: 1
+    conductor: 169
+    bad_factors:
+      13: [1, 5, 13]
+    force_factors:        # p=2 good, but smalljac's completed-square sextic can't compute it (char 2); from git-Pari hyperellcharpoly (= LMFDB)
+      2: [1, 3, 5, 6, 4]
+    expected:
+      rank: 0
+      epsilon: [1.0, 0.0]
+      first_zero: "5.06823463540602925038855173519"
+      first_zero_err: 1.0e-15
+      taylor: "0.0904903908324296291135897572580154122647328643874476536"
+      taylor_err: 1.0e-12
+      tolerate_rh_error: true
+
+  - label: "587.a"
+    kind: genus2
+    curve: "[[0,-1,-1],[1,1,0,1]]"
+    sym: 1
+    conductor: 587
+    bad_factors:
+      587: [1, 35, 551, -587]
+    force_factors:        # see 169.a: p=2 from git-Pari hyperellcharpoly (= LMFDB)
+      2: [1, 3, 5, 6, 4]
+    expected:
+      rank: 1
+      epsilon: [-1.0, 0.0]
+      first_zero: "4.54506016608"
+      first_zero_err: 1.0e-9
+      taylor: "0.11135151106422023731910273620872358675238584539624"
+      taylor_err: 1.0e-12
+      tolerate_rh_error: true
+
+  - label: "3319.a"
+    kind: genus2
+    curve: "[[0,0,0,1,2,1],[1,1,0,1]]"
+    sym: 1
+    conductor: 3319
+    bad_factors:
+      3319: [1, -73, 3245, 3319]
+    force_factors:        # see 169.a: p=2 from git-Pari hyperellcharpoly (= LMFDB)
+      2: [1, 3, 5, 6, 4]
+    expected:
+      rank: 2
+      epsilon: [1.0, 0.0]
+      first_zero: "3.56807591826"
+      first_zero_err: 1.0e-9
+      taylor: "0.19236316222443534056407562323024291719956910370"
+      taylor_err: 1.0e-12
+      tolerate_rh_error: true
+
+  - label: "25913.a"
+    kind: genus2
+    curve: "[[0,-2,-1,1],[1,1,0,1]]"
+    sym: 1
+    conductor: 25913
+    bad_factors:
+      25913: [1, -62, 25974, -25913]
+    force_factors:        # see 169.a: p=2 from git-Pari hyperellcharpoly (= LMFDB)
+      2: [1, 3, 5, 6, 4]
+    expected:
+      rank: 3
+      epsilon: [-1.0, 0.0]
+      first_zero: "2.8902207303"
+      first_zero_err: 1.0e-9
+      taylor: "0.3912140276451479375182012957214634875676714"
+      taylor_err: 1.0e-12
+      tolerate_rh_error: true
+
+  - label: "440509.a"
+    kind: genus2
+    curve: "[[6,9,0,-5,-1,1],[1,1,0,1]]"
+    sym: 1
+    conductor: 440509
+    bad_factors:
+      440509: [1, -371, 440137, 440509]
+    force_factors:        # see 169.a: p=2 from git-Pari hyperellcharpoly (= LMFDB)
+      2: [1, 3, 5, 6, 4]
+    expected:
+      rank: 4
+      epsilon: [1.0, 0.0]
+      first_zero: "2.2509176285"
+      first_zero_err: 1.0e-9
+      taylor: "1.12315372441117201344139992729702991863265"
+      taylor_err: 1.0e-12
+      tolerate_rh_error: true
+
+  # ---- genus-2 curves with extra endomorphisms (degree 4) ----
+  - label: "294.a"          # split: Jac ~_Q E1 x E2 (distinct); geom_end_alg "Q x Q", ST SU(2)xSU(2)
+    kind: genus2
+    curve: "[[0,0,1,0,1],[1,0,0,1]]"
+    sym: 1
+    conductor: 294
+    bad_factors:            # 2,3,7 bad (p=2 supplied here, so no force_factors needed)
+      2: [1, 2, 3, 2]
+      3: [1, 1, 1, -3]
+      7: [1, 0, -1]
+    expected:
+      rank: 0
+      epsilon: [1.0, 0.0]
+      first_zero: "4.13559084051"
+      first_zero_err: 1.0e-9
+      taylor: "0.1489689799540566411026646628887640297214854916698568385"
+      taylor_err: 1.0e-12
+      tolerate_rh_error: true
+
+  - label: "448.a"          # CM x non-CM split; geom_end_alg "CM x Q", ST N(U(1)xSU(2))
+    kind: genus2
+    curve: "[[-7,0,0,0,1],[0,1,0,1]]"
+    sym: 1
+    conductor: 448
+    bad_factors:            # 2,7 bad (p=2 supplied here)
+      2: [1, 1]
+      7: [1, -1, 7, -7]
+    expected:
+      rank: 0
+      epsilon: [1.0, 0.0]
+      first_zero: "3.67478222653"
+      first_zero_err: 1.0e-9
+      taylor: "0.2164663601475456895859403663284466809402159513646999589"
+      taylor_err: 1.0e-12
+      tolerate_rh_error: true
+
+  - label: "529.a"          # real multiplication; geom_end_alg "RM", ST SU(2)xSU(2)
+    kind: genus2
+    curve: "[[0,0,0,0,0,-1],[1,1,0,1]]"
+    sym: 1
+    conductor: 529
+    bad_factors:
+      23: [1, -2, 1]
+    force_factors:          # p=2 good (odd conductor); from git-Pari hyperellcharpoly
+      2: [1, 1, 3, 2, 4]
+    expected:
+      rank: 0
+      epsilon: [1.0, 0.0]
+      first_zero: "3.67521748643984848866430372052"
+      first_zero_err: 1.0e-15
+      taylor: "0.2484318665905996812072503393142383906699109867831601343"
+      taylor_err: 1.0e-12
+      tolerate_rh_error: true
+
+  # ---- known-unsupported: square of an elliptic curve (L = L(E)^2) ----
+  # Jac(196.a) ~_Q E^2 with E = 14.a (conductor 14), so L = L(14.a)^2 and every zero
+  # is doubled. The library cannot yet resolve repeated factors / double zeros, so this
+  # is expected to FAIL: it is marked `xfail` and wired into the suite now, so that when
+  # square support lands, deleting `xfail` promotes it to a real test. smalljac still
+  # computes its (squared) Euler factors fine; the failure is in the L-function solver.
+  - label: "196.a"          # geom_end_alg "M_2(Q)", ST E_1: Q-isogenous to E^2 (= 14.a^2)
+    kind: genus2
+    curve: "[[1,3,6,7,6,3,1],[0,1,1]]"
+    sym: 1
+    conductor: 196
+    bad_factors:            # (1+T)^2 at 2 and (1-T)^2 at 7 -- squares, since L = L(E)^2
+      2: [1, 2, 1]
+      7: [1, -2, 1]
+    xfail: "Jac ~_Q E^2 (14.a^2); L = L(E)^2 has repeated factors / doubled zeros not yet supported"
+    expected:               # the L(14.a)^2 values, ready for when square support lands
+      rank: 0
+      epsilon: [1.0, 0.0]
+      first_zero: "5.57928681743"
+      first_zero_err: 1.0e-9
+      taylor: "0.109047665190859529223076770287488695296415160221137294"
+      taylor_err: 1.0e-12
+      tolerate_rh_error: true
+
+  # ---- (3) Six symmetric powers of 11.a (degrees 3,5,6,7,8,9) ----
+  # Pari lfunsympow; taylor OMITTED (Pari/library leading-coeff normalisation differs).
+  - label: "11.a.sym2"
+    kind: sympow
+    curve: "[0,-1,1,-10,-20]"
+    sym: 2
+    conductor: 121
+    bad_factors:
+      11: [1, -1]
+    expected:
+      rank: 0
+      epsilon: [1.0, 0.0]
+      first_zero: "3.8992814947713447822425023053642116570"
+      first_zero_err: 1.0e-15
+      tolerate_rh_error: true
+
+  - label: "11.a.sym4"
+    kind: sympow
+    curve: "[0,-1,1,-10,-20]"
+    sym: 4
+    conductor: 14641
+    bad_factors:
+      11: [1, -1]
+    expected:
+      rank: 0
+      epsilon: [1.0, 0.0]
+      first_zero: "1.4878126090919550218131577780362869894"
+      first_zero_err: 1.0e-15
+      tolerate_rh_error: true
+
+  - label: "11.a.sym5"
+    kind: sympow
+    curve: "[0,-1,1,-10,-20]"
+    sym: 5
+    conductor: 161051
+    bad_factors:
+      11: [1, -1]
+    expected:
+      rank: 1
+      epsilon: [-1.0, 0.0]
+      first_zero: "1.9640371681288479784191771260430560146"
+      first_zero_err: 1.0e-15
+      tolerate_rh_error: true
+
+  - label: "11.a.sym6"
+    kind: sympow
+    curve: "[0,-1,1,-10,-20]"
+    sym: 6
+    conductor: 1771561
+    bad_factors:
+      11: [1, -1]
+    expected:
+      rank: 0
+      epsilon: [1.0, 0.0]
+      first_zero: "0.56499970342744734231864716960944810509"
+      first_zero_err: 1.0e-15
+      tolerate_rh_error: true
+
+  - label: "11.a.sym7"
+    kind: sympow
+    curve: "[0,-1,1,-10,-20]"
+    sym: 7
+    conductor: 19487171
+    bad_factors:
+      11: [1, -1]
+    expected:
+      rank: 1
+      epsilon: [-1.0, 0.0]
+      first_zero: "1.0456378625113248438807661996848853248"
+      first_zero_err: 1.0e-15
+      tolerate_rh_error: true
+
+  - label: "11.a.sym8"
+    kind: sympow
+    curve: "[0,-1,1,-10,-20]"
+    sym: 8
+    conductor: 214358881
+    bad_factors:
+      11: [1, -1]
+    expected:
+      rank: 0
+      epsilon: [1.0, 0.0]
+      first_zero: "0.51129562620003560384950671702133524278"
+      first_zero_err: 1.0e-15
+      tolerate_rh_error: true

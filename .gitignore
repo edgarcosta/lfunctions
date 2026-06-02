@@ -68,3 +68,6 @@ aclocal.m4
 config.log
 config.status
 configure~
+
+# smalljac/lpdata build (created by test/highdeg/install_smalljac.sh in the high-degree CI workflow)
+/test/highdeg/smalljac/
