@@ -371,6 +371,26 @@ uint64_t turing_count(arb_t res, Lfunc *L, int64_t prec) {
   return zeros_found;
 }
 
+turing_count_status_t turing_count_status(const arb_t tcount, uint64_t zeros_found, int64_t prec) {
+  arb_t tmp;
+  arb_init(tmp);
+
+  arb_sub_ui(tmp, tcount, zeros_found, prec); // tcount - zeros_found
+  if (arb_is_negative(tmp)) {                 // hi < zeros_found : impossible => bug
+    arb_clear(tmp);
+    return TURING_COUNT_TOO_MANY;
+  }
+
+  arb_sub_ui(tmp, tmp, 1, prec); // tcount - (zeros_found+1)
+  if (!arb_is_negative(tmp)) {   // hi >= zeros_found+1 : cannot rule out a miss
+    arb_clear(tmp);
+    return TURING_COUNT_TOO_FEW;
+  }
+
+  arb_clear(tmp);
+  return TURING_COUNT_CONFIRMED;
+}
+
 Lerror_t turing_check_RH(Lfunc *L, int64_t prec) {
   static bool init = false;
   static arb_t tmp, sigma, a, b, t0, h, tcount;
@@ -435,20 +455,48 @@ Lerror_t turing_check_RH(Lfunc *L, int64_t prec) {
   if (verbose)
     printf("We found %lu zeros.\n", zeros_found);
 
-  // turing count should now bracket zeros_found
+  // tcount is a rigorous interval [lo,hi] for the (real, integer) zero count
+  // N(t0) up to the Turing height t0.  zeros_found is the number of zeros we
+  // actually isolated below t0; each is a rigorous sign change of the
+  // real-valued Z-function and hence a genuine zero on the critical line, so
+  //                         zeros_found <= N(t0)
+  // ALWAYS holds.  RH/zero-completeness up to t0 is confirmed iff
+  // N(t0) == zeros_found, i.e. iff we did not miss any zero.
+  //
+  // Therefore:
+  //   - "too many" is a genuine inconsistency (a spurious/extra zero or a bug)
+  //     ONLY when the analytic UPPER bound drops below the count we found,
+  //     i.e. hi < zeros_found.  The earlier test used the analytic LOWER bound
+  //     (lo > zeros_found-1); since a loose lower bound is consistent with the
+  //     rigorous fact zeros_found <= N(t0), that test raised a false alarm and
+  //     fired ERR_RH_ERROR for every L-function whose tcount interval was wider
+  //     than +-1 (which it is for degree >= 3, where the Turing window is small
+  //     relative to the degree-proportional S(t) bound -- see the note below).
+  //   - completeness is confirmed when hi < zeros_found+1 (so the only integer
+  //     N(t0) in [lo,hi] that is >= zeros_found is zeros_found itself); else we
+  //     cannot rule out a missed zero ("too few").
+  //
+  // NOTE: confirming completeness still requires the half-width of tcount to be
+  // below 1.  That half-width is dominated by the rigorous bound on
+  // int S(t) dt (St_int), whose leading term grows like the degree r while the
+  // Turing window h = B/TURING_RATIO = 32/r shrinks with r; the ratio therefore
+  // degrades like r^2 and exceeds 1 for r >= 3 with the current grid scaling
+  // (B = 512/r, fixed outside this file).  Widening the window is required to
+  // confirm completeness at high degree; the fix here removes the false "too
+  // many" alarm and reports the honest "too few" when the bound is too wide.
 
-  arb_sub_ui(tmp, tcount, zeros_found - 1, prec);
-  if (!arb_is_positive(tmp)) {
+  switch (turing_count_status(tcount, zeros_found, prec)) {
+  case TURING_COUNT_TOO_MANY:
     fprintf(stderr, "Found too many zeros.\n");
     return ERR_RH_ERROR;
-  }
-  arb_sub_ui(tmp, tmp, 2, prec);
-  if (!arb_is_negative(tmp)) {
+  case TURING_COUNT_TOO_FEW:
     fprintf(stderr, "Found too few zeros.\n");
     return ERR_RH_ERROR;
+  case TURING_COUNT_CONFIRMED:
+    return 0;
   }
 
-  return 0; // success
+  return ERR_RH_ERROR;
 }
 
 #ifdef __cplusplus
