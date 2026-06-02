@@ -65,6 +65,9 @@ extern "C"{
 
     arb_t **Gs;        // Gs[k][i-low_i] = k-th Taylor coeff G^(k)(u_i)/k! at u_i=i*(2*pi/B); built in g.c
 
+    double max_t; // resolved output-window half-height H (analytic t units)
+    uint64_t max_fft_NN; // resolved cap on fft_NN
+
     // computation related
     uint64_t fft_N; // length of the short DFT for the Euler-product convolutions (2^11)
     uint64_t fft_NN; // length of the final output iFFT (2^16)

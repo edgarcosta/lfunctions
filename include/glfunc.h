@@ -37,6 +37,8 @@
 #define ERR_BAD_DEGREE ((uint64_t) 1024) //fatal error when the degree is too low or too high
 #define ERR_SPEC_NZ ((uint64_t) 2048) // special value routine requires Im s >= 0.
 #define ERR_G_EXTENT ((uint64_t) 4096) // fatal: G grid does not extend low enough (conductor too large for the fixed grid floor, or a cached grid was reused)
+#define ERR_WINDOW_TOO_LARGE ((uint64_t) 8192)  // requested window needs fft_NN > max_fft_NN
+#define ERR_WINDOW_TOO_SMALL ((uint64_t) 16384) // requested window below the valid floor
 
 // warnings
 #define ERR_SOME_DATA ((uint64_t) 1<<32) // We had some sensible data, but not to end of Turing Zone
@@ -69,6 +71,8 @@ extern "C"{
     int self_dual; // -1 = DK, 0 = No, 1 = Yes
     int rank; // -1 = DK
     char *cache_dir;
+    double max_t;        // output-window half-height H; <= 0 => default 64/degree
+    uint64_t max_fft_NN; // cap on output transform length; 0 => default 1<<16
   } Lparams_t;
 
   typedef struct{

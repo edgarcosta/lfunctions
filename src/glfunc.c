@@ -64,6 +64,10 @@ void fprint_errors(FILE *f, Lerror_t ecode) {
     fprintf(f,
             "G data does not extend low enough for this conductor (the cached "
             "or computed grid floor is too high).\n");
+  if (ecode & ERR_WINDOW_TOO_LARGE)
+    fprintf(f, "Requested output window too large for max_fft_NN (raise max_fft_NN).\n");
+  if (ecode & ERR_WINDOW_TOO_SMALL)
+    fprintf(f, "Requested output window too small for a valid error analysis.\n");
   if (ecode & ERR_BAD_DEGREE)
     fprintf(f, "The degree of the L-function must be between 1 and %d\n",
             MAX_DEGREE + 1);
@@ -177,6 +181,8 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
   L->self_dual = Lp->self_dual;
   L->rank = Lp->rank;
   L->cache_dir = Lp->cache_dir;
+  L->max_t = (Lp->max_t > 0.0) ? Lp->max_t : 64.0 / (double)L->degree;
+  L->max_fft_NN = (Lp->max_fft_NN > 0) ? Lp->max_fft_NN : ((uint64_t)1 << 16);
 
   // See Lemma 2 of M_error1.pdf, Lemma 5 of g.pdf
   // r is always >=2
@@ -396,6 +402,8 @@ Lfunc_t Lfunc_init(uint64_t degree, uint64_t conductor, double normalisation,
   Lp.cache_dir = ".";
   Lp.gprec = 0; // We will try to do something sensible
   Lp.wprec = 0; // ditto
+  Lp.max_t = 0.0;     // sentinel => 64/degree
+  Lp.max_fft_NN = 0;  // sentinel => 1<<16
 
   // Lfunc_init_advanced copies Lp.mus into L->mus, so this scratch array is ours
   // to free; otherwise it leaks (Lp is a stack local that goes out of scope).
