@@ -135,5 +135,46 @@ int main(void)
   Lfunc_clear(Eref);
 
   printf("extract_power_test: Task 3 OK\n");
+
+  // ---- E^3 (degree 6, odd k) ----
+  k_param = 3;
+  Lfunc_t Eref3 = Lfunc_init(2, 37, 0.5, mus, &ec);
+  ec = ERR_SUCCESS;
+  ec |= Lfunc_use_all_lpolys(Eref3, e_callback, NULL);
+  ec |= Lfunc_compute(Eref3);
+  assert(!fatal_error(ec));
+
+  Lparams_t Lp3 = { .degree = 6, .conductor = 50653, .normalisation = 0.5,
+                    .mus = (double[]){0,0,0,1,1,1}, .target_prec = 100, .wprec = 0,
+                    .gprec = 0, .self_dual = YES, .rank = DK, .cache_dir = ".",
+                    .extract_powers = YES };
+  Lerror_t e3 = ERR_SUCCESS;
+  Lfunc_t L3 = Lfunc_init_advanced(&Lp3, &e3);
+  assert(!fatal_error(e3));
+  e3 |= Lfunc_use_all_lpolys(L3, lk_callback, NULL);
+  e3 |= Lfunc_compute(L3);
+  assert(!fatal_error(e3));
+
+  Lfunc_t *f3 = NULL; uint64_t *m3 = NULL;
+  assert(Lfunc_factors(L3, &f3, &m3) == 1 && m3[0] == 3);
+  assert(Lfunc_rank(L3) == 3*Lfunc_rank(Eref3));
+  arb_srcptr zE3 = Lfunc_zeros(Eref3, 0);
+  arb_srcptr z3  = Lfunc_zeros(L3, 0);
+  assert(arb_overlaps((arb_ptr)(z3+0), (arb_ptr)(zE3+0)));
+  assert(arb_overlaps((arb_ptr)(z3+1), (arb_ptr)(zE3+0)));
+  assert(arb_overlaps((arb_ptr)(z3+2), (arb_ptr)(zE3+0))); // tripled
+  assert(arb_overlaps((arb_ptr)(z3+3), (arb_ptr)(zE3+1)));
+  acb_t s3; acb_init(s3); acb_pow_ui(s3, Lfunc_sign(Eref3), 3, 100);
+  assert(acb_overlaps(s3, Lfunc_sign(L3))); acb_clear(s3); // sign(E)^3 = -1
+  acb_t vL3, vE3, vE3k; acb_init(vL3); acb_init(vE3); acb_init(vE3k);
+  Lerror_t sv3 = Lfunc_special_value(vE3, Eref3, 1.5, 0.0)
+               | Lfunc_special_value(vL3, L3, 1.5, 0.0);
+  assert(!fatal_error(sv3));
+  acb_pow_ui(vE3k, vE3, 3, 100);
+  assert(acb_overlaps(vL3, vE3k));
+  acb_clear(vL3); acb_clear(vE3); acb_clear(vE3k);
+  Lfunc_clear(L3); Lfunc_clear(Eref3);
+
+  printf("extract_power_test: Task 5 OK\n");
   return 0;
 }
