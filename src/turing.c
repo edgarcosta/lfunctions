@@ -212,7 +212,8 @@ bool St_int(arb_t res, arb_t h, arb_t t0, Lfunc *L, int64_t prec) {
   // 4.69028764131 (verified, and equal to Palojarvi-Zhao c_0(eps=1/2)). 4.6902877
   // rounds UP, so it stays a valid, strictly-tighter upper bound.
   arb_set_d(Q2, 4.6902877);
-  arb_set_d(tmp1, 0.8);
+  arb_set_ui(tmp1, 8);
+  arb_div_ui(tmp1, tmp1, 10, prec);              // 0.8 (exact)
   arb_sub_ui(tmp, L->X, 5, prec);                  // X-5
   arb_div(Q1, tmp1, tmp, prec);                    // 0.8/(X-5)
   arb_add(Q1, Q1, Q2, prec);                       // c_theta + 0.8/(X-5)
