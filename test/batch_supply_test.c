@@ -407,6 +407,18 @@ static void test_guard_violated_bound(void) {
   Lfunc_clear(L);
 }
 
+// raw a_n have no per-prime factors, so the RH check is skipped and flagged
+// (warning, not fatal); a factor-supplied run does not flag it.
+static void test_rh_unavailable(void) {
+  Lerror_t er = ERR_SUCCESS, ef = ERR_SUCCESS;
+  Lfunc_t R = run_raw_fmpz(&er);
+  Lfunc_t F = run_callback(&ef);
+  assert(!fatal_error(er) && !fatal_error(ef));
+  assert(er & ERR_RH_UNAVAILABLE);      // raw a_n run: RH not attempted
+  assert(!(ef & ERR_RH_UNAVAILABLE));   // factor run: RH attempted
+  Lfunc_clear(R); Lfunc_clear(F);
+}
+
 int main(void) {
   test_factor_arrays();
   test_raw_coeffs();
@@ -417,6 +429,7 @@ int main(void) {
   test_guard_missing_bound();
   test_guard_conflicts();
   test_guard_violated_bound();
+  test_rh_unavailable();
   printf("batch_supply_test: all tests passed\n");
   return 0;
 }

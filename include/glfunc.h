@@ -197,13 +197,15 @@ extern "C"{
   acb_srcptr Lfunc_sqrt_sign(Lfunc_t L);
 
   // return the zeros, side = 0,1 for L, conjugate L
-  // if rank =0,1 this list is complete, providing
-  // the error code did not have ERR_RH_ERROR set
+  // if rank =0,1 this list is complete, providing the error code had neither
+  // ERR_RH_ERROR nor ERR_RH_UNAVAILABLE set (the latter is set when raw
+  // Dirichlet coefficients were supplied, so the RH check could not run)
   // otherwise zeros may be missing
   arb_srcptr Lfunc_zeros(Lfunc_t L, uint64_t side);
 
   // return rank
-  // rank=0,1 is rigorous.
+  // rank=0,1 is rigorous, provided the error code had neither ERR_RH_ERROR nor
+  // ERR_RH_UNAVAILABLE set (raw a_n supply skips the RH check)
   // rank>1 isn't
   int64_t Lfunc_rank(Lfunc_t L);
 
