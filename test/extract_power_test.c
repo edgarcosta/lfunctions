@@ -120,6 +120,17 @@ int main(void)
   { arb_t am; arb_init(am); acb_abs(am, Lfunc_sign(L2), 100);
     arb_sub_ui(am, am, 1, 100); assert(arb_contains_zero(am)); arb_clear(am); } // |eps|=1
   acb_clear(s2);
+
+  // (Task 4) Special value: L2(1.5) == Eref(1.5)^2
+  acb_t vL, vE, vEk; acb_init(vL); acb_init(vE); acb_init(vEk);
+  Lerror_t sv = ERR_SUCCESS;
+  sv |= Lfunc_special_value(vE, Eref, 1.5, 0.0);
+  sv |= Lfunc_special_value(vL, L2, 1.5, 0.0);
+  assert(!fatal_error(sv));
+  acb_pow_ui(vEk, vE, 2, 100);          // L(s) = E(s)^2
+  assert(acb_overlaps(vL, vEk));
+  acb_clear(vL); acb_clear(vE); acb_clear(vEk);
+
   Lfunc_clear(L2);
   Lfunc_clear(Eref);
 
