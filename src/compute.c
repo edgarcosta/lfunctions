@@ -305,6 +305,10 @@ static Lerror_t extract_and_assemble(Lfunc *L, uint64_t k)
   Lfunc *M = (Lfunc *) Mt;
 
   // ---- supply M_p = retained_f^(1/k) for primes up to nmax(M) ----
+  // Bad (lower-degree) primes are k-th-rooted here WITHOUT a separate certificate:
+  // the good-prime k-th-power certificate plus the perfect-k-th-power conductor
+  // already force L = M^k globally, hence every local factor (good or bad) is M_p^k,
+  // so taking the k-th root of each retained factor is sound.
   uint64_t Mmax = Lfunc_nmax(Mt);
   acb_poly_t Mp_poly; acb_poly_init(Mp_poly);
   acb_t e_inv; acb_init(e_inv);
@@ -339,7 +343,10 @@ static Lerror_t extract_and_assemble(Lfunc *L, uint64_t k)
   acb_pow_ui(L->sign, M->sign, k, L->wprec);          // eps^k
   acb_pow_ui(L->sqrt_sign, M->sqrt_sign, k, L->wprec); // sqrt_sign^k
   arb_pow_ui(L->L_d, M->L_d, k, L->wprec);            // leading Taylor coeff ^ k
-  arb_pow_ui(L->Lam_d, M->Lam_d, k, L->wprec); // Lambda_L = Lambda_M^k
+  // Lam_d (= Lambda^(rank)(1/2), an unnormalized derivative) is intentionally NOT
+  // maintained for an assembled L: the pipeline stage that consumes it is skipped,
+  // L_d is set directly above, and Lfunc_Taylor returns L_d. (It is not a plain k-th
+  // power of M's: the correct value would be (k*r)!/(r!)^k * Lam_d(M)^k.)
 
   // ---- attach the factor (owned by L; cleared in clear.c) ----
   L->factors = (Lfunc_t *) malloc(sizeof(Lfunc_t));
