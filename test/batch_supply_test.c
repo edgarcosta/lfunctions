@@ -407,6 +407,87 @@ static void test_guard_violated_bound(void) {
   Lfunc_clear(L);
 }
 
+// --- insufficient supply (short array == callback that runs out) ------------
+static uint64_t g_cut = 0; // cb_cut returns the zero poly for p >= g_cut (0: never)
+static void cb_cut(acb_poly_t poly, uint64_t p, int d, int64_t prec, void *param) {
+  (void)d; (void)prec; (void)param;
+  if (g_cut && p >= g_cut) { acb_poly_zero(poly); return; }
+  factor_acb(poly, p);
+}
+static Lfunc_t run_callback_cut(uint64_t cut, Lerror_t *ec) {
+  double mus[] = {0, 1};
+  Lfunc_t L = Lfunc_init(2, 5 * 7, 0.0, mus, ec);
+  if (fatal_error(*ec)) return L;
+  g_cut = cut;
+  *ec |= Lfunc_use_all_lpolys(L, cb_cut, NULL);
+  g_cut = 0;
+  if (fatal_error(*ec)) return L;
+  *ec |= Lfunc_compute(L);
+  return L;
+}
+static Lfunc_t run_lpolys_acb_short(uint64_t nfac, Lerror_t *ec) {
+  double mus[] = {0, 1};
+  Lfunc_t L = Lfunc_init(2, 5 * 7, 0.0, mus, ec);
+  if (fatal_error(*ec)) return L;
+  uint64_t nmax = Lfunc_nmax(L);
+  uint64_t *primes = (uint64_t *)malloc(sizeof(uint64_t) * (nmax + 1));
+  uint64_t np = primes_upto(nmax, primes);
+  assert(nfac < np); // genuinely short of pi(nmax)
+  acb_poly_struct *f = (acb_poly_struct *)malloc(sizeof(acb_poly_struct) * nfac);
+  for (uint64_t k = 0; k < nfac; k++) { acb_poly_init(&f[k]); factor_acb(&f[k], primes[k]); }
+  *ec |= Lfunc_use_lpolys_acb(L, f, nfac);
+  for (uint64_t k = 0; k < nfac; k++) acb_poly_clear(&f[k]);
+  free(f); free(primes);
+  if (fatal_error(*ec)) return L;
+  *ec |= Lfunc_compute(L);
+  return L;
+}
+static Lfunc_t run_raw_fmpz_short(uint64_t rlen, Lerror_t *ec) {
+  double mus[] = {0, 1};
+  Lfunc_t L = Lfunc_init(2, 5 * 7, 0.0, mus, ec);
+  if (fatal_error(*ec)) return L;
+  uint64_t nmax = Lfunc_nmax(L);
+  assert(rlen < nmax); // genuinely short
+  set_default_bound(L, ec);
+  fmpz *a = _fmpz_vec_init(rlen);
+  for (uint64_t n = 1; n <= rlen; n++) fmpz_set_si(a + (n - 1), an(n));
+  *ec |= Lfunc_use_dirichlet_coeffs_fmpz(L, a, rlen, ALGEBRAIC_NORM);
+  _fmpz_vec_clear(a, rlen);
+  if (fatal_error(*ec)) return L;
+  *ec |= Lfunc_compute(L);
+  return L;
+}
+
+// A short factor array, and a short raw array, each warn ERR_INSUFF_EULER,
+// reduce M, and agree with a callback that runs out at the same prime.
+static void test_insufficient_supply(void) {
+  uint64_t scratch[64];
+  uint64_t np = primes_upto(150, scratch);
+  uint64_t nfac = 25;             // primes 2..97; supply runs out at the 26th prime
+  assert(np > nfac && scratch[24] == 97 && scratch[25] == 101);
+  uint64_t cut = scratch[nfac];   // 101: factor index nfac is the first prime not supplied
+
+  // short factor array vs callback truncated at the same prime: identical M and
+  // factors, so the results agree tightly.
+  Lerror_t es = ERR_SUCCESS, ecb = ERR_SUCCESS;
+  Lfunc_t S = run_lpolys_acb_short(nfac, &es);
+  Lfunc_t Cc = run_callback_cut(cut, &ecb);
+  assert(!fatal_error(es) && !fatal_error(ecb));
+  assert((es & ERR_INSUFF_EULER) && (ecb & ERR_INSUFF_EULER));
+  assert_outputs_overlap(S, Cc);
+  Lfunc_clear(S); Lfunc_clear(Cc);
+
+  // a raw array of the same length (a_1..a_{cut-1}) reduces M likewise; its
+  // a_n match those the truncated callback builds from the factors.
+  Lerror_t er = ERR_SUCCESS, ecb2 = ERR_SUCCESS;
+  Lfunc_t R = run_raw_fmpz_short(cut - 1, &er);
+  Lfunc_t Cc2 = run_callback_cut(cut, &ecb2);
+  assert(!fatal_error(er) && !fatal_error(ecb2));
+  assert((er & ERR_INSUFF_EULER) && (er & ERR_RH_UNAVAILABLE));
+  assert_outputs_overlap(R, Cc2);
+  Lfunc_clear(R); Lfunc_clear(Cc2);
+}
+
 // raw a_n have no per-prime factors, so the RH check is skipped and flagged
 // (warning, not fatal); a factor-supplied run does not flag it.
 static void test_rh_unavailable(void) {
@@ -429,6 +510,7 @@ int main(void) {
   test_guard_missing_bound();
   test_guard_conflicts();
   test_guard_violated_bound();
+  test_insufficient_supply();
   test_rh_unavailable();
   printf("batch_supply_test: all tests passed\n");
   return 0;
