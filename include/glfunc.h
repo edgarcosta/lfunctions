@@ -178,6 +178,9 @@ extern "C"{
   // covering t=[0,max_t]
   // for L or conjugate L
   // returned as doubles in an Lplot_t structure
+  // NB: not meaningful for an L assembled from a power (extract_powers): such an
+  // L skips the sample-generating pipeline, so the plot buffers are empty. Obtain
+  // the primitive factor via Lfunc_factors and plot that instead.
   Lplot_t *Lfunc_plot_data(Lfunc_t L, uint64_t side, double max_t, uint64_t n_points);
 
   // reclaim memory from an Lplot_t structure

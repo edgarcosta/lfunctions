@@ -433,6 +433,8 @@ extern "C"{
     Lfunc *L=(Lfunc *) LL;
 
     // Assembled power L = M^k: value/derivative follow from L(s) = M(s)^k.
+    // Part B produces exactly one factor; Part C (N*M^k) will generalize this to
+    // a product over n_factors >= 1.
     if (L->n_factors == 1) {
       Lfunc_t Mt = L->factors[0];
       uint64_t k = L->factor_mults[0];
