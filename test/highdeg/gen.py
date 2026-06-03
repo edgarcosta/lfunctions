@@ -285,12 +285,13 @@ def main():
 
     e = obj["expected"]
     tay = e.get("taylor")
-    expect = "EXPECT %d %s %s %s %s %s %s %d %d" % (
+    expect = "EXPECT %d %s %s %s %s %s %s %d %d %d" % (
         e["rank"], repr(float(e["epsilon"][0])), repr(float(e["epsilon"][1])),
         str(e["first_zero"]), repr(float(e["first_zero_err"])),
         (str(tay) if tay is not None else "NA"),
         repr(float(e.get("taylor_err", 0.0))), 1 if e["tolerate_rh_error"] else 0,
-        1 if obj.get("expect_power") else 0)
+        1 if obj.get("expect_power") else 0,
+        1 if obj.get("extract_power") else 0)
 
     is_sympow = obj["kind"] == "sympow"
     head = "%d %d %s %d%s" % (der["degree"], cond, der["norm"], der["sd"],

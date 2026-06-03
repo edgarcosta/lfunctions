@@ -272,13 +272,15 @@ objects:
       taylor_err: 1.0e-12
       tolerate_rh_error: true
 
-  # ---- square of an elliptic curve (L = L(E)^2): rejected by the power guard ----
+  # ---- square of an elliptic curve (L = L(E)^2): extracted and assembled ----
   # Jac(196.a) ~_Q E^2 with E = 14.a (conductor 14), so L = L(14.a)^2 and every zero
-  # is doubled. The power guard detects the repeated factor (perfect-square Euler
-  # factors and a perfect-square conductor 196 = 14^2) and rejects it up front with
-  # ERR_POWER, so `expect_power` makes this a positive regression: the driver asserts
-  # the rejection. smalljac still computes its (squared) Euler factors fine. When square
-  # support (extraction, bead w70.2) lands, replace `expect_power` with the value checks.
+  # is doubled. With extract_powers opted in, the library detects the repeated factor
+  # (perfect-square Euler factors and a perfect-square conductor 196 = 14^2), recovers
+  # M = L(14.a), computes it through the normal degree-2 pipeline, and assembles L's
+  # rank/eps/zeros/Taylor from M (= M^2). `extract_power` makes this a positive
+  # regression: the driver asserts the assembled values below (which are L(14.a)^2)
+  # and that Lfunc_factors exposes (M, 2). smalljac computes its (squared) Euler
+  # factors fine.
   - label: "196.a"          # geom_end_alg "M_2(Q)", ST E_1: Q-isogenous to E^2 (= 14.a^2)
     kind: genus2
     curve: "[[1,3,6,7,6,3,1],[0,1,1]]"
@@ -287,8 +289,8 @@ objects:
     bad_factors:            # (1+T)^2 at 2 and (1-T)^2 at 7 -- squares, since L = L(E)^2
       2: [1, 2, 1]
       7: [1, -2, 1]
-    expect_power: true      # guard must reject L = L(14.a)^2 with ERR_POWER (repeated factor / doubled zeros)
-    expected:               # the L(14.a)^2 values; checked once extraction (w70.2) lands, ignored while expect_power is set
+    extract_power: true     # extract & assemble L = L(14.a)^2: recover M=14.a, compute, assemble (M^2); assert factor (M,2)
+    expected:               # the assembled L(14.a)^2 values (= M^2), now asserted by the driver
       rank: 0
       epsilon: [1.0, 0.0]
       first_zero: "5.57928681743"

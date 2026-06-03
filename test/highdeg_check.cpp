@@ -8,7 +8,10 @@
 //   line 1: degree conductor normalisation self_dual
 //   line 2: mu_0 ... mu_{degree-1}
 //   line 3: EXPECT rank eps_re eps_im z1 z1_err taylor taylor_err tolerate_rh
-//             (taylor == "NA" => skip the leading-Taylor assertion)
+//             expect_power extract_power
+//             (taylor == "NA" => skip the leading-Taylor assertion;
+//              expect_power => assert the power guard rejects with ERR_POWER;
+//              extract_power => opt in to extraction, assert assembled values + factor)
 //   line p: p c0 c1 ... c_degree     (local L-poly coeffs, ascending, decimal strings)
 //
 // With only lines 1-2 present (no EXPECT, no factors) it prints the library's
@@ -66,6 +69,26 @@ int main(int argc, char **argv) {
   std::vector<double> mus(degree);
   for (auto &m : mus) s2 >> m;
 
+  // EXPECT line (optional — absent => nmax query). Parsed BEFORE init so the
+  // extract_powers opt-in can be set on Lparams: factor retention in use_lpoly
+  // and the extraction branch in Lfunc_compute both need the flag set before the
+  // factor-supply loop below.
+  int exp_rank = -1, tolerate_rh = 0, expect_power = 0, extract_power = 0;
+  double eps_re = 0, eps_im = 0, z1_err = 0, taylor_err = 0;
+  std::string z1s, taylors = "NA";
+  bool have_expect = false;
+  std::streampos after_mus = in.tellg();
+  if (std::getline(in, line)) {
+    std::stringstream s3(line);
+    std::string kw; s3 >> kw;
+    if (kw == "EXPECT") {
+      have_expect = true;
+      s3 >> exp_rank >> eps_re >> eps_im >> z1s >> z1_err >> taylors >> taylor_err >> tolerate_rh >> expect_power >> extract_power;
+    } else {
+      in.seekg(after_mus);  // line was a factor; rewind
+    }
+  }
+
   // Public advanced init so self-duality is declared up front instead of poking
   // the opaque handle. Mirrors Lfunc_init's defaults (target_prec=DEFAULT and
   // gprec=0 keep the G-cache active, see src/g.c); Lfunc_init_advanced copies
@@ -83,26 +106,10 @@ int main(int argc, char **argv) {
   Lp.self_dual = self_dual ? YES : DK;
   Lp.rank = DK;
   Lp.cache_dir = cache_dir;
+  Lp.extract_powers = extract_power ? YES : NO;
   Lfunc_t L = Lfunc_init_advanced(&Lp, &ec);
   if (fatal_error(ec)) { fprint_errors(stderr, ec); return 1; }
   uint64_t nmax = Lfunc_nmax(L);
-
-  // EXPECT line (optional — absent => nmax query)
-  int exp_rank = -1, tolerate_rh = 0, expect_power = 0;
-  double eps_re = 0, eps_im = 0, z1_err = 0, taylor_err = 0;
-  std::string z1s, taylors = "NA";
-  bool have_expect = false;
-  std::streampos after_mus = in.tellg();
-  if (std::getline(in, line)) {
-    std::stringstream s3(line);
-    std::string kw; s3 >> kw;
-    if (kw == "EXPECT") {
-      have_expect = true;
-      s3 >> exp_rank >> eps_re >> eps_im >> z1s >> z1_err >> taylors >> taylor_err >> tolerate_rh >> expect_power;
-    } else {
-      in.seekg(after_mus);  // line was a factor; rewind
-    }
-  }
 
   acb_poly_t poly; acb_poly_init(poly);
   fmpz_t z; fmpz_init(z);
@@ -214,6 +221,14 @@ int main(int argc, char **argv) {
       arb_clear(tref);
     } else {
       printf("  [skip] taylor (not provided)\n");
+    }
+
+    // (5) assembled power: the primitive factor M with multiplicity k is exposed.
+    if (extract_power) {
+      Lfunc_t *fs = NULL; uint64_t *ms = NULL;
+      uint64_t nf = Lfunc_factors(L, &fs, &ms);
+      { std::stringstream d; d << "n_factors=" << nf << (nf? (std::string(" mult=")+std::to_string(ms[0])) : std::string());
+        check(nf == 1 && ms[0] == 2, "factor", d.str()); }
     }
   }
 
