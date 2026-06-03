@@ -203,19 +203,20 @@ bool St_int(arb_t res, arb_t h, arb_t t0, Lfunc *L, int64_t prec) {
     arb_set_d(Q2, -0.5);
     arb_add(l2_half, Q1, Q2, prec);
     arb_init(rc_theta_etc);
-    arb_set_d(Q2, 5.65056); // c_theta < 5.65055 in ARB Th 4.6
-    arb_set_ui(Q1, 8);
-    arb_div_ui(pi, Q1, 10, prec);                  // 0.8
-    arb_sub_ui(tmp, L->X, 5, prec);                // X-5
-    arb_div(Q1, pi, tmp, prec);                    // 0.8/(X-5)
-    arb_add(pi, Q1, Q2, prec);                     // c_theta + 0.8/(X-5)
-    arb_mul_ui(rc_theta_etc, pi, L->degree, prec); // c_\theta r+0.8 r/(X-5)
-    if (verbose) {
-      printf("c theta bit = ");
-      arb_printd(rc_theta_etc, 10);
-      printf("\n");
-    }
     arb_const_pi(pi, prec);
+  }
+  // rc_theta_etc depends on L (via L->X and L->degree), so it must be
+  // recomputed for every L-function, not cached in the init block.
+  arb_set_d(Q2, 5.65056); // c_theta < 5.65055 in ARB Th 4.6
+  arb_set_d(tmp1, 0.8);
+  arb_sub_ui(tmp, L->X, 5, prec);                  // X-5
+  arb_div(Q1, tmp1, tmp, prec);                    // 0.8/(X-5)
+  arb_add(Q1, Q1, Q2, prec);                       // c_theta + 0.8/(X-5)
+  arb_mul_ui(rc_theta_etc, Q1, L->degree, prec);   // c_\theta r+0.8 r/(X-5)
+  if (verbose) {
+    printf("c theta bit = ");
+    arb_printd(rc_theta_etc, 10);
+    printf("\n");
   }
   arb_set(acb_imagref(s), t0); // 3/2+it0
   logQ(Q2, s, L, prec);
@@ -287,29 +288,32 @@ uint64_t turing_count(arb_t res, Lfunc *L, int64_t prec) {
     arb_init(t0);
     arb_init(pi);
     arb_const_pi(pi, prec);
-    arb_div_ui(h, L->B, TURING_RATIO, prec);
-    if (verbose) {
-      printf("Turing h set to ");
-      arb_printd(h, 10);
-      printf("\n");
-    }
-    arb_div_ui(t0, L->B, OUTPUT_RATIO, prec);
-    if (verbose) {
-      printf("Turing t0 set to ");
-      arb_printd(t0, 10);
-      printf("\n");
-    }
     arb_init(rlogpi);
-    arb_log(tmp, pi, prec);
-    arb_mul_ui(rlogpi, tmp, L->degree, prec);
     arb_init(t0hbit);
-    arb_mul(tmp, t0, h, prec);
-    arb_mul_2exp_si(tmp, tmp, 1);
-    arb_mul(tmp1, h, h, prec);
-    arb_add(sint, tmp1, tmp, prec);
-    arb_div(t0hbit, sint, pi, prec);
-    arb_mul_2exp_si(t0hbit, t0hbit, -1); // (2t0h+h^2)/2Pi
   }
+  // h, t0, rlogpi and t0hbit all depend on L (via L->B = 512/degree and
+  // L->degree), so they must be recomputed for every L-function rather than
+  // cached once in the init block.
+  arb_div_ui(h, L->B, TURING_RATIO, prec);
+  if (verbose) {
+    printf("Turing h set to ");
+    arb_printd(h, 10);
+    printf("\n");
+  }
+  arb_div_ui(t0, L->B, OUTPUT_RATIO, prec);
+  if (verbose) {
+    printf("Turing t0 set to ");
+    arb_printd(t0, 10);
+    printf("\n");
+  }
+  arb_log(tmp, pi, prec);
+  arb_mul_ui(rlogpi, tmp, L->degree, prec);
+  arb_mul(tmp, t0, h, prec);
+  arb_mul_2exp_si(tmp, tmp, 1);
+  arb_mul(tmp1, h, h, prec);
+  arb_add(sint, tmp1, tmp, prec);
+  arb_div(t0hbit, sint, pi, prec);
+  arb_mul_2exp_si(t0hbit, t0hbit, -1); // (2t0h+h^2)/2Pi
   uint64_t zeros_found = 0;
   if (!turing_int(tint, t0, h, L, &zeros_found, 0, prec))
     return 0;
