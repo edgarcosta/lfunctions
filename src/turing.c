@@ -207,7 +207,11 @@ bool St_int(arb_t res, arb_t h, arb_t t0, Lfunc *L, int64_t prec) {
   }
   // rc_theta_etc depends on L (via L->X and L->degree), so it must be
   // recomputed for every L-function, not cached in the init block.
-  arb_set_d(Q2, 5.65056); // c_theta < 5.65055 in ARB Th 4.6
+  // c_theta for theta=0 (Booker Thm 4.6). The paper's printed bound 5.65055 is
+  // loose by exactly log zeta(3/2)=0.96026; the displayed-expression value is
+  // 4.69028764131 (verified, and equal to Palojarvi-Zhao c_0(eps=1/2)). 4.6902877
+  // rounds UP, so it stays a valid, strictly-tighter upper bound.
+  arb_set_d(Q2, 4.6902877);
   arb_set_d(tmp1, 0.8);
   arb_sub_ui(tmp, L->X, 5, prec);                  // X-5
   arb_div(Q1, tmp1, tmp, prec);                    // 0.8/(X-5)
