@@ -228,6 +228,73 @@ Lerror_t Lfunc_use_all_lpolys(Lfunc_t Lf, void (*lpoly_callback) (acb_poly_t lpo
   return ecode;
 }
 
+// Supply Euler factors as an array, one per consecutive prime (f[0] at p=2).
+// We sieve the primes ourselves (exactly as Lfunc_use_all_lpolys) and hand the
+// k-th factor to the shared use_lpoly for the k-th prime, so normalisation,
+// inversion and the multiplicative sieve are not duplicated. Running out of
+// factors before nmax reduces M and warns, just like the callback zero-poly
+// short-circuit; surplus factors (len > pi(nmax)) are ignored.
+Lerror_t Lfunc_use_lpolys_acb(Lfunc_t Lf, const acb_poly_struct *f, uint64_t len)
+{
+  Lfunc *L=(Lfunc *)Lf;
+  if(!L->nmax_called)
+  {
+    L->M=Lfunc_nmax(Lf);
+    L->nmax_called=true;
+  }
+  primesieve_iterator it;
+  primesieve_init(&it);
+  uint64_t p=0, k=0;
+  Lerror_t ecode=ERR_SUCCESS;
+  while((p=primesieve_next_prime(&it)) <= L->M)
+  {
+    if(k>=len) // ran out of supplied factors before nmax
+    {
+      ecode|=shrink_M(L,p-1,true);
+      break;
+    }
+    use_lpoly(L,p,f+k);
+    k++;
+  }
+  primesieve_free_iterator(&it);
+  return ecode;
+}
+
+// As Lfunc_use_lpolys_acb, but the factors are exact integer polynomials. Each
+// is converted to a reused scratch acb_poly (exact for coefficients that fit in
+// the working precision, which Ramanujan-bounded local factors always do) and
+// passed to the identical use_lpoly path, so Buthe's wf() still sees real
+// per-prime forward and inverse factors.
+Lerror_t Lfunc_use_lpolys_fmpz(Lfunc_t Lf, const fmpz_poly_struct *f, uint64_t len)
+{
+  Lfunc *L=(Lfunc *)Lf;
+  if(!L->nmax_called)
+  {
+    L->M=Lfunc_nmax(Lf);
+    L->nmax_called=true;
+  }
+  acb_poly_t g;
+  acb_poly_init(g);
+  primesieve_iterator it;
+  primesieve_init(&it);
+  uint64_t p=0, k=0;
+  Lerror_t ecode=ERR_SUCCESS;
+  while((p=primesieve_next_prime(&it)) <= L->M)
+  {
+    if(k>=len) // ran out of supplied factors before nmax
+    {
+      ecode|=shrink_M(L,p-1,true);
+      break;
+    }
+    acb_poly_set_fmpz_poly(g,f+k,L->wprec);
+    use_lpoly(L,p,g);
+    k++;
+  }
+  primesieve_free_iterator(&it);
+  acb_poly_clear(g);
+  return ecode;
+}
+
 bool Lfunc_reduce_nmax(Lfunc_t LL, uint64_t nmax)
 {
   Lfunc *L=(Lfunc *)LL;

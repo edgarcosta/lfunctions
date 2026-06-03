@@ -3,6 +3,8 @@
 
 #include <inttypes.h>
 #include <flint/acb_poly.h>
+#include <flint/fmpz.h>
+#include <flint/fmpz_poly.h>
 #include <stdbool.h>
 
 #define DK (-1) // tri-state "don't know" (for self_dual / rank)
@@ -146,6 +148,41 @@ extern "C"{
 
   // you provide one Euler polynomial at a time
   void Lfunc_use_lpoly(Lfunc_t L, uint64_t p, const acb_poly_t poly);
+
+  // ---- Batch / array supply front-ends (alongside the callback and push) -----
+
+  // Declare the coefficient growth bound |a_n| <= C * n^alpha on the *analytic*
+  // Dirichlet coefficients. REQUIRED before either raw-a_n front-end below: the
+  // rigorous tail truncation (M_error) needs an a-priori bound on the whole
+  // sequence, including the unsupplied tail, which only the caller can certify.
+  // The Euler-factor routes do not need it (they carry the Euler-product bound).
+  Lerror_t Lfunc_set_coeff_bound(Lfunc_t L, const arb_t C, double alpha);
+
+  // Supply the Dirichlet coefficients a_n directly, indexed n = 1..len with
+  // a[0] = a_1 (which must be 1). normalisation_of_input is ALGEBRAIC_NORM (the
+  // library applies the n^{-normalisation} shift) or ANALYTIC_NORM (a_n already
+  // analytic; no shift). The library uses min(len, Lfunc_nmax(L)) of them; len <
+  // nmax reduces nmax and warns (ERR_INSUFF_EULER), surplus is ignored. Requires
+  // a prior Lfunc_set_coeff_bound (else ERR_COEFF_BOUND); each used a_n is checked
+  // against the bound (ERR_COEFF_BOUND if violated). Overwrites the coefficient
+  // array, so it cannot be combined with any Euler-factor supply nor called twice
+  // (ERR_SUPPLY_CONFLICT), and it disables the RH check (ERR_RH_UNAVAILABLE) since
+  // there are no per-prime factors. fmpz coefficients are exact; the acb form
+  // trusts the supplied balls (a_1's ball must contain 1).
+  Lerror_t Lfunc_use_dirichlet_coeffs_fmpz(Lfunc_t L, const fmpz *a, uint64_t len, int normalisation_of_input);
+  Lerror_t Lfunc_use_dirichlet_coeffs_acb(Lfunc_t L, acb_srcptr a, uint64_t len, int normalisation_of_input);
+
+  // Supply Euler factors as an array, one per consecutive prime: f[k] is the
+  // local factor at the k-th prime (f[0] at p=2). The library sieves the primes
+  // itself (the caller does not pass them) and consumes the k-th factor for the
+  // k-th prime, for primes <= Lfunc_nmax(L). Factors are in the algebraic
+  // normalisation, exactly like Lfunc_use_lpoly, which these route through. A
+  // short array (len < pi(nmax)) reduces nmax and warns (ERR_INSUFF_EULER);
+  // surplus is ignored. These compose freely with the callback / push / each
+  // other (all multiply into the coefficient array). The fmpz_poly form converts
+  // exactly to acb_poly first. For non-consecutive primes, use Lfunc_use_lpoly.
+  Lerror_t Lfunc_use_lpolys_acb(Lfunc_t L, const acb_poly_struct *f, uint64_t len);
+  Lerror_t Lfunc_use_lpolys_fmpz(Lfunc_t L, const fmpz_poly_struct *f, uint64_t len);
 
   // Once all polys have been provided, do the computation
   Lerror_t Lfunc_compute(Lfunc_t L);
