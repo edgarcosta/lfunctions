@@ -169,6 +169,12 @@ void Lfunc_use_lpoly(Lfunc_t Lf, uint64_t p, const acb_poly_t poly)
 {
   Lfunc *L;
   L=(Lfunc *)Lf;
+  if(L->raw_supplied) // can't push factors into raw-a_n overwrite mode
+  {
+    L->supply_ecode|=ERR_SUPPLY_CONFLICT; // void return: surfaced by Lfunc_compute
+    return;
+  }
+  L->factor_supplied=true;
   use_lpoly(L,p,poly);
 }
 
@@ -197,6 +203,12 @@ Lerror_t Lfunc_use_all_lpolys(Lfunc_t Lf, void (*lpoly_callback) (acb_poly_t lpo
 {
   Lfunc *L;
   L=(Lfunc *)Lf;
+  if(L->raw_supplied) // raw a_n overwrote ans; the callback would multiply into it
+  {
+    L->supply_ecode|=ERR_SUPPLY_CONFLICT;
+    return ERR_SUPPLY_CONFLICT;
+  }
+  L->factor_supplied=true;
   if(!L->nmax_called)
   {
     L->M=Lfunc_nmax(Lf);
@@ -237,6 +249,12 @@ Lerror_t Lfunc_use_all_lpolys(Lfunc_t Lf, void (*lpoly_callback) (acb_poly_t lpo
 Lerror_t Lfunc_use_lpolys_acb(Lfunc_t Lf, const acb_poly_struct *f, uint64_t len)
 {
   Lfunc *L=(Lfunc *)Lf;
+  if(L->raw_supplied) // raw a_n overwrote ans; multiplying factors in is incoherent
+  {
+    L->supply_ecode|=ERR_SUPPLY_CONFLICT;
+    return ERR_SUPPLY_CONFLICT;
+  }
+  L->factor_supplied=true;
   if(!L->nmax_called)
   {
     L->M=Lfunc_nmax(Lf);
@@ -268,6 +286,12 @@ Lerror_t Lfunc_use_lpolys_acb(Lfunc_t Lf, const acb_poly_struct *f, uint64_t len
 Lerror_t Lfunc_use_lpolys_fmpz(Lfunc_t Lf, const fmpz_poly_struct *f, uint64_t len)
 {
   Lfunc *L=(Lfunc *)Lf;
+  if(L->raw_supplied)
+  {
+    L->supply_ecode|=ERR_SUPPLY_CONFLICT;
+    return ERR_SUPPLY_CONFLICT;
+  }
+  L->factor_supplied=true;
   if(!L->nmax_called)
   {
     L->M=Lfunc_nmax(Lf);
@@ -332,6 +356,54 @@ static void apply_input_norm(acb_t z, uint64_t n, int norm_of_input, Lfunc *L)
   arb_clear(f);
 }
 
+// Common fatal entry guards for the raw-a_n front-ends, in priority order:
+// (1) overwrite mode conflicts with any factor supply or a second raw supply;
+// (2) the coefficient growth bound must have been declared; (3) a_1 must be 1.
+// Also records the code in supply_ecode so Lfunc_compute bails even if the
+// caller ignores the return value.
+static Lerror_t raw_guard(Lfunc *L, bool a1_is_one)
+{
+  if(L->factor_supplied || L->raw_supplied)
+  {
+    L->supply_ecode|=ERR_SUPPLY_CONFLICT;
+    return ERR_SUPPLY_CONFLICT;
+  }
+  if(!L->coeff_bound_set)
+  {
+    L->supply_ecode|=ERR_COEFF_BOUND;
+    return ERR_COEFF_BOUND;
+  }
+  if(!a1_is_one)
+  {
+    L->supply_ecode|=ERR_A1_NOT_ONE;
+    return ERR_A1_NOT_ONE;
+  }
+  return ERR_SUCCESS;
+}
+
+// Sanity-check a supplied analytic coefficient a_n against the declared bound:
+// fatal ERR_COEFF_BOUND if |a_n| certainly exceeds C*n^alpha. Conservative (only
+// a definite violation fires, via arb_gt), so a legitimately wide ball that
+// merely reaches the bound is not rejected. This catches gross caller errors in
+// the supplied range; the tail beyond len rests on the caller's declared bound.
+static Lerror_t check_coeff_bound(Lfunc *L, const acb_t an, uint64_t n, int64_t prec)
+{
+  arb_t absn,bound,t;
+  arb_init(absn);
+  arb_init(bound);
+  arb_init(t);
+  acb_abs(absn,an,prec);
+  arb_log_ui(t,n,prec);
+  arb_mul(t,t,L->alpha,prec);
+  arb_exp(t,t,prec);          // n^alpha
+  arb_mul(bound,L->C,t,prec); // C * n^alpha
+  Lerror_t e = arb_gt(absn,bound) ? ERR_COEFF_BOUND : ERR_SUCCESS;
+  arb_clear(absn);
+  arb_clear(bound);
+  arb_clear(t);
+  return e;
+}
+
 // Supply the Dirichlet coefficients a_n directly (a[0]=a_1). These *overwrite*
 // L->ans (the all-ones init), so they cannot be combined with any Euler-factor
 // route. There are no per-prime factors, so RH verification is later skipped
@@ -339,6 +411,10 @@ static void apply_input_norm(acb_t z, uint64_t n, int norm_of_input, Lfunc *L)
 Lerror_t Lfunc_use_dirichlet_coeffs_fmpz(Lfunc_t Lf, const fmpz *a, uint64_t len, int norm_of_input)
 {
   Lfunc *L=(Lfunc *)Lf;
+  bool a1_is_one = (len==0) || fmpz_is_one(a+0);
+  Lerror_t guard=raw_guard(L,a1_is_one);
+  if(guard)
+    return guard;
   if(!L->nmax_called)
   {
     L->M=Lfunc_nmax(Lf);
@@ -347,19 +423,29 @@ Lerror_t Lfunc_use_dirichlet_coeffs_fmpz(Lfunc_t Lf, const fmpz *a, uint64_t len
   L->raw_supplied=true;
   L->no_lpolys=true;
   uint64_t use = (len<L->M) ? len : L->M;
+  Lerror_t ecode=ERR_SUCCESS;
   for(uint64_t n=1;n<=use;n++)
   {
     acb_set_fmpz(L->ans[n-1],a+(n-1)); // exact
     apply_input_norm(L->ans[n-1],n,norm_of_input,L);
+    ecode|=check_coeff_bound(L,L->ans[n-1],n,L->wprec);
   }
+  if(ecode)
+    L->supply_ecode|=ecode; // surface a bound violation at compute time too
   if(len<L->M)
-    return shrink_M(L,len,true);
-  return ERR_SUCCESS;
+    ecode|=shrink_M(L,len,true);
+  return ecode;
 }
 
 Lerror_t Lfunc_use_dirichlet_coeffs_acb(Lfunc_t Lf, acb_srcptr a, uint64_t len, int norm_of_input)
 {
   Lfunc *L=(Lfunc *)Lf;
+  // a_1's ball must contain 1 (certified contract: the ball encloses the truth)
+  bool a1_is_one = (len==0) ||
+    (arb_contains_si(acb_realref(a+0),1) && arb_contains_zero(acb_imagref(a+0)));
+  Lerror_t guard=raw_guard(L,a1_is_one);
+  if(guard)
+    return guard;
   if(!L->nmax_called)
   {
     L->M=Lfunc_nmax(Lf);
@@ -368,14 +454,18 @@ Lerror_t Lfunc_use_dirichlet_coeffs_acb(Lfunc_t Lf, acb_srcptr a, uint64_t len, 
   L->raw_supplied=true;
   L->no_lpolys=true;
   uint64_t use = (len<L->M) ? len : L->M;
+  Lerror_t ecode=ERR_SUCCESS;
   for(uint64_t n=1;n<=use;n++)
   {
     acb_set(L->ans[n-1],a+(n-1)); // trust the supplied ball
     apply_input_norm(L->ans[n-1],n,norm_of_input,L);
+    ecode|=check_coeff_bound(L,L->ans[n-1],n,L->wprec);
   }
+  if(ecode)
+    L->supply_ecode|=ecode;
   if(len<L->M)
-    return shrink_M(L,len,true);
-  return ERR_SUCCESS;
+    ecode|=shrink_M(L,len,true);
+  return ecode;
 }
 
 bool Lfunc_reduce_nmax(Lfunc_t LL, uint64_t nmax)

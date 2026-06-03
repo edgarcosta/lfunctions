@@ -281,11 +281,142 @@ static void test_normalisation_flag(void) {
   Lfunc_clear(P); Lfunc_clear(Q); Lfunc_clear(A);
 }
 
+// --- edge guards (fatal supply errors) --------------------------------------
+static fmpz *make_an_fmpz(uint64_t len) {
+  fmpz *a = _fmpz_vec_init(len);
+  for (uint64_t n = 1; n <= len; n++) fmpz_set_si(a + (n - 1), an(n));
+  return a;
+}
+
+// a_1 != 1 is rejected (fmpz: exact inequality).
+static void test_guard_a1_fmpz(void) {
+  double mus[] = {0, 1}; Lerror_t ec = ERR_SUCCESS;
+  Lfunc_t L = Lfunc_init(2, 35, 0.0, mus, &ec); assert(!fatal_error(ec));
+  set_default_bound(L, &ec); assert(!fatal_error(ec));
+  uint64_t nmax = Lfunc_nmax(L);
+  fmpz *a = make_an_fmpz(nmax);
+  fmpz_set_si(a + 0, 2); // a_1 = 2
+  Lerror_t e = Lfunc_use_dirichlet_coeffs_fmpz(L, a, nmax, ALGEBRAIC_NORM);
+  assert((e & ERR_A1_NOT_ONE) && fatal_error(e));
+  _fmpz_vec_clear(a, nmax);
+  Lfunc_clear(L);
+}
+
+// a_1 ball not containing 1 is rejected (acb).
+static void test_guard_a1_acb(void) {
+  double mus[] = {0, 1}; Lerror_t ec = ERR_SUCCESS;
+  Lfunc_t L = Lfunc_init(2, 35, 0.0, mus, &ec); assert(!fatal_error(ec));
+  set_default_bound(L, &ec); assert(!fatal_error(ec));
+  uint64_t nmax = Lfunc_nmax(L);
+  acb_ptr a = _acb_vec_init(nmax);
+  for (uint64_t n = 1; n <= nmax; n++) acb_set_si(a + (n - 1), an(n));
+  acb_set_si(a + 0, 2); // a_1 = 2 exactly: does not contain 1
+  Lerror_t e = Lfunc_use_dirichlet_coeffs_acb(L, a, nmax, ALGEBRAIC_NORM);
+  assert((e & ERR_A1_NOT_ONE) && fatal_error(e));
+  _acb_vec_clear(a, nmax);
+  Lfunc_clear(L);
+}
+
+// raw a_n with no prior Lfunc_set_coeff_bound is rejected.
+static void test_guard_missing_bound(void) {
+  double mus[] = {0, 1}; Lerror_t ec = ERR_SUCCESS;
+  Lfunc_t L = Lfunc_init(2, 35, 0.0, mus, &ec); assert(!fatal_error(ec));
+  uint64_t nmax = Lfunc_nmax(L);
+  fmpz *a = make_an_fmpz(nmax); // a_1 = 1, valid; only the bound is missing
+  Lerror_t e = Lfunc_use_dirichlet_coeffs_fmpz(L, a, nmax, ALGEBRAIC_NORM);
+  assert((e & ERR_COEFF_BOUND) && fatal_error(e));
+  _fmpz_vec_clear(a, nmax);
+  Lfunc_clear(L);
+}
+
+// raw a_n incompatible with factors / a second raw supply.
+static void test_guard_conflicts(void) {
+  double mus[] = {0, 1};
+  // (a) factor array, then raw -> conflict
+  {
+    Lerror_t ec = ERR_SUCCESS;
+    Lfunc_t L = Lfunc_init(2, 35, 0.0, mus, &ec); assert(!fatal_error(ec));
+    set_default_bound(L, &ec);
+    uint64_t nmax = Lfunc_nmax(L);
+    uint64_t *primes = (uint64_t *)malloc(sizeof(uint64_t) * (nmax + 1));
+    uint64_t np = primes_upto(nmax, primes);
+    acb_poly_struct *f = (acb_poly_struct *)malloc(sizeof(acb_poly_struct) * np);
+    for (uint64_t k = 0; k < np; k++) { acb_poly_init(&f[k]); factor_acb(&f[k], primes[k]); }
+    ec |= Lfunc_use_lpolys_acb(L, f, np);
+    assert(!fatal_error(ec));
+    for (uint64_t k = 0; k < np; k++) acb_poly_clear(&f[k]);
+    free(f); free(primes);
+    fmpz *a = make_an_fmpz(nmax);
+    Lerror_t e = Lfunc_use_dirichlet_coeffs_fmpz(L, a, nmax, ALGEBRAIC_NORM);
+    assert((e & ERR_SUPPLY_CONFLICT) && fatal_error(e));
+    _fmpz_vec_clear(a, nmax);
+    Lfunc_clear(L);
+  }
+  // (b) raw, then factor array -> conflict (either order)
+  {
+    Lerror_t ec = ERR_SUCCESS;
+    Lfunc_t L = Lfunc_init(2, 35, 0.0, mus, &ec); assert(!fatal_error(ec));
+    set_default_bound(L, &ec);
+    uint64_t nmax = Lfunc_nmax(L);
+    fmpz *a = make_an_fmpz(nmax);
+    ec |= Lfunc_use_dirichlet_coeffs_fmpz(L, a, nmax, ALGEBRAIC_NORM);
+    assert(!fatal_error(ec));
+    _fmpz_vec_clear(a, nmax);
+    uint64_t *primes = (uint64_t *)malloc(sizeof(uint64_t) * (nmax + 1));
+    uint64_t np = primes_upto(nmax, primes);
+    acb_poly_struct *f = (acb_poly_struct *)malloc(sizeof(acb_poly_struct) * np);
+    for (uint64_t k = 0; k < np; k++) { acb_poly_init(&f[k]); factor_acb(&f[k], primes[k]); }
+    Lerror_t e = Lfunc_use_lpolys_acb(L, f, np);
+    assert((e & ERR_SUPPLY_CONFLICT) && fatal_error(e));
+    for (uint64_t k = 0; k < np; k++) acb_poly_clear(&f[k]);
+    free(f); free(primes);
+    Lfunc_clear(L);
+  }
+  // (c) raw twice -> conflict
+  {
+    Lerror_t ec = ERR_SUCCESS;
+    Lfunc_t L = Lfunc_init(2, 35, 0.0, mus, &ec); assert(!fatal_error(ec));
+    set_default_bound(L, &ec);
+    uint64_t nmax = Lfunc_nmax(L);
+    fmpz *a = make_an_fmpz(nmax);
+    ec |= Lfunc_use_dirichlet_coeffs_fmpz(L, a, nmax, ALGEBRAIC_NORM);
+    assert(!fatal_error(ec));
+    Lerror_t e = Lfunc_use_dirichlet_coeffs_fmpz(L, a, nmax, ALGEBRAIC_NORM);
+    assert((e & ERR_SUPPLY_CONFLICT) && fatal_error(e));
+    _fmpz_vec_clear(a, nmax);
+    Lfunc_clear(L);
+  }
+}
+
+// NEGATIVE soundness test: a declared bound the data violates must be caught,
+// not silently accepted (otherwise M_error's tail bound is invalid). Declaring
+// |a_n| <= 1 * n^0 = 1 is violated by a_9 = 3.
+static void test_guard_violated_bound(void) {
+  double mus[] = {0, 1}; Lerror_t ec = ERR_SUCCESS;
+  Lfunc_t L = Lfunc_init(2, 35, 0.0, mus, &ec); assert(!fatal_error(ec));
+  arb_t C; arb_init(C); arb_set_ui(C, 1);
+  ec |= Lfunc_set_coeff_bound(L, C, 0.0); // alpha = 0 => bound is the constant 1
+  arb_clear(C);
+  assert(!fatal_error(ec));
+  uint64_t nmax = Lfunc_nmax(L);
+  assert(nmax >= 9); // a_9 = 3 must be in range to trip the check
+  fmpz *a = make_an_fmpz(nmax); // a_1 = 1 (valid), but a_9 = 3 > 1
+  Lerror_t e = Lfunc_use_dirichlet_coeffs_fmpz(L, a, nmax, ALGEBRAIC_NORM);
+  assert((e & ERR_COEFF_BOUND) && fatal_error(e));
+  _fmpz_vec_clear(a, nmax);
+  Lfunc_clear(L);
+}
+
 int main(void) {
   test_factor_arrays();
   test_raw_coeffs();
   test_acb_vs_fmpz_coeffs();
   test_normalisation_flag();
+  test_guard_a1_fmpz();
+  test_guard_a1_acb();
+  test_guard_missing_bound();
+  test_guard_conflicts();
+  test_guard_violated_bound();
   printf("batch_supply_test: all tests passed\n");
   return 0;
 }
