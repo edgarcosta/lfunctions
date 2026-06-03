@@ -143,6 +143,12 @@ int main(void)
   assert(acb_overlaps(vL, vEk));
   acb_clear(vL); acb_clear(vE); acb_clear(vEk);
 
+  // (Task / spec 13) assembled leading Taylor coefficient: L_d(L2) == L_d(Eref)^2
+  { arb_t tk; arb_init(tk);
+    arb_pow_ui(tk, Lfunc_Taylor(Eref), 2, 100);
+    assert(arb_overlaps((arb_ptr)Lfunc_Taylor(L2), tk));
+    arb_clear(tk); }
+
   Lfunc_clear(L2);
   Lfunc_clear(Eref);
 
@@ -185,6 +191,13 @@ int main(void)
   acb_pow_ui(vE3k, vE3, 3, 100);
   assert(acb_overlaps(vL3, vE3k));
   acb_clear(vL3); acb_clear(vE3); acb_clear(vE3k);
+
+  // (Task / spec 13) assembled leading Taylor coefficient: L_d(L3) == L_d(Eref3)^3
+  { arb_t tk; arb_init(tk);
+    arb_pow_ui(tk, Lfunc_Taylor(Eref3), 3, 100);
+    assert(arb_overlaps((arb_ptr)Lfunc_Taylor(L3), tk));
+    arb_clear(tk); }
+
   Lfunc_clear(L3); Lfunc_clear(Eref3);
 
   printf("extract_power_test: Task 5 OK\n");
