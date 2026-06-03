@@ -119,10 +119,11 @@ Lerror_t finalise_comp(Lfunc *L)
           L->offset,L->low_i);
     return ERR_G_EXTENT;
   }
-  // Backstop: the cyclic convolution aliases if the support exceeds fft_N. fft_N was
-  // sized for this at init; this catches a stale cache whose grid is larger.
-  int64_t cm0_min = (int64_t)floor(log(0.01) / two_pi_by_B);
-  if ((uint64_t)(L->hi_i - L->low_i + 1) + (uint64_t)(L->hi_i - cm0_min + 1) > L->fft_N)
+  // Backstop: the length-fft_N cyclic convolution aliases if the grid+coeff support exceeds
+  // fft_N. Init sized fft_N from conv_support(), so this fires only if a (stale) cache
+  // supplied a larger grid than the current fft_N. Reuses ERR_G_EXTENT (a G-grid extent
+  // problem) rather than a dedicated code; near-unreachable given GCACHE header validation.
+  if (conv_support(L) > L->fft_N)
     return ERR_G_EXTENT;
   return ERR_SUCCESS;
 } /* finalise_comp */

@@ -271,15 +271,14 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
   // calc_m(M0) >= floor(log(0.01)/(2*pi/B)) conductor-independent. max(1<<11,...) keeps
   // every default window bit-for-bit (support <= ~1350 < 2048).
   {
-    double two_pi_by_B = L->one_over_B * 2.0 * M_PI;
-    int64_t cm0_min = (int64_t)floor(log(0.01) / two_pi_by_B);
-    uint64_t S_G = (uint64_t)(L->hi_i - L->low_i + 1);
-    uint64_t S_c = (uint64_t)(L->hi_i - cm0_min + 1);
-    uint64_t support = S_G + S_c;
+    uint64_t support = conv_support(L); // G grid + coeff buckets (see glfunc_internals.h)
     uint64_t floor_n = (uint64_t)1 << 11;
     L->fft_N = next_pow2_u64(support > floor_n ? support : floor_n);
   }
   L->fft_NN = want_fft_NN; // final output length (= 1<<16 for the default window)
+  // fft_N (>= 1<<11) can exceed fft_NN only for a sub-floor (tiny) window whose fft_NN fell
+  // below the 1<<11 floor; those are rejected by the ERR_WINDOW_TOO_SMALL guard (bead
+  // 31c.4). This stays as a defensive backstop.
   if (L->fft_N > L->fft_NN) { ecode[0] |= ERR_WINDOW_TOO_LARGE; return (Lfunc_t)NULL; }
 
   L->A = L->fft_NN * L->one_over_B;
