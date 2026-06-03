@@ -26,6 +26,12 @@ def derive(obj):
         if k % 2 == 0 and (k + 1) > k:
             mus[k] = -2 * math.floor(u / 2.0)
         return dict(degree=k + 1, norm=k / 2.0, mus=mus, sd=1)
+    if kind == "cmf":
+        # classical newform: degree-2*dim L-function (product of the dim Galois conjugates),
+        # motivic weight k-1, dim Gamma_C(s+(k-1)/2) factors -> mus [0]*dim + [1]*dim.
+        dim = int(obj["dim"])
+        return dict(degree=2 * dim, norm=(int(obj["weight"]) - 1) / 2.0,
+                    mus=[0] * dim + [1] * dim, sd=1)
     raise SystemExit("unknown kind: " + kind)
 
 
@@ -136,6 +142,63 @@ def good_genus2(obj, der, nmax, backend, lpdata, workdir, bad):
     return [(p, c) for (p, c) in rows if p not in bad and p <= nmax]  # injected factors win
 
 
+def good_cmf(obj, der, nmax, bad):
+    # Degree-2*dim factors of a classical newform's L-function (product over its dim Galois
+    # conjugates). a_p come from Pari mfcoefs over the relative Hecke field K/Q(chi); the local
+    # quadratic 1 - a_p X + eps(p) p^(k-1) X^2 is normed down to Q with two resultants (eliminate
+    # the K/Q(chi) generator, then the character-field generator). eps(p) = (a_p^2 - a_{p^2})/p^(k-1)
+    # is a character value keyed by p mod level. Good primes are p not dividing the level; the level's
+    # prime divisors are the bad primes, supplied verbatim via bad_factors.
+    N = int(obj["mf_level"]); k = int(obj["weight"])
+    chi = int(obj["mf_chi"]); dim = int(obj["dim"])
+    head = ("from sage.all import pari, euler_phi, prime_range\nimport sys\n"
+            "N,k,chi,dim,nmax = %d,%d,%d,%d,%d\n" % (N, k, chi, dim, nmax))
+    body = r'''
+pari.default("parisizemax", "8G")                       # mfcoefs at large nmax needs headroom
+cm = pari("Mod(%d,%d)" % (chi, N))
+mf = pari.mfinit([N, k, cm], 0)
+flds = pari.mffields(mf); B = pari.mfeigenbasis(mf)
+cdeg = euler_phi(int(pari.znorder(cm)))                 # [Q(chi):Q]
+idx = [i for i in range(len(flds)) if int(pari.poldegree(flds[i])) * cdeg == dim]
+if len(idx) != 1:
+    sys.exit("cmf: no unique eigenform of absolute degree %d (got %r)" % (dim, idx))
+F = B[idx[0]]; Y = flds[idx[0]]; yv = Y.variable()
+T = None                                                # character-field modulus
+for j in range(int(pari.poldegree(Y)) + 1):
+    c = pari.polcoef(Y, j, yv)
+    if c.type() == "t_POLMOD":
+        T = c.mod(); break
+if T is None:
+    sys.exit("cmf: trivial-character (rational) forms are not supported by this backend")
+tv = T.variable(); X = pari("X")
+co = pari.mfcoefs(F, nmax)
+eps = {}
+for p in prime_range(nmax + 1):
+    if N % p == 0 or p * p > nmax:
+        continue
+    eps.setdefault(p % N, pari.lift((co[p] * co[p] - co[p * p]) / p**(k - 1)))
+    if len(eps) == euler_phi(N):
+        break
+out = []
+for p in prime_range(nmax + 1):
+    if N % p == 0:
+        continue
+    loc = 1 - pari.lift(co[p]) * X + eps[p % N] * (p**(k - 1)) * X * X
+    g = Y.polresultant(loc, yv)                         # norm K -> Q(chi): deg 2*dim/cdeg in X
+    f8 = T.polresultant(pari.lift(g), tv)               # norm Q(chi) -> Q: deg 2*dim in X
+    out.append("%d %s" % (p, " ".join(str(int(c)) for c in f8.Vecrev())))
+sys.stdout.write("\n".join(out) + "\n")
+'''
+    out = subprocess.run(["sage", "-python", "-c", head + body],
+                         capture_output=True, text=True, check=True).stdout
+    rows = []
+    for ln in out.splitlines():
+        parts = ln.split()
+        if parts:
+            rows.append((int(parts[0]), [int(x) for x in parts[1:]]))
+    return [(p, c) for (p, c) in rows if p not in bad and p <= nmax]
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("label")
@@ -171,6 +234,8 @@ def main():
 
     if obj["kind"] in ("ec", "sympow"):
         rows = good_ec_sympow(obj, der, nmax, a.lpdata, workdir, bad)
+    elif obj["kind"] == "cmf":
+        rows = good_cmf(obj, der, nmax, bad)
     else:
         rows = good_genus2(obj, der, nmax, a.backend, a.lpdata, workdir, bad)
 
