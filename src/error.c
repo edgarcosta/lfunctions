@@ -100,27 +100,84 @@ void abs_gamma(arb_t res, acb_t s, Lfunc *L, int64_t prec)
   arb_clear(tmp);
 }
 
-// Lemma 5.7 of Artin's conjecture,....
-// we compute this for the family by leaving out the conductor
-void init_ftwiddle_error(Lfunc *L, int64_t prec)
+// Compute the ftwiddle decay rate beta into `beta`, using EXACTLY the formula in
+// init_ftwiddle_error (Lemma 5.7): beta = pi*r/4 - sum_j atan((1/2+mu_j)/B)
+//   - (4/pi^2) sum_j 1/(B^2-(1/2+mu_j)^2).
+// Factored out so the init-time preflight (ftwiddle_beta_positive) and
+// init_ftwiddle_error cannot diverge. Requires L->B to be set.
+static void ftwiddle_beta(arb_t beta, const Lfunc *L, int64_t prec)
 {
-  acb_t s,s_plus_mu;
-  arb_t tmp1,tmp2,tmp3,tmp4,E,two_pi,four_by_pi2,beta;
-  acb_init(s);
-  acb_init(s_plus_mu);
+  arb_t tmp1,tmp2,tmp3,tmp4,two_pi,four_by_pi2;
   arb_init(tmp1);
   arb_init(tmp2);
   arb_init(tmp3);
   arb_init(tmp4);
-  arb_init(E);
   arb_init(two_pi);
   arb_init(four_by_pi2);
-  arb_init(beta);
   arb_const_pi(two_pi,prec);
   arb_inv(tmp1,two_pi,prec);
   arb_mul(four_by_pi2,tmp1,tmp1,prec);
   arb_mul_2exp_si(four_by_pi2,four_by_pi2,2); // 4/Pi^2
   arb_mul_2exp_si(two_pi,two_pi,1); // 2Pi
+
+  arb_mul_2exp_si(tmp1,two_pi,-3); //pi/4
+  arb_mul_ui(beta,tmp1,L->degree,prec); // pi r/4
+  uint64_t j;
+  for(j=0;j<L->degree;j++)
+  {
+    arb_set_d(tmp1,0.5+L->mus[j]);
+    arb_div(tmp2,tmp1,L->B,prec);
+    arb_atan(tmp1,tmp2,prec);
+    arb_sub(beta,beta,tmp1,prec);
+  }
+
+  arb_mul(tmp2,L->B,L->B,prec);
+  arb_zero(tmp4);
+  for(j=0;j<L->degree;j++)
+  {
+    arb_set_d(tmp1,(0.5+L->mus[j])*(0.5+L->mus[j]));
+    arb_sub(tmp3,tmp2,tmp1,prec);
+    arb_inv(tmp1,tmp3,prec);
+    arb_add(tmp4,tmp4,tmp1,prec);
+  }
+  arb_mul(tmp1,tmp4,four_by_pi2,prec);
+  arb_sub(beta,beta,tmp1,prec);
+
+  arb_clear(tmp1);
+  arb_clear(tmp2);
+  arb_clear(tmp3);
+  arb_clear(tmp4);
+  arb_clear(two_pi);
+  arb_clear(four_by_pi2);
+}
+
+// Side-effect-free preflight: is the ftwiddle decay rate beta strictly positive?
+// If not, 1-exp(-beta*B) <= 0 and pre_ftwiddle_error is silently garbage, so the
+// window must be rejected (ERR_WINDOW_TOO_SMALL) before compute_g. Requires
+// L->B to be set; never touches L->pre_ftwiddle_error.
+bool ftwiddle_beta_positive(const Lfunc *L, int64_t prec)
+{
+  arb_t beta;
+  arb_init(beta);
+  ftwiddle_beta(beta,L,prec);
+  bool ok = arb_is_positive(beta);
+  arb_clear(beta);
+  return ok;
+}
+
+// Lemma 5.7 of Artin's conjecture,....
+// we compute this for the family by leaving out the conductor
+void init_ftwiddle_error(Lfunc *L, int64_t prec)
+{
+  acb_t s,s_plus_mu;
+  arb_t tmp1,tmp2,tmp3,E,beta;
+  acb_init(s);
+  acb_init(s_plus_mu);
+  arb_init(tmp1);
+  arb_init(tmp2);
+  arb_init(tmp3);
+  arb_init(E);
+  arb_init(beta);
 
   arb_set_d(acb_realref(s),0.5);
   arb_set(acb_imagref(s),L->B); // 1/2+iB
@@ -150,30 +207,8 @@ void init_ftwiddle_error(Lfunc *L, int64_t prec)
 
   arb_mul_2exp_si(E,E,1);
 
-
-
-  arb_mul_2exp_si(tmp1,two_pi,-3); //pi/4
-  arb_mul_ui(beta,tmp1,L->degree,prec); // pi r/4
-  uint64_t j;
-  for(j=0;j<L->degree;j++)
-  {
-    arb_set_d(tmp1,0.5+L->mus[j]);
-    arb_div(tmp2,tmp1,L->B,prec);
-    arb_atan(tmp1,tmp2,prec);
-    arb_sub(beta,beta,tmp1,prec);
-  }
-
-  arb_mul(tmp2,L->B,L->B,prec);
-  arb_zero(tmp4);
-  for(j=0;j<L->degree;j++)
-  {
-    arb_set_d(tmp1,(0.5+L->mus[j])*(0.5+L->mus[j]));
-    arb_sub(tmp3,tmp2,tmp1,prec);
-    arb_inv(tmp1,tmp3,prec);
-    arb_add(tmp4,tmp4,tmp1,prec);
-  }
-  arb_mul(tmp1,tmp4,four_by_pi2,prec);
-  arb_sub(beta,beta,tmp1,prec);
+  // beta via the shared helper so the preflight cannot diverge from this
+  ftwiddle_beta(beta,L,prec);
 
   arb_mul(tmp1,beta,L->B,prec);
   arb_neg(tmp1,tmp1);
@@ -189,10 +224,7 @@ void init_ftwiddle_error(Lfunc *L, int64_t prec)
   arb_clear(tmp1);
   arb_clear(tmp2);
   arb_clear(tmp3);
-  arb_clear(tmp4);
-  arb_clear(two_pi);
   arb_clear(E);
-  arb_clear(four_by_pi2);
   arb_clear(beta);
 
 }
@@ -357,7 +389,9 @@ void djp_zeta(arb_t res, const arb_t x, slong prec)
 }
       
 // Lemma 5 of ARB's g.pdf
-void F_hat_twiddle_error(arb_t res, arb_t x, Lfunc *L)
+// Returns false (instead of exit()ing) if the X>r/2 side condition fails, so the
+// caller can propagate a fatal Lerror_t rather than the library dying under a caller.
+bool F_hat_twiddle_error(arb_t res, arb_t x, Lfunc *L)
 {
   int64_t prec=L->wprec;
   arb_t tmp1,tmp2,tmp3,u,X,half_log_N,twoXbyr;
@@ -386,8 +420,19 @@ void F_hat_twiddle_error(arb_t res, arb_t x, Lfunc *L)
   if(verbose){printf("X=");arb_printd(X,10);printf("\n");}
   if(!arb_is_positive(tmp2))
   {
-    fprintf(stderr,"Fhat twiddle error failed X>r/2 test. Exiting.\n");
-    exit(0);
+    // X>r/2 side condition failed: the bound is invalid for this window. Do not
+    // exit() out from under the caller; clean up and signal failure so the caller
+    // can raise a fatal Lerror_t (ERR_WINDOW_TOO_SMALL via do_pre_iFFT_errors).
+    if(verbose)
+      fprintf(stderr,"Fhat twiddle error failed X>r/2 test.\n");
+    arb_clear(tmp1);
+    arb_clear(tmp2);
+    arb_clear(tmp3);
+    arb_clear(u);
+    arb_clear(X);
+    arb_clear(half_log_N);
+    arb_clear(twoXbyr);
+    return false;
   }
   // 2X/r
   arb_div_ui(twoXbyr,X,L->degree,prec);
@@ -428,6 +473,7 @@ void F_hat_twiddle_error(arb_t res, arb_t x, Lfunc *L)
   arb_clear(X);
   arb_clear(half_log_N);
   arb_clear(twoXbyr);
+  return true;
 
 }
 
@@ -533,7 +579,10 @@ Lerror_t do_pre_iFFT_errors(Lfunc *L)
 
   // error sum k\neq 0 F_hat(x+2\pi k A)
   arb_sub(err,two_pi_A,x,prec);
-  F_hat_twiddle_error(fhattwiddle,err,L);
+  // X>r/2 side condition failed => window too small for a valid bound (matches the
+  // existing M_error return-on-fatal style above).
+  if(!F_hat_twiddle_error(fhattwiddle,err,L))
+    return ERR_WINDOW_TOO_SMALL;
   arb_mul_2exp_si(fhattwiddle,fhattwiddle,1);
   if(verbose)
   {
@@ -617,7 +666,8 @@ Lerror_t do_pre_iFFT_errors(Lfunc *L)
   // the rest of the vector we just approximate with F_hat_twiddle error
 
   // error sum F_hat(x+2\pi k A)
-  F_hat_twiddle_error(fhattwiddle,x,L);
+  if(!F_hat_twiddle_error(fhattwiddle,x,L))
+    return ERR_WINDOW_TOO_SMALL;
   // we have sum k\geq 0 F_hat(x+2\pi k A)
   // since x<\pi A we can just double this
   arb_mul_2exp_si(fhattwiddle,fhattwiddle,1);

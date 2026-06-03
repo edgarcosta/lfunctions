@@ -375,8 +375,18 @@ computeres:
       arb_trim(res[j],res[j]);
   }
 
+  // Hard certification cap on the taylor_terms recurrence. For a valid window the
+  // asymptotic per-step multiplier 4/(r*B) is < 1 (guaranteed by the init-time
+  // B > 4/degree preflight) and the term count is modest (tens to low hundreds).
+  // If the threshold is not reached within this many terms the configured window
+  // is degenerate; taylor_terms returns -1 and the caller raises a fatal
+  // ERR_WINDOW_TOO_SMALL instead of looping forever. The cap is astronomically
+  // larger than any legitimate window needs, so it never fires on valid input.
+#define TAYLOR_TERMS_CAP (1000000L)
+
   // compute k >= r such that |eps^k*G^{(k)}(u)/k!| < thresh for all u
   // replace thresh by an interval containing eps^k*G^{(k)}(u)/k!
+  // returns -1 (instead of looping forever) if the cap above is exceeded
   static long taylor_terms(arb_t thresh,long twomu[],long r,
       arb_srcptr eps,long prec) {
     long j,k;
@@ -433,6 +443,8 @@ computeres:
     arb_div(x,x,t,prec);
 
     for (k=r;!arb_lt(x,thresh);) {
+      if (k >= TAYLOR_TERMS_CAP)
+        return -1; // recurrence did not contract: degenerate window
       k++;
       arb_one(t);
       for (j=0;j<r;j++) {
@@ -499,7 +511,7 @@ computeres:
 
   // compute G data into L
   // if(op) then also write the data to fp (in the cache dierctory)
-  static void computeall(Lfunc *L, double umin,double Binv,long prec, bool op, FILE *fp) 
+  static Lerror_t computeall(Lfunc *L, double umin,double Binv,long prec, bool op, FILE *fp)
   {
     long i, j, k, prec2, imin, imax;
     double delta;
@@ -545,6 +557,15 @@ computeres:
     prec2 = prec + (long)(exp(2*imax*delta/L->degree)*M_PI*L->degree/M_LN2) + 100;
     arb_const_pi(u,prec2); arb_set_d(eps,Binv); arb_mul(eps,eps,u,prec2);
     k = taylor_terms(thresh,twomu,L->degree,eps,prec);
+    if(k < 0) {
+      // taylor_terms hit its certification cap: the configured window is too
+      // small for the recurrence to contract. Fail loudly before allocating
+      // anything off k (the init-time B > 4/degree preflight normally rejects
+      // such windows first, so this is a belt-and-suspenders safety net).
+      arb_clear(u); arb_clear(eps); arb_clear(thresh); arf_clear(m);
+      arb_clear(L->C); arb_clear(L->alpha);
+      return ERR_WINDOW_TOO_SMALL;
+    }
     L->max_K=k;
     L->one_over_B=Binv;
     if(verbose) printf("1/B set to %f\n",Binv);
@@ -605,6 +626,7 @@ computeres:
     arb_clear(u); arb_clear(eps);
     arb_clear(thresh); arf_clear(m);
 
+    return ERR_SUCCESS;
   }
 
   bool read_arb(arb_ptr res, FILE *infile)
@@ -845,7 +867,7 @@ computeres:
       }
     }
 
-    computeall(L, -32*M_LN2, L->one_over_B, L->gprec, op, ofile);
+    ecode |= computeall(L, -32*M_LN2, L->one_over_B, L->gprec, op, ofile);
     if(op)
       fclose(ofile);
     return ecode;

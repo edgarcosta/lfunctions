@@ -178,20 +178,85 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
   arb_init(L->pi);
 
   // Resolve window geometry from H (max_t) before decay() reads L->max_t.
+  // A returned interval that fails to contain the true value is the worst
+  // outcome, so every rejected/degenerate window must fail with a fatal
+  // Lerror_t here, never silently fall through to a usable-looking result.
   L->max_fft_NN = (Lp->max_fft_NN > 0) ? Lp->max_fft_NN : ((uint64_t)1 << 16);
   uint64_t want_fft_NN;
+  // A supplied (non-sentinel) max_t must be finite and strictly positive.
+  // A non-finite (NaN/Inf) value is a caller error: it must NOT silently take
+  // the default-window branch (the bare Lp->max_t > 0.0 test let NaN through,
+  // since NaN > 0.0 is false). The sentinel is exactly 0.0, which is finite.
+  if (!isfinite(Lp->max_t)) {
+    ecode[0] |= ERR_WINDOW_TOO_SMALL;
+    return (Lfunc_t)NULL;
+  }
   if (Lp->max_t > 0.0) {                       // non-default window
     L->max_t = Lp->max_t;
     L->one_over_B = 1.0 / ((double)OUTPUT_RATIO * L->max_t);
-    want_fft_NN = next_pow2_u64((uint64_t)ceil(1024.0 * (double)L->degree * L->max_t));
-  } else {                                      // default: reproduce historical constants exactly
+    // Compute the required sample count in binary64 first and reject an
+    // overflow before the (uint64_t) cast, so an absurd H can never wrap to a
+    // small or zero count.
+    double need = ceil(1024.0 * (double)L->degree * L->max_t);
+    if (!isfinite(need) || need > (double)UINT64_MAX) {
+      ecode[0] |= ERR_WINDOW_TOO_LARGE;
+      return (Lfunc_t)NULL;
+    }
+    want_fft_NN = next_pow2_u64((uint64_t)need);
+  } else if (Lp->max_t == 0.0) {                // sentinel: default window
     L->max_t = 64.0 / (double)L->degree;
     L->one_over_B = (double)L->degree / 512.0;  // identical to the old g.c:848 value
     want_fft_NN = (uint64_t)1 << 16;            // identical to the old glfunc.c:233 value
+  } else {                                      // finite, < 0: too small
+    ecode[0] |= ERR_WINDOW_TOO_SMALL;
+    return (Lfunc_t)NULL;
   }
 
+  // Upper bound: the required transform must fit under the cap.
   if (want_fft_NN > L->max_fft_NN) {
     ecode[0] |= ERR_WINDOW_TOO_LARGE;
+    return (Lfunc_t)NULL;
+  }
+
+  // ---- Lower-bound guards (spec step 4); any failure => fatal, before compute_g ----
+  // (1) fft_NN floor: below 1<<11 the error/convolution fill writes res[fft_N-1]
+  //     out of the buffer sized fft_NN (heap overflow). fft_N never drops below
+  //     1<<11, so want_fft_NN must reach it too.
+  if (want_fft_NN < ((uint64_t)1 << 11)) {
+    ecode[0] |= ERR_WINDOW_TOO_SMALL;
+    return (Lfunc_t)NULL;
+  }
+
+  // Derive B now (needed by the beta preflight below and reused later for L->B).
+  // B = 1/one_over_B = OUTPUT_RATIO * H. L->mus is sorted ascending so the last
+  // entry is mu_max.
+  double B_eff = 1.0 / L->one_over_B;
+  double mu_max = L->mus[L->degree - 1];
+  arb_init(L->B);
+  {
+    arb_t tmpB;
+    arb_init(tmpB);
+    arb_set_d(tmpB, L->one_over_B);
+    arb_inv(L->B, tmpB, 100); // refined to wprec later (after wprec is known)
+    arb_clear(tmpB);
+  }
+
+  // (3) taylor_terms termination needs B > 4/degree (necessary asymptotic floor;
+  //     the hard cap in g.c is the belt-and-suspenders backstop).
+  if (!(B_eff > 4.0 / (double)L->degree)) {
+    arb_clear(L->B);
+    ecode[0] |= ERR_WINDOW_TOO_SMALL;
+    return (Lfunc_t)NULL;
+  }
+
+  // (2) ftwiddle truncation: need B > 0.5 + mu_max AND the resulting decay rate
+  //     beta strictly positive, else pre_ftwiddle_error is silently garbage.
+  //     Use the shared side-effect-free preflight (same formula as
+  //     init_ftwiddle_error) rather than inspecting the damage afterwards.
+  arb_const_pi(L->pi, 100); // beta preflight (and decay) need pi
+  if (!(B_eff > 0.5 + mu_max) || !ftwiddle_beta_positive(L, 100)) {
+    arb_clear(L->B);
+    ecode[0] |= ERR_WINDOW_TOO_SMALL;
     return (Lfunc_t)NULL;
   }
 
@@ -257,7 +322,8 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
     printf("\n");
   }
 
-  arb_init(L->B);
+  // L->B was already init'd and set at 100 bits for the window preflight above;
+  // refine it to full working precision now that wprec is known.
   arb_set_d(tmp, L->one_over_B);
   arb_inv(L->B, tmp, L->wprec);
 
@@ -418,6 +484,20 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
   arb_init(L->L_d);
 
   ecode[0] |= init_upsampling(L);
+  if (fatal_error(ecode[0]))
+    return (Lfunc_t)NULL;
+
+  // (4) Upsample period-fit (spec step 4, last bullet): the output + Turing +
+  // upsampling-guard samples must fit in one output period of fft_NN. This is
+  // exactly L->u_no_values <= fft_NN, where init_upsampling has just set
+  // u_no_values = fft_NN/OUTPUT_RATIO + fft_NN/TURING_RATIO + 4*u_N*u_stride + 1
+  // using the same parameter search as the runtime; reading it here (rather than
+  // replicating the search) keeps the two from diverging. Runs before zero-
+  // finding (which happens in Lfunc_compute), so no degraded result is returned.
+  if (L->u_no_values > L->fft_NN) {
+    ecode[0] |= ERR_WINDOW_TOO_SMALL;
+    return (Lfunc_t)NULL;
+  }
 
   return (Lfunc_t)L;
 }

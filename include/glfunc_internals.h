@@ -164,6 +164,7 @@ extern "C"{
 
   // from error.c
   void abs_gamma(arb_t res, acb_t s, Lfunc *L, int64_t prec);
+  bool ftwiddle_beta_positive(const Lfunc *L, int64_t prec);
   void init_ftwiddle_error(Lfunc *L, int64_t prec);
   void complete_ftwiddle_error(Lfunc *L, int64_t prec);
   Lerror_t do_pre_iFFT_errors(Lfunc *L);

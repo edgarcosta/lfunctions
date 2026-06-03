@@ -1,8 +1,11 @@
 // Regression test for the configurable output window (bead lfunctions-31c).
 #include <flint/acb_poly.h>
+#include <flint/arith.h>
+#include <flint/fmpz.h>
 #include "glfunc.h"
 #include "glfunc_internals.h"
 #include <cassert>
+#include <cmath>
 #include <cstdio>
 #include <map>
 #include <vector>
@@ -43,6 +46,60 @@ static Lfunc_t build_37(double max_t, uint64_t max_fft_NN, const char *cache_dir
   *ecode |= Lfunc_use_all_lpolys(L, cb, NULL);
   if (fatal_error(*ecode)) return L;
   *ecode |= Lfunc_compute(L);
+  return L;
+}
+
+// init-only ec_37.a1 at a given window/cap. Used to confirm that a rejected
+// (NaN / huge / sub-floor) window fails LOUD at Lfunc_init_advanced itself,
+// fast, before any Euler factors or compute.
+static Lfunc_t init_only_37(double max_t, uint64_t max_fft_NN, const char *cache_dir, Lerror_t *ecode) {
+  static double mus[2] = {0,1};
+  Lparams_t Lp = {};
+  Lp.degree = 2; Lp.conductor = 37; Lp.normalisation = 0.5; Lp.mus = mus;
+  Lp.target_prec = DEFAULT_TARGET_PREC; Lp.wprec = 0; Lp.gprec = 0;
+  Lp.self_dual = DK; Lp.rank = DK; Lp.cache_dir = (char*)cache_dir;
+  Lp.max_t = max_t; Lp.max_fft_NN = max_fft_NN;
+  *ecode = ERR_SUCCESS;
+  return Lfunc_init_advanced(&Lp, ecode);
+}
+
+// Ramanujan tau: degree 2, conductor 1, motivic weight 11 in the algebraic
+// normalisation. As in examples/tau.cpp we run it analytically with
+// normalisation 5.5, mus {0,1}, so the analytic mus are {5.5,6.5} and
+// mu_max = 6.5. The Euler poly at p is 1 - tau(p) x + p^11 x^2, stored as
+// coefficients {1, -tau(p), p^11} (tau(p) via FLINT arith_ramanujan_tau).
+// build_tau only needs to reach init: the B <= 0.5+mu_max guard fires from the
+// conductor/normalisation/mus alone, before any Euler factor is consumed.
+static void tau_cb(acb_poly_t poly, uint64_t p, int, int64_t, void*) {
+  acb_poly_zero(poly);
+  fmpz_t n, t, pk;
+  acb_t c;
+  fmpz_init(n); fmpz_init(t); fmpz_init(pk); acb_init(c);
+  fmpz_set_ui(n, p);
+  arith_ramanujan_tau(t, n);          // tau(p)
+  fmpz_neg(t, t);                     // -tau(p)
+  fmpz_set_ui(pk, p);
+  fmpz_pow_ui(pk, pk, 11);            // p^11
+  acb_poly_set_coeff_si(poly, 0, 1);
+  acb_set_fmpz(c, t);  acb_poly_set_coeff_acb(poly, 1, c);
+  acb_set_fmpz(c, pk); acb_poly_set_coeff_acb(poly, 2, c);
+  fmpz_clear(n); fmpz_clear(t); fmpz_clear(pk); acb_clear(c);
+}
+
+// Build tau via the advanced API at a given window. init may already reject the
+// window (the B/mu floor); only if init succeeds do we supply factors. Returns
+// the accumulated ecode; on a too-small window it is fatal straight out of init.
+static Lfunc_t build_tau(double max_t, const char *cache_dir, Lerror_t *ecode) {
+  static double mus[2] = {0,1};
+  Lparams_t Lp = {};
+  Lp.degree = 2; Lp.conductor = 1; Lp.normalisation = 5.5; Lp.mus = mus;
+  Lp.target_prec = DEFAULT_TARGET_PREC; Lp.wprec = 0; Lp.gprec = 0;
+  Lp.self_dual = DK; Lp.rank = DK; Lp.cache_dir = (char*)cache_dir;
+  Lp.max_t = max_t; Lp.max_fft_NN = 0;
+  *ecode = ERR_SUCCESS;
+  Lfunc_t L = Lfunc_init_advanced(&Lp, ecode);
+  if (fatal_error(*ecode)) return L;
+  *ecode |= Lfunc_use_all_lpolys(L, tau_cb, NULL);
   return L;
 }
 
@@ -96,6 +153,54 @@ int main() {
     assert(arb_overlaps(Lfunc_zeros(Lbig,0)+i, Lfunc_zeros(L,0)+i));
   Lfunc_clear(Lbig);
   printf("task3 ok\n");
+
+  // ---- bead 31c.4: every rejected/degenerate window must fail LOUD and fast ----
+
+  // (B3) A NaN max_t must NOT silently fall through to the default window. It is
+  // a caller error and must be fatal (not a successful default-window build).
+  {
+    Lerror_t ecn;
+    Lfunc_t Ln = init_only_37(NAN, 0, "build/wt_cache_nan", &ecn);
+    assert(fatal_error(ecn));
+    if (Ln) Lfunc_clear(Ln);
+  }
+  printf("nan ok\n");
+
+  // (B3) A huge max_t overflows the required sample count; it must be fatal
+  // ERR_WINDOW_TOO_LARGE and must return immediately (no hang / no wraparound).
+  {
+    Lerror_t ech;
+    Lfunc_t Lh = init_only_37(1e17, 0, "build/wt_cache_huge", &ech);
+    assert(ech & ERR_WINDOW_TOO_LARGE);
+    assert(fatal_error(ech));
+    if (Lh) Lfunc_clear(Lh);
+  }
+  printf("huge ok\n");
+
+  // (Lower-bound 1) A tiny max_t at degree 2 yields want_fft_NN below the fft_N
+  // floor (1<<11); that is a heap-overflow geometry and must be fatal
+  // ERR_WINDOW_TOO_SMALL. H=0.5 => next_pow2(1024*2*0.5)=1024 < 2048.
+  {
+    Lerror_t ect;
+    Lfunc_t Lt = init_only_37(0.5, 0, "build/wt_cache_tiny", &ect);
+    assert(ect & ERR_WINDOW_TOO_SMALL);
+    assert(fatal_error(ect));
+    if (Lt) Lfunc_clear(Lt);
+  }
+  printf("tiny ok\n");
+
+  // (Lower-bound 2) A high-motivic-weight object where B <= 0.5 + mu_max: tau has
+  // analytic mu_max = 6.5, so B = 8H must exceed 7.0 (H > 0.875). H=0.8 gives
+  // B=6.4: it clears the fft_N floor (next_pow2(1024*2*0.8)=2048) but fails the
+  // mu/beta floor and must be fatal ERR_WINDOW_TOO_SMALL.
+  {
+    Lerror_t ecm;
+    Lfunc_t Lm = build_tau(0.8, "build/wt_cache_tau", &ecm);
+    assert(ecm & ERR_WINDOW_TOO_SMALL);
+    assert(fatal_error(ecm));
+    if (Lm) Lfunc_clear(Lm);
+  }
+  printf("tau ok\n");
 
   Lfunc_clear(L);
   return 0;
