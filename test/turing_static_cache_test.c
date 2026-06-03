@@ -14,10 +14,6 @@
 // if 37.a1 ran first it would itself seed the (then-correct) degree-2 cache and
 // the bug would be masked. So this test deliberately orders sym2 before 37.a1.
 //
-// Build:  gcc -I include artifacts/research/regression_rh_order.c \
-//             -o /tmp/rh_order -L build -llfun -lflint -lm
-// Run:    LD_LIBRARY_PATH=build /tmp/rh_order   (exit 0 = pass)
-//
 // FAILS (assert) on the pre-fix library, PASSES on the post-fix library.
 
 #include <assert.h>
