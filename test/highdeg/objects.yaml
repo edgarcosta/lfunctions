@@ -107,6 +107,26 @@ objects:
       taylor_err: 1.0e-12
       tolerate_rh_error: false
 
+  # 399998.a1: extra large-conductor degree-2 object (rank 1, not a new rank). nmax ~14800
+  # vs 1669 for the largest hardcoded example (5077.a1), so it stresses lpdata good-factor
+  # generation and the Dirichlet-coefficient pipeline at a scale no other row reaches.
+  - label: "399998.a1"
+    kind: ec
+    curve: "[1,-1,1,-45,141]"
+    sym: 1
+    conductor: 399998           # = 2 * 199999 (squarefree); both primes split multiplicative
+    bad_factors:
+      2: [1, -1]                # split multiplicative, a_2 = +1
+      199999: [1, -1]           # split multiplicative, a_199999 = +1
+    expected:
+      rank: 1
+      epsilon: [-1.0, 0.0]
+      first_zero: "0.8975042793301614"
+      first_zero_err: 1.0e-9
+      taylor: "9.7217310812081542654755125038730170011"
+      taylor_err: 1.0e-12
+      tolerate_rh_error: false
+
   # ---- (2) Five genus-2 curves, ranks 0-4 (degree 4) ----
   - label: "169.a"
     kind: genus2
