@@ -9,6 +9,9 @@ Makefile
 # g files
 g_[0-9]*
 
+# smalljac build tree fetched by test/highdeg/install_smalljac.sh (CI / local lpdata)
+test/highdeg/smalljac/
+
 # Prerequisites
 *.d
 
