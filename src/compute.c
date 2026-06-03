@@ -311,7 +311,9 @@ static Lerror_t extract_and_assemble(Lfunc *L, uint64_t k)
   acb_set_ui(e_inv, 1); acb_div_ui(e_inv, e_inv, k, M->wprec);
   for (uint64_t i = 0; i < L->n_retained; i++) {
     uint64_t p = L->retained_p[i];
-    if (p > Mmax) break;                  // retained is in increasing prime order
+    if (p > Mmax) continue;               // retention is in SUPPLY order, not prime
+                                          // order (callers may append bad factors
+                                          // last), so skip-and-continue, never break.
     slong dlen = acb_poly_degree(&L->retained_f[i])/(slong)k + 1;
     acb_poly_pow_acb_series(Mp_poly, &L->retained_f[i], e_inv, dlen, M->wprec);
     Lfunc_use_lpoly(Mt, p, Mp_poly);

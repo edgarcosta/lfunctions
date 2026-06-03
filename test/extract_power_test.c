@@ -17,8 +17,10 @@ static const long ap37[][3] = {
   {53,-1,53},{59,-8,59},{61,8,61},{67,-8,67},{71,-9,71},{73,1,73},{79,-4,79},
   {83,15,83},{89,-4,89},{97,-4,97},{101,-3,101},{103,-18,103},{107,12,107},
   {109,16,109},{113,18,113},{127,-1,127},{131,12,131},{137,6,137},{139,-4,139},
+  {149,5,149},  // one good prime > nmax(37.a)=142, for the out-of-order supply test
 };
 // Sanity check against examples/ec_37.a1.cpp: p=2 -> {1,2,2}, p=23 -> {1,-2,23}.
+// p=149 a_p=-5 (T-coeff 5) computed by point count on y^2+y=x^3-x mod 149.
 
 static int k_param; // 2 or 3: the callback raises E_p to this power
 
@@ -176,5 +178,65 @@ int main(void)
   Lfunc_clear(L3); Lfunc_clear(Eref3);
 
   printf("extract_power_test: Task 5 OK\n");
+
+  // ---- out-of-order supply (regression for extract_and_assemble's prime loop) ----
+  // The highdeg harness supplies good factors ascending, then appends the BAD
+  // factors at the tail (e.g. p=2,7 after p up to ~1900 for 196.a). So L's retained
+  // factors are NOT in prime order. extract_and_assemble must feed M every retained
+  // prime <= nmax(M), regardless of position; a `break` at the first p > nmax(M)
+  // would drop the trailing low primes and compute M (here 37.a, nmax 142) WITHOUT
+  // its bad factor at 37 -> wrong zeros/Taylor. We reproduce that layout here:
+  // supply E^2's good primes ascending (incl. p=149 > 142) via Lfunc_use_lpoly, then
+  // the bad prime 37 LAST.
+  k_param = 2;
+  Lfunc_t ErefO = Lfunc_init(2, 37, 0.5, mus, &ec);
+  ec = ERR_SUCCESS;
+  ec |= Lfunc_use_all_lpolys(ErefO, e_callback, NULL);
+  ec |= Lfunc_compute(ErefO);
+  assert(!fatal_error(ec));
+  arb_srcptr zerosEO = Lfunc_zeros(ErefO, 0);
+
+  Lparams_t LpO = { .degree = 4, .conductor = 37u*37u, .normalisation = 0.5,
+                    .mus = (double[]){0,0,1,1}, .target_prec = 100, .wprec = 0,
+                    .gprec = 0, .self_dual = YES, .rank = DK, .cache_dir = ".",
+                    .extract_powers = YES };
+  Lerror_t eO = ERR_SUCCESS;
+  Lfunc_t LO = Lfunc_init_advanced(&LpO, &eO);
+  assert(!fatal_error(eO));
+  {
+    acb_poly_t fp; acb_poly_init(fp);
+    uint64_t nmaxO = Lfunc_nmax(LO);
+    // good primes (everything in ap37 except the bad prime 37), ascending,
+    // each raised to k=2; this includes p=149 > nmax(37.a)=142.
+    for (size_t i = 0; i < sizeof(ap37)/sizeof(ap37[0]); i++) {
+      uint64_t p = (uint64_t)ap37[i][0];
+      if (p == 37 || p > nmaxO) continue;
+      acb_poly_t ep; acb_poly_init(ep); Ep(ep, p);
+      acb_poly_pow_ui(fp, ep, 2, 100);
+      Lfunc_use_lpoly(LO, p, fp);
+      acb_poly_clear(ep);
+    }
+    // bad prime 37 supplied LAST (out of order), (1+T)^2:
+    if (37 <= nmaxO) {
+      acb_poly_t ep; acb_poly_init(ep); Ep(ep, 37);
+      acb_poly_pow_ui(fp, ep, 2, 100);
+      Lfunc_use_lpoly(LO, 37, fp);
+      acb_poly_clear(ep);
+    }
+    acb_poly_clear(fp);
+  }
+  eO |= Lfunc_compute(LO);
+  assert(!fatal_error(eO));
+  Lfunc_t *fO = NULL; uint64_t *mO = NULL;
+  assert(Lfunc_factors(LO, &fO, &mO) == 1 && mO[0] == 2);
+  // The assembled first zero must equal 37.a's first zero. With the `break` bug,
+  // M is computed without its bad factor at 37 and this overlap fails.
+  arb_srcptr zO = Lfunc_zeros(LO, 0);
+  assert(arb_overlaps((arb_ptr)(zO+0), (arb_ptr)(zerosEO+0)));
+  assert(arb_overlaps((arb_ptr)(zO+1), (arb_ptr)(zerosEO+0))); // doubled
+  assert(arb_overlaps((arb_ptr)(zO+2), (arb_ptr)(zerosEO+1)));
+  Lfunc_clear(LO); Lfunc_clear(ErefO);
+
+  printf("extract_power_test: out-of-order supply OK\n");
   return 0;
 }
