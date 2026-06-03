@@ -78,10 +78,12 @@ int main() {
   assert(fatal_error(ec3));
   if (Lbig_fail) Lfunc_clear(Lbig_fail);
 
-  // Task 3b: raise the cap to 2^17 and enlarge from H=32 to H=48; zeros below 32 are unchanged
-  // and strictly more zeros are found.
+  // Task 3b: raise the cap to 2^18 and enlarge from H=32 to H=64; the low zeros are
+  // unchanged and strictly more zeros are found. H=64 needs fft_NN=2^17, and its G grid
+  // exceeds the historical fft_N=2048, so this exercises the fft_N scaling: if fft_N is
+  // too small the cyclic convolution aliases and the low zeros shift, breaking the overlap.
   Lerror_t ec3b;
-  Lfunc_t Lbig = build_37(48.0, (uint64_t)1<<17, "build/wt_cache_enlarge", &ec3b);
+  Lfunc_t Lbig = build_37(64.0, (uint64_t)1<<18, "build/wt_cache_enlarge", &ec3b);
   assert(!fatal_error(ec3b));
   // |eps| = 1
   { arb_t m; arb_init(m); acb_abs(m, Lfunc_sign(Lbig), 100);

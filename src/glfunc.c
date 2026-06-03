@@ -265,8 +265,22 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
   arb_set_d(L->two_pi_by_B, L->one_over_B * 2.0);
   arb_mul(L->two_pi_by_B, L->two_pi_by_B, L->pi, L->wprec);
 
-  L->fft_N = 1 << 11;  // length of DTF for convolutions
+  // fft_N (short Euler-convolution length) must exceed the linear-convolution support
+  // of the G grid [low_i,hi_i] and the coefficient buckets (down to calc_m(M0)), else the
+  // cyclic load n%fft_N (compute.c) silently aliases. M0/sqrt(N) >= 1/100 makes
+  // calc_m(M0) >= floor(log(0.01)/(2*pi/B)) conductor-independent. max(1<<11,...) keeps
+  // every default window bit-for-bit (support <= ~1350 < 2048).
+  {
+    double two_pi_by_B = L->one_over_B * 2.0 * M_PI;
+    int64_t cm0_min = (int64_t)floor(log(0.01) / two_pi_by_B);
+    uint64_t S_G = (uint64_t)(L->hi_i - L->low_i + 1);
+    uint64_t S_c = (uint64_t)(L->hi_i - cm0_min + 1);
+    uint64_t support = S_G + S_c;
+    uint64_t floor_n = (uint64_t)1 << 11;
+    L->fft_N = next_pow2_u64(support > floor_n ? support : floor_n);
+  }
   L->fft_NN = want_fft_NN; // final output length (= 1<<16 for the default window)
+  if (L->fft_N > L->fft_NN) { ecode[0] |= ERR_WINDOW_TOO_LARGE; return (Lfunc_t)NULL; }
 
   L->A = L->fft_NN * L->one_over_B;
   arb_init(L->arb_A);
