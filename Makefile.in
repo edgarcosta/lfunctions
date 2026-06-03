@@ -84,7 +84,7 @@ $(BUILD_DIRS): % :
 print-%:
 	@echo '$*=$($*)'
 
-.PHONY: clean check check-highdeg configure
+.PHONY: clean check check-highdeg highdeg-gen configure
 
 # Regression suite. Exit code is the oracle (assertions are on by default).
 # Stale/colliding g_<mu> caches poison results, so scrub them before the suite
@@ -124,11 +124,16 @@ check: all
 BACKEND ?= smalljac
 LPDATA ?= /usr/local/bin/lpdata
 HIGHDEG_OBJECTS ?= test/highdeg/objects.yaml
+# LABEL=<label> restricts the run to a single object (generate + run just that one) and
+# keeps its build/test/highdeg_<label>.in for debugging; empty LABEL runs the full sweep.
+LABEL ?=
 check-highdeg: all
 	@rm -f g_[0-9]*
-	@fail=0; xpass=0; \
+	@fail=0; xpass=0; ran=0; \
 	for entry in $$(python3 -c "import yaml;print(' '.join(o['label']+':'+('1' if o.get('xfail') else '0') for o in yaml.safe_load(open('$(HIGHDEG_OBJECTS)'))['objects']))"); do \
 	  label=$${entry%%:*}; xf=$${entry##*:}; \
+	  if [ -n "$(LABEL)" ] && [ "$$label" != "$(LABEL)" ]; then continue; fi; \
+	  ran=1; \
 	  inf=build/test/highdeg_$$label.in; logf=build/test/highdeg_$$label.log; \
 	  printf 'RUN  %s\n' "$$label"; \
 	  if BACKEND=$(BACKEND) LPDATA=$(LPDATA) python3 test/highdeg/gen.py "$$label" \
@@ -141,7 +146,20 @@ check-highdeg: all
 	    if [ $$ok = 1 ]; then printf 'PASS %s\n' "$$label"; \
 	    else printf 'FAIL %s\n' "$$label"; cat $$logf; fail=1; fi; \
 	  fi; \
-	  rm -f $$inf $$logf g_[0-9]*; \
+	  if [ -n "$(LABEL)" ]; then printf 'kept %s  (re-run: ./build/test/highdeg_check.exe %s)\n' "$$inf" "$$inf"; rm -f g_[0-9]*; \
+	  else rm -f $$inf $$logf g_[0-9]*; fi; \
 	done; \
+	if [ -n "$(LABEL)" ] && [ $$ran = 0 ]; then echo "no object labelled '$(LABEL)' in $(HIGHDEG_OBJECTS)"; exit 2; fi; \
 	if [ $$fail -ne 0 ]; then echo 'CHECK-HIGHDEG FAILED'; exit 1; fi; \
 	if [ $$xpass -ne 0 ]; then echo 'CHECK-HIGHDEG PASSED (with XPASS -- see above)'; else echo 'CHECK-HIGHDEG PASSED'; fi
+
+# Generate (only) one object's driver input file for debugging, then print the run command.
+# Lets a collaborator iterate on a single object: edit the .in, run it under gdb, etc.
+highdeg-gen: all
+	@if [ -z "$(LABEL)" ]; then echo 'usage: make highdeg-gen LABEL=<label>'; exit 2; fi
+	@rm -f g_[0-9]*
+	@inf=build/test/highdeg_$(LABEL).in; \
+	if BACKEND=$(BACKEND) LPDATA=$(LPDATA) python3 test/highdeg/gen.py "$(LABEL)" \
+	      --driver build/test/highdeg_check.exe --objects $(HIGHDEG_OBJECTS) > $$inf; then \
+	  printf 'wrote %s\nrun:   ./build/test/highdeg_check.exe %s\n' "$$inf" "$$inf"; \
+	else echo "gen failed for '$(LABEL)'"; rm -f $$inf; exit 1; fi
