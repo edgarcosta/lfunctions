@@ -295,6 +295,89 @@ Lerror_t Lfunc_use_lpolys_fmpz(Lfunc_t Lf, const fmpz_poly_struct *f, uint64_t l
   return ecode;
 }
 
+// Declare the Ramanujan-type growth bound |a_n| <= C * n^alpha on the *analytic*
+// coefficients. The raw-a_n paths feed these to M_error in place of the
+// Euler-product default that g.c installs (alpha=1, C=coeff_bound(degree)); only
+// the caller can certify the unsupplied tail beyond the supplied coefficients.
+// compute_g runs at init (before this), so the values stored here survive to
+// Lfunc_compute; the g.c assignment is also guarded on coeff_bound_set as a
+// belt-and-suspenders against that ordering ever changing.
+Lerror_t Lfunc_set_coeff_bound(Lfunc_t Lf, const arb_t C, double alpha)
+{
+  Lfunc *L=(Lfunc *)Lf;
+  arb_set(L->C,C);            // C/alpha were arb_init'd by compute_g at init
+  arb_set_d(L->alpha,alpha);
+  L->coeff_bound_set=true;
+  return ERR_SUCCESS;
+}
+
+// Move one supplied coefficient at index n (1-based) into the analytic
+// normalisation: ALGEBRAIC_NORM multiplies by n^{-normalisation} (the direct
+// analogue of use_lpoly's per-factor p^{-m*normalisation}); ANALYTIC_NORM, the
+// n=1 term, and normalisation 0 need no shift.
+static void apply_input_norm(acb_t z, uint64_t n, int norm_of_input, Lfunc *L)
+{
+  if(norm_of_input==ANALYTIC_NORM || n==1 || L->normalisation==0.0)
+    return;
+  int64_t prec=L->wprec;
+  arb_t logn,f;
+  arb_init(logn);
+  arb_init(f);
+  arb_log_ui(logn,n,prec);
+  arb_set_d(f,-L->normalisation);
+  arb_mul(f,f,logn,prec);
+  arb_exp(f,f,prec);          // n^{-normalisation}
+  acb_mul_arb(z,z,f,prec);
+  arb_clear(logn);
+  arb_clear(f);
+}
+
+// Supply the Dirichlet coefficients a_n directly (a[0]=a_1). These *overwrite*
+// L->ans (the all-ones init), so they cannot be combined with any Euler-factor
+// route. There are no per-prime factors, so RH verification is later skipped
+// (no_lpolys). A short array reduces M and warns; surplus is ignored.
+Lerror_t Lfunc_use_dirichlet_coeffs_fmpz(Lfunc_t Lf, const fmpz *a, uint64_t len, int norm_of_input)
+{
+  Lfunc *L=(Lfunc *)Lf;
+  if(!L->nmax_called)
+  {
+    L->M=Lfunc_nmax(Lf);
+    L->nmax_called=true;
+  }
+  L->raw_supplied=true;
+  L->no_lpolys=true;
+  uint64_t use = (len<L->M) ? len : L->M;
+  for(uint64_t n=1;n<=use;n++)
+  {
+    acb_set_fmpz(L->ans[n-1],a+(n-1)); // exact
+    apply_input_norm(L->ans[n-1],n,norm_of_input,L);
+  }
+  if(len<L->M)
+    return shrink_M(L,len,true);
+  return ERR_SUCCESS;
+}
+
+Lerror_t Lfunc_use_dirichlet_coeffs_acb(Lfunc_t Lf, acb_srcptr a, uint64_t len, int norm_of_input)
+{
+  Lfunc *L=(Lfunc *)Lf;
+  if(!L->nmax_called)
+  {
+    L->M=Lfunc_nmax(Lf);
+    L->nmax_called=true;
+  }
+  L->raw_supplied=true;
+  L->no_lpolys=true;
+  uint64_t use = (len<L->M) ? len : L->M;
+  for(uint64_t n=1;n<=use;n++)
+  {
+    acb_set(L->ans[n-1],a+(n-1)); // trust the supplied ball
+    apply_input_norm(L->ans[n-1],n,norm_of_input,L);
+  }
+  if(len<L->M)
+    return shrink_M(L,len,true);
+  return ERR_SUCCESS;
+}
+
 bool Lfunc_reduce_nmax(Lfunc_t LL, uint64_t nmax)
 {
   Lfunc *L=(Lfunc *)LL;

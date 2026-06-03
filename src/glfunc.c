@@ -195,6 +195,14 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
   L->rank = Lp->rank;
   L->cache_dir = Lp->cache_dir;
 
+  // batch-supply state: initialise BEFORE compute_g, which reads coeff_bound_set
+  // to decide whether to install the default Euler-product coefficient bound.
+  L->coeff_bound_set = false;
+  L->no_lpolys = false;
+  L->factor_supplied = false;
+  L->raw_supplied = false;
+  L->supply_ecode = ERR_SUCCESS;
+
   // See Lemma 2 of M_error1.pdf, Lemma 5 of g.pdf
   // r is always >=2
   L->nus = (arb_t *)malloc(sizeof(arb_t) * L->degree);
@@ -385,13 +393,6 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
   arb_init(L->X);
 #endif
   L->nmax_called = false; // noone has called nmax yet
-
-  // batch-supply state: no supply call has happened yet, no caller coeff bound
-  L->coeff_bound_set = false;
-  L->no_lpolys = false;
-  L->factor_supplied = false;
-  L->raw_supplied = false;
-  L->supply_ecode = ERR_SUCCESS;
 
   arb_init(L->Lam_d);
   arb_init(L->L_d);

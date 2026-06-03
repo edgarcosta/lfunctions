@@ -113,6 +113,92 @@ static Lfunc_t run_lpolys_fmpz(Lerror_t *ec) {
   return L;
 }
 
+// raw Dirichlet coefficient a_n = sum_{d|n} chi5(d) chi7(n/d) (the convolution
+// whose Dirichlet series is exactly prod_p (1-chi5(p)T)(1-chi7(p)T) inverted).
+static long an(uint64_t n) {
+  long s = 0;
+  for (uint64_t d = 1; d <= n; d++)
+    if (n % d == 0) s += (long)chi5(d) * chi7(n / d);
+  return s;
+}
+
+// the degree-2 default bound coeff_bound(2) = 1, alpha = 1: |a_n| <= d(n) <= n.
+static void set_default_bound(Lfunc_t L, Lerror_t *ec) {
+  arb_t C; arb_init(C); arb_set_ui(C, 1);
+  *ec |= Lfunc_set_coeff_bound(L, C, 1.0);
+  arb_clear(C);
+}
+
+static Lfunc_t run_raw_fmpz(Lerror_t *ec) {
+  double mus[] = {0, 1};
+  Lfunc_t L = Lfunc_init(2, 5 * 7, 0.0, mus, ec);
+  if (fatal_error(*ec)) return L;
+  uint64_t nmax = Lfunc_nmax(L);
+  set_default_bound(L, ec);
+  fmpz *a = _fmpz_vec_init(nmax);
+  for (uint64_t n = 1; n <= nmax; n++) fmpz_set_si(a + (n - 1), an(n));
+  *ec |= Lfunc_use_dirichlet_coeffs_fmpz(L, a, nmax, ALGEBRAIC_NORM); // norm 0: no shift
+  _fmpz_vec_clear(a, nmax);
+  if (fatal_error(*ec)) return L;
+  *ec |= Lfunc_compute(L);
+  return L;
+}
+
+static Lfunc_t run_raw_acb(Lerror_t *ec) {
+  double mus[] = {0, 1};
+  Lfunc_t L = Lfunc_init(2, 5 * 7, 0.0, mus, ec);
+  if (fatal_error(*ec)) return L;
+  uint64_t nmax = Lfunc_nmax(L);
+  set_default_bound(L, ec);
+  acb_ptr a = _acb_vec_init(nmax);
+  for (uint64_t n = 1; n <= nmax; n++) acb_set_si(a + (n - 1), an(n));
+  *ec |= Lfunc_use_dirichlet_coeffs_acb(L, a, nmax, ALGEBRAIC_NORM);
+  _acb_vec_clear(a, nmax);
+  if (fatal_error(*ec)) return L;
+  *ec |= Lfunc_compute(L);
+  return L;
+}
+
+// Same analytic object as run_callback (conductor 35, analytic mus [0,1],
+// analytic a_n = b_n) but parametrised with normalisation 0.5, mus [-0.5,0.5]
+// (the [0,1],0.5 == [0.5,1.5],0 invariant). Supplying the algebraic numbers
+// b_n * n^{0.5} under ALGEBRAIC_NORM must reproduce analytic b_n, agreeing with
+// supplying b_n directly under ANALYTIC_NORM.
+static Lfunc_t run_shift_algebraic(Lerror_t *ec) {
+  double mus[] = {-0.5, 0.5};
+  Lfunc_t L = Lfunc_init(2, 5 * 7, 0.5, mus, ec);
+  if (fatal_error(*ec)) return L;
+  uint64_t nmax = Lfunc_nmax(L);
+  set_default_bound(L, ec);
+  acb_ptr a = _acb_vec_init(nmax);
+  arb_t rt; arb_init(rt);
+  for (uint64_t n = 1; n <= nmax; n++) {
+    arb_sqrt_ui(rt, n, 256);          // n^{0.5}
+    arb_mul_si(rt, rt, an(n), 256);   // b_n * n^{0.5} (the algebraic coeff)
+    acb_set_arb(a + (n - 1), rt);
+  }
+  arb_clear(rt);
+  *ec |= Lfunc_use_dirichlet_coeffs_acb(L, a, nmax, ALGEBRAIC_NORM); // shift by n^{-0.5}
+  _acb_vec_clear(a, nmax);
+  if (fatal_error(*ec)) return L;
+  *ec |= Lfunc_compute(L);
+  return L;
+}
+static Lfunc_t run_shift_analytic(Lerror_t *ec) {
+  double mus[] = {-0.5, 0.5};
+  Lfunc_t L = Lfunc_init(2, 5 * 7, 0.5, mus, ec);
+  if (fatal_error(*ec)) return L;
+  uint64_t nmax = Lfunc_nmax(L);
+  set_default_bound(L, ec);
+  acb_ptr a = _acb_vec_init(nmax);
+  for (uint64_t n = 1; n <= nmax; n++) acb_set_si(a + (n - 1), an(n)); // analytic b_n
+  *ec |= Lfunc_use_dirichlet_coeffs_acb(L, a, nmax, ANALYTIC_NORM);    // no shift
+  _acb_vec_clear(a, nmax);
+  if (fatal_error(*ec)) return L;
+  *ec |= Lfunc_compute(L);
+  return L;
+}
+
 // --- comparison helpers ------------------------------------------------------
 static void assert_zeros_overlap(Lfunc_t A, Lfunc_t B, uint64_t side) {
   arb_srcptr za = Lfunc_zeros(A, side), zb = Lfunc_zeros(B, side);
@@ -157,8 +243,49 @@ static void test_factor_arrays(void) {
   Lfunc_clear(A); Lfunc_clear(B); Lfunc_clear(C);
 }
 
+// raw a_n (fmpz) reproduces the callback's certified data.
+static void test_raw_coeffs(void) {
+  Lerror_t ea = ERR_SUCCESS, er = ERR_SUCCESS;
+  Lfunc_t A = run_callback(&ea);
+  Lfunc_t R = run_raw_fmpz(&er);
+  assert(!fatal_error(ea) && !fatal_error(er));
+  assert_self_consistent(R);
+  assert_outputs_overlap(A, R);
+  Lfunc_clear(A); Lfunc_clear(R);
+}
+
+// the fmpz and acb coefficient forms carry the same integers, so they must
+// agree (both exact).
+static void test_acb_vs_fmpz_coeffs(void) {
+  Lerror_t ef = ERR_SUCCESS, eg = ERR_SUCCESS;
+  Lfunc_t F = run_raw_fmpz(&ef);
+  Lfunc_t G = run_raw_acb(&eg);
+  assert(!fatal_error(ef) && !fatal_error(eg));
+  assert_outputs_overlap(F, G);
+  Lfunc_clear(F); Lfunc_clear(G);
+}
+
+// ALGEBRAIC_NORM with a nonzero normalisation (the library applies n^{-0.5})
+// equals the same coefficients pre-shifted and supplied ANALYTIC_NORM, and both
+// equal the canonical normalisation-0 run.
+static void test_normalisation_flag(void) {
+  Lerror_t ep = ERR_SUCCESS, eq = ERR_SUCCESS, ea = ERR_SUCCESS;
+  Lfunc_t P = run_shift_algebraic(&ep);
+  Lfunc_t Q = run_shift_analytic(&eq);
+  Lfunc_t A = run_callback(&ea);
+  assert(!fatal_error(ep) && !fatal_error(eq) && !fatal_error(ea));
+  assert_self_consistent(P);
+  assert_self_consistent(Q);
+  assert_outputs_overlap(P, Q);
+  assert_outputs_overlap(P, A);
+  Lfunc_clear(P); Lfunc_clear(Q); Lfunc_clear(A);
+}
+
 int main(void) {
   test_factor_arrays();
+  test_raw_coeffs();
+  test_acb_vs_fmpz_coeffs();
+  test_normalisation_flag();
   printf("batch_supply_test: all tests passed\n");
   return 0;
 }
