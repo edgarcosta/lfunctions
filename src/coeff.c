@@ -274,11 +274,22 @@ static bool poly_is_perfect_kth_power(const acb_poly_t f, uint64_t k, int64_t pr
 {
   slong d = acb_poly_degree(f);
   if (d < 1 || (d % (slong)k) != 0) return false;
+  // The certificate is rigorous only for EXACT (point-ball) Euler factors: it proves
+  // f = M_p^k by ball containment, meaningful only when f carries no width. All real
+  // callers supply exact integer Euler factors; refuse to certify an inexact one so
+  // we never claim a power we cannot prove.
+  for (slong i = 0; i <= d; i++) {
+    acb_srcptr ci = acb_poly_get_coeff_ptr(f, i);
+    if (ci != NULL && !acb_is_exact(ci)) return false;
+  }
   acb_poly_t root, chk; acb_poly_init(root); acb_poly_init(chk);
   poly_kth_root(root, f, k, prec);
   acb_poly_truncate(root, d/(slong)k + 1);    // drop spurious near-zero guard terms
   acb_poly_pow_ui(chk, root, (ulong)k, prec); // root^k, degree d
-  bool ok = acb_poly_overlaps(chk, f);        // sole rigorous gate: root^k must contain f
+  // f being exact, root^k overlapping f certifies it: a non-power differs from any
+  // k-th power by at least the integer coefficient gap (>= 1), far exceeding the
+  // ~2^-prec width of the root^k ball, so an overlap can only mean f IS a k-th power.
+  bool ok = acb_poly_overlaps(chk, f);
   acb_poly_clear(root); acb_poly_clear(chk);
   return ok;
 }
@@ -312,6 +323,13 @@ Lerror_t power_extract_prepare(Lfunc *L, uint64_t *k_out)
     }
   }
   if (!seen_full) return ERR_POWER;
+  // The archimedean data must also be k copies: each sorted block of k mus must be
+  // equal (mus are sorted in Lfunc_init_advanced). A mismatch means L's gamma factors
+  // disagree with a pure power, so we must not extract (spec section 10).
+  for (uint64_t i = 0; i + k <= L->degree; i += k)
+    for (uint64_t j = 1; j < k; j++)
+      if (L->mus[i] != L->mus[i + j])
+        return ERR_POWER;
   *k_out = k;
   return ERR_SUCCESS;
 }

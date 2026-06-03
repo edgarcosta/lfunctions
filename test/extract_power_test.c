@@ -56,6 +56,16 @@ static void e_callback(acb_poly_t poly, uint64_t p, int d, int64_t prec, void *p
   Ep(poly, p);
 }
 
+// callback for I3: like lk_callback but makes one coefficient INEXACT (a tiny ball).
+// The k-th-power certificate is rigorous only for exact factors, so an inexact one
+// must be refused even though its root^k still overlaps the wide ball.
+static void lk_inexact_callback(acb_poly_t poly, uint64_t p, int d, int64_t prec, void *param)
+{
+  lk_callback(poly, p, d, prec, param);
+  if (!acb_poly_is_zero(poly))
+    arb_add_error_2exp_si(acb_realref(acb_poly_get_coeff_ptr(poly, 0)), -150);
+}
+
 int main(void)
 {
   Lerror_t ec = ERR_SUCCESS;
@@ -238,5 +248,45 @@ int main(void)
   Lfunc_clear(LO); Lfunc_clear(ErefO);
 
   printf("extract_power_test: out-of-order supply OK\n");
+
+  // ---- I2: non-k-divisible mus must be rejected (soundness gate) ----
+  // A degree-4 L with mus={0,0,0,1} has sorted blocks [0,0] and [0,1] (k=2),
+  // which are unequal: L's gamma factors disagree with any pure square, so even
+  // if the Euler factors are perfect squares we must NOT extract. Supply the same
+  // perfect-square factors as E^2 via lk_callback; expect ERR_POWER.
+  k_param = 2;
+  Lparams_t LpMu = { .degree = 4, .conductor = 37u*37u, .normalisation = 0.5,
+                     .mus = (double[]){0,0,0,1}, .target_prec = 100, .wprec = 0,
+                     .gprec = 0, .self_dual = YES, .rank = DK, .cache_dir = ".",
+                     .extract_powers = YES };
+  Lerror_t eMu = ERR_SUCCESS;
+  Lfunc_t LMu = Lfunc_init_advanced(&LpMu, &eMu);
+  assert(!fatal_error(eMu));
+  eMu |= Lfunc_use_all_lpolys(LMu, lk_callback, NULL); // INSUFF_EULER warning is fine
+  eMu |= Lfunc_compute(LMu);
+  assert(eMu & ERR_POWER);            // mus not k-divisible -> refuse to extract
+  Lfunc_clear(LMu);
+
+  printf("extract_power_test: I2 non-k-divisible mus OK\n");
+
+  // ---- I3: inexact (wide-ball) Euler factors must not be certified (rigor) ----
+  // E^2 with one coefficient carrying a tiny error ball. The certificate proves
+  // f = M_p^k by ball containment, which is meaningful only for exact factors; a
+  // wide-ball non-power can false-accept. Expect ERR_POWER (refuse to certify).
+  k_param = 2;
+  Lparams_t LpIn = { .degree = 4, .conductor = 37u*37u, .normalisation = 0.5,
+                     .mus = (double[]){0,0,1,1}, .target_prec = 100, .wprec = 0,
+                     .gprec = 0, .self_dual = YES, .rank = DK, .cache_dir = ".",
+                     .extract_powers = YES };
+  Lerror_t eIn = ERR_SUCCESS;
+  Lfunc_t LIn = Lfunc_init_advanced(&LpIn, &eIn);
+  assert(!fatal_error(eIn));
+  eIn |= Lfunc_use_all_lpolys(LIn, lk_inexact_callback, NULL); // INSUFF_EULER warning is fine
+  eIn |= Lfunc_compute(LIn);
+  assert(eIn & ERR_POWER);            // inexact factor -> refuse to certify
+  Lfunc_clear(LIn);
+
+  printf("extract_power_test: I3 inexact factor OK\n");
+
   return 0;
 }
