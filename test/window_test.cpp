@@ -30,7 +30,7 @@ static void cb(acb_poly_t poly, uint64_t p, int, int64_t, void*) {
 // cache_dir so runs never poison each other. Returns the accumulated ecode.
 static Lfunc_t build_37(double max_t, uint64_t max_fft_NN, const char *cache_dir, Lerror_t *ecode) {
   static double mus[2] = {0,1};
-  Lparams_t Lp;
+  Lparams_t Lp = {}; // zero-init: future Lparams_t fields default safely
   Lp.degree = 2; Lp.conductor = 37; Lp.normalisation = 0.5; Lp.mus = mus;
   Lp.target_prec = DEFAULT_TARGET_PREC; Lp.wprec = 0; Lp.gprec = 0;
   Lp.self_dual = DK; Lp.rank = DK; Lp.cache_dir = (char*)cache_dir;

@@ -60,7 +60,7 @@ static void cleanup_dir(const char *dir) {
 static bool init_is_fatal(uint64_t degree, double normalisation,
                           const double *mus, int64_t wprec,
                           const char *cache_dir, uint64_t *out_nmax) {
-  Lparams_t Lp;
+  Lparams_t Lp = {0}; // zero-init: future Lparams_t fields default safely
   Lp.degree = degree;
   Lp.conductor = 1;
   Lp.normalisation = normalisation;
