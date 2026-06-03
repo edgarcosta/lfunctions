@@ -172,6 +172,23 @@ void Lfunc_use_lpoly(Lfunc_t Lf, uint64_t p, const acb_poly_t poly)
   use_lpoly(L,p,poly);
 }
 
+// Reduce the working coefficient count to new_M: we either ran out of data at,
+// or were told to stop at, index/prime new_M+1. Also keep buthe_M no larger than
+// new_M. insufficient==true flags an unexpected shortfall (ERR_INSUFF_EULER); an
+// explicit, trusted Lfunc_reduce_nmax passes false (a deliberate reduction is not
+// an error). Returns the warning bit to OR into the caller's accumulator. This is
+// the single funnel for both the callback zero-poly short-circuit and the array
+// length-shortfall paths, so the M/buthe_M clamp lives in exactly one place.
+static Lerror_t shrink_M(Lfunc *L, uint64_t new_M, bool insufficient)
+{
+  L->M=new_M;
+#ifdef BUTHE
+  if(L->buthe_M>new_M)
+    L->buthe_M=new_M;
+#endif
+  return insufficient ? ERR_INSUFF_EULER : ERR_SUCCESS;
+}
+
 
 
 // call lpoly_callback with every prime <=L->M
@@ -197,12 +214,7 @@ Lerror_t Lfunc_use_all_lpolys(Lfunc_t Lf, void (*lpoly_callback) (acb_poly_t lpo
     lpoly_callback(lp,p,L->degree,L->wprec,param);
     if(acb_poly_is_zero(lp)) // ran out of Euler polys
     {
-      #ifdef BUTHE
-      if(p<L->buthe_M)
-        L->buthe_M=p-1; // this is likely to mean we compute garbage
-      #endif
-      L->M=p-1; // we might get away with this
-      ecode|=ERR_INSUFF_EULER;
+      ecode|=shrink_M(L,p-1,true); // we might get away with this
       break;
     }
     use_lpoly(L,p,lp);
@@ -223,11 +235,7 @@ bool Lfunc_reduce_nmax(Lfunc_t LL, uint64_t nmax)
   M=Lfunc_nmax(LL); // what is the current M
   if(nmax>=M) // I won't let you increase it
     return false;
-  L->M=nmax;
-  #ifdef BUTHE
-  if(L->buthe_M>nmax) // we could be in serious trouble here
-    L->buthe_M=nmax;
-  #endif
+  shrink_M(L,nmax,false); // trusted, explicit reduction: not a shortfall
   return true;
 }
 
