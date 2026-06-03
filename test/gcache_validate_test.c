@@ -71,6 +71,8 @@ static bool init_is_fatal(uint64_t degree, double normalisation,
   Lp.cache_dir = (char *)cache_dir;
   Lp.gprec = 0;                          // required for the cache path
   Lp.wprec = wprec;
+  Lp.max_t = 0;                          // default output window (64/degree)
+  Lp.max_fft_NN = 0;                     // default transform-size cap (1<<16)
 
   Lerror_t ecode = ERR_SUCCESS;
   Lfunc_t L = Lfunc_init_advanced(&Lp, &ecode);

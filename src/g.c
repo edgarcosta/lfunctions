@@ -845,7 +845,7 @@ computeres:
       }
     }
 
-    computeall(L, -32*M_LN2, (double)L->degree/512, L->gprec, op, ofile);
+    computeall(L, -32*M_LN2, L->one_over_B, L->gprec, op, ofile);
     if(op)
       fclose(ofile);
     return ecode;

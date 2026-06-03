@@ -56,7 +56,17 @@ int main() {
   arb_add_error_2exp_si(z0ref, -50);
   assert(arb_overlaps(Lfunc_zeros(L,0) + 0, z0ref));
   arb_clear(z0ref);
-  Lfunc_clear(L);
   printf("task1 ok\n");
+
+  // Task 2: an explicit max_t equal to the default reproduces the sentinel result.
+  Lerror_t ec2;
+  Lfunc_t Le = build_37(64.0/2.0, 0, "build/wt_cache_expl", &ec2); // H = 64/degree
+  assert(!fatal_error(ec2));
+  assert(Lfunc_rank(Le) == 1);
+  for (int i = 0; i < 10; ++i)
+    assert(arb_overlaps(Lfunc_zeros(Le,0)+i, Lfunc_zeros(L,0)+i));
+  Lfunc_clear(Le);
+  Lfunc_clear(L);
+  printf("task2 ok\n");
   return 0;
 }

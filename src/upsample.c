@@ -309,7 +309,7 @@ Lerror_t init_upsampling(Lfunc *L)
   if(verbose){printf("A for upsampling set to ");arb_printd(L->u_A,10);printf("\n");}
   arb_mul(L->u_pi_A,L->pi,L->u_A,prec);
 
-  double T=512.0/(double)L->degree/(double)OUTPUT_RATIO;
+  double T=L->max_t;
   double A=L->A*L->u_stride;
   double h=sqrt(1.0/A)*1.001;
   double H=ceil(A*A*h*h/2.0);

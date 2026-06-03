@@ -111,6 +111,9 @@ extern "C"{
   // do the same but with more control. Lparams.conductor fixes the coefficient
   // range M implicitly, as in Lfunc_init (see Lfunc_nmax); no Lparams field sets
   // the prime/coefficient count directly.
+  // NOTE: zero-initialise Lparams_t (memset, or set every field) before calling.
+  // The newer fields (max_t, max_fft_NN) use 0 / <= 0 as the "use the default"
+  // sentinel, so leaving them uninitialised yields garbage window geometry.
   Lfunc_t Lfunc_init_advanced(Lparams_t *Lparams, Lerror_t *ecode);
 
   // Largest prime p (equivalently largest index M) for which an Euler factor /

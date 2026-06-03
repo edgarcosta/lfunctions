@@ -65,8 +65,7 @@ Lplot_t *Lfunc_plot_data(Lfunc_t LL, uint64_t side, double max_t, uint64_t n_poi
   if(!Lp)
     return (Lplot_t *) NULL;
 
-  if(max_t>512.0/(double) (L->degree*OUTPUT_RATIO))
-    max_t=512.0/(double) (L->degree*OUTPUT_RATIO);
+  if(max_t > L->max_t) max_t = L->max_t;
   double pts=max_t*L->A;
   uint64_t step=ceil(pts/(double)n_points);
   // we are going to return every <step>'th point upto max_t

@@ -8,6 +8,15 @@
 extern "C" {
 #endif
 
+static uint64_t next_pow2_u64(uint64_t n) {
+  uint64_t p = 1;
+  while (p < n) {
+    if (p > (UINT64_MAX >> 1)) return p; // never overflow to 0 / loop forever on absurd n
+    p <<= 1;
+  }
+  return p;
+}
+
 bool fatal_error(Lerror_t ecode) { return ecode & 0xFFFFFFFF; }
 
 void fprint_errors(FILE *f, Lerror_t ecode) {
@@ -85,7 +94,7 @@ uint64_t decay(Lfunc *L) {
   acb_init(s);
   arb_set_d(acb_realref(s), 0.5);
   abs_gamma(tmp1, s, L, 100);
-  arb_set_d(acb_imagref(s), 64.0 / (double)L->degree);
+  arb_set_d(acb_imagref(s), L->max_t);
   abs_gamma(tmp2, s, L, 100);
   arb_div(tmp3, tmp1, tmp2, 100);
   if (verbose) {
@@ -167,11 +176,25 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
   arb_init(L->zero_error);
   arb_add_error(L->zero_error, L->zero_prec);
   arb_init(L->pi);
+
+  // Resolve window geometry from H (max_t) before decay() reads L->max_t.
+  L->max_fft_NN = (Lp->max_fft_NN > 0) ? Lp->max_fft_NN : ((uint64_t)1 << 16);
+  uint64_t want_fft_NN;
+  if (Lp->max_t > 0.0) {                       // non-default window
+    L->max_t = Lp->max_t;
+    L->one_over_B = 1.0 / ((double)OUTPUT_RATIO * L->max_t);
+    want_fft_NN = next_pow2_u64((uint64_t)ceil(1024.0 * (double)L->degree * L->max_t));
+  } else {                                      // default: reproduce historical constants exactly
+    L->max_t = 64.0 / (double)L->degree;
+    L->one_over_B = (double)L->degree / 512.0;  // identical to the old g.c:848 value
+    want_fft_NN = (uint64_t)1 << 16;            // identical to the old glfunc.c:233 value
+  }
+
   if (Lp->wprec > 0)
     L->wprec = Lp->wprec;
   else {
     arb_const_pi(L->pi, 100); // for now, needed by decay()
-    // allow enough bits so we will get target_prec at height 1/2+i*64/degree
+    // allow enough bits so we will get target_prec at height 1/2+i*max_t
     L->wprec = L->target_prec + decay(L) + EXTRA_BITS;
     if (verbose)
       printf("working precision set to %" PRId64 "\n", L->wprec);
@@ -181,8 +204,6 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
   L->self_dual = Lp->self_dual;
   L->rank = Lp->rank;
   L->cache_dir = Lp->cache_dir;
-  L->max_t = (Lp->max_t > 0.0) ? Lp->max_t : 64.0 / (double)L->degree;
-  L->max_fft_NN = (Lp->max_fft_NN > 0) ? Lp->max_fft_NN : ((uint64_t)1 << 16);
 
   // See Lemma 2 of M_error1.pdf, Lemma 5 of g.pdf
   // r is always >=2
@@ -240,7 +261,7 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
   arb_mul(L->two_pi_by_B, L->two_pi_by_B, L->pi, L->wprec);
 
   L->fft_N = 1 << 11;  // length of DTF for convolutions
-  L->fft_NN = 1 << 16; // final output length
+  L->fft_NN = want_fft_NN; // final output length (= 1<<16 for the default window)
 
   L->A = L->fft_NN * L->one_over_B;
   arb_init(L->arb_A);
