@@ -237,8 +237,9 @@ static bool conductor_is_perfect_power(uint64_t N)
 
 // Power / repeated-factor guard. Call at the top of Lfunc_compute, after the Euler
 // factors have been supplied (so the signals are populated). Returns ERR_POWER if L
-// looks like a perfect power / has a repeated primitive factor and the caller did not
-// set allow_nonprimitive; ERR_SUCCESS otherwise.
+// looks like a perfect power / has a repeated primitive factor and extract_powers is NO;
+// ERR_SUCCESS otherwise (either primitive or extract_powers=YES bypasses; Task 3 changes
+// the YES path to extract-and-assemble).
 //
 // Belt-and-suspenders (sound, not complete): reject ONLY when (1) is false, AND (2a OR 2b):
 //   (1)  some supplied full-degree local factor was proven squarefree, OR
@@ -248,7 +249,7 @@ static bool conductor_is_perfect_power(uint64_t N)
 // never false-rejected even if it happens to have a perfect-power conductor.
 Lerror_t power_guard(Lfunc *L)
 {
-  if(L->allow_nonprimitive == YES)   // caller opted out of the guard
+  if(L->extract_powers == YES)   // caller opted in to extraction; guard bypass until Task 3
     return ERR_SUCCESS;
   if(L->seen_sqfree_fulldeg)         // rigorous certificate: no repeated factor
     return ERR_SUCCESS;

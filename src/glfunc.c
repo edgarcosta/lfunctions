@@ -36,8 +36,8 @@ void fprint_errors(FILE *f, Lerror_t ecode) {
     fprintf(f, "Fatal error in special value routine.\n");
   if (ecode & ERR_POWER)
     fprintf(f, "L-function appears to be a perfect power or to have a repeated "
-               "primitive factor (doubled zeros); set Lparams.allow_nonprimitive "
-               "to compute anyway.\n");
+               "primitive factor (doubled zeros); set Lparams.extract_powers "
+               "= YES to extract and assemble.\n");
   // warnings
   if (ecode & ERR_INSUFF_EULER)
     fprintf(f, "Don't appear to have enough Euler factors.\n");
@@ -180,7 +180,7 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
   L->gprec = Lp->gprec;
   L->self_dual = Lp->self_dual;
   L->rank = Lp->rank;
-  L->allow_nonprimitive = Lp->allow_nonprimitive;
+  L->extract_powers = Lp->extract_powers;
   L->cache_dir = Lp->cache_dir;
 
   // See Lemma 2 of M_error1.pdf, Lemma 5 of g.pdf
@@ -404,7 +404,7 @@ Lfunc_t Lfunc_init(uint64_t degree, uint64_t conductor, double normalisation,
   Lp.cache_dir = ".";
   Lp.gprec = 0; // We will try to do something sensible
   Lp.wprec = 0; // ditto
-  Lp.allow_nonprimitive = NO; // guard on by default
+  Lp.extract_powers = NO; // guard on by default
 
   // Lfunc_init_advanced copies Lp.mus into L->mus, so this scratch array is ours
   // to free; otherwise it leaks (Lp is a stack local that goes out of scope).

@@ -117,7 +117,7 @@ extern "C"{
     bool nmax_called; // true if user/system has called Lfunc_nmax
 
     // power/repeated-factor guard (see power_guard in coeff.c)
-    int allow_nonprimitive;   // copied from Lparams; YES(1) bypasses the guard
+    int extract_powers;   // copied from Lparams; YES(1) extract & assemble a power L=M^k (else reject)
     bool seen_sqfree_fulldeg; // a full-degree local factor was proven squarefree => no repeated factor
     arb_t moment_sum;         // running sum of |a_p|^2 over full-degree (good) primes
     uint64_t moment_count;    // number of full-degree primes folded into moment_sum

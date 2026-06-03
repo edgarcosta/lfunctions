@@ -310,7 +310,7 @@ Lerror_t Lfunc_compute(Lfunc_t Lf)
 
   // Reject perfect powers / repeated-factor L-functions up front: their doubled
   // zeros break zero-finding (stat_point -> ERR_DBL_ZERO -> RH count mismatch).
-  // The caller can override via Lparams.allow_nonprimitive.
+  // The caller can opt in to extraction via Lparams.extract_powers.
   {
     Lerror_t guard = power_guard(L);
     if(fatal_error(guard))

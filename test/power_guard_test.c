@@ -3,7 +3,7 @@
   Asserts on the error bitfield, never on printed output.
 
     1. L(chi5)^2          (degree 2, cond 25):  genuine square     -> ERR_POWER by default.
-    2. same, bypassed     (allow_nonprimitive):  guard suppressed   -> no ERR_POWER.
+    2. same, bypassed     (extract_powers):  guard suppressed   -> no ERR_POWER.
     3. L(chi5)*L(chi7)     (degree 2, cond 35):  imprimitive but squarefree -> NOT rejected.
     4. L(chi3)^4          (degree 4, cond 81):  4th power          -> ERR_POWER by default.
 */
@@ -85,7 +85,7 @@ int main(void){
   Lp.degree = 2; Lp.conductor = 25; Lp.normalisation = 0.0; Lp.mus = mus2;
   Lp.target_prec = DEFAULT_TARGET_PREC; Lp.wprec = 0; Lp.gprec = 0;
   Lp.self_dual = DK; Lp.rank = DK; Lp.cache_dir = ".";
-  Lp.allow_nonprimitive = YES;
+  Lp.extract_powers = YES;
   ecode = ERR_SUCCESS;
   Lfunc_t L2 = Lfunc_init_advanced(&Lp, &ecode);
   assert(!fatal_error(ecode));

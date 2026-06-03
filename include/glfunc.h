@@ -37,7 +37,7 @@
 #define ERR_BAD_DEGREE ((uint64_t) 1024) //fatal error when the degree is too low or too high
 #define ERR_SPEC_NZ ((uint64_t) 2048) // special value routine requires Im s >= 0.
 #define ERR_G_EXTENT ((uint64_t) 4096) // fatal: G grid does not extend low enough (conductor too large for the fixed grid floor, or a cached grid was reused)
-#define ERR_POWER ((uint64_t) 1<<13) // fatal: L is a perfect power / has a repeated primitive factor (doubled zeros); set Lparams.allow_nonprimitive to override
+#define ERR_POWER ((uint64_t) 1<<13) // fatal: L is a perfect power / has a repeated primitive factor (doubled zeros); set Lparams.extract_powers to override
 
 // warnings
 #define ERR_SOME_DATA ((uint64_t) 1<<32) // We had some sensible data, but not to end of Turing Zone
@@ -70,7 +70,7 @@ extern "C"{
     int self_dual; // -1 = DK, 0 = No, 1 = Yes
     int rank; // -1 = DK
     char *cache_dir;
-    int allow_nonprimitive; // if YES(1), bypass the power/repeated-factor guard (ERR_POWER); default NO(0)
+    int extract_powers; // if YES(1), extract & assemble a perfect power L=M^k (else reject with ERR_POWER); default NO(0)
   } Lparams_t;
 
   typedef struct{
