@@ -86,6 +86,14 @@ Lplot_t *Lfunc_plot_data(Lfunc_t LL, uint64_t side, double max_t, uint64_t n_poi
   return Lp;
 }
 
+uint64_t Lfunc_factors(Lfunc_t L, Lfunc_t **factors, uint64_t **mults)
+{
+  Lfunc *LL = (Lfunc *) L;
+  if (factors) *factors = LL->factors;
+  if (mults)   *mults   = LL->factor_mults;
+  return LL->n_factors;
+}
+
 arb_srcptr Lfunc_Taylor(Lfunc_t LL)
 {
   Lfunc *L=(Lfunc *) LL;

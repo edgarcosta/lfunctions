@@ -144,6 +144,21 @@ extern "C"{
     arf_cclear(L->arf_A);
     arf_cclear(L->arf_one_over_A);
 
+    if(L->retained_f)
+      {
+        for(uint64_t i=0;i<L->n_retained;i++)
+          acb_poly_clear(&L->retained_f[i]);
+        free(L->retained_f);
+      }
+    free(L->retained_p);
+    if(L->factors)
+      {
+        for(uint64_t i=0;i<L->n_factors;i++)
+          Lfunc_clear(L->factors[i]);   // recursively clear M
+        free(L->factors);
+      }
+    free(L->factor_mults);
+
     free(L);
   }
 #ifdef __cplusplus

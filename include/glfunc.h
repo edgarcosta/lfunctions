@@ -162,6 +162,12 @@ extern "C"{
   // rank>1 isn't
   int64_t Lfunc_rank(Lfunc_t L);
 
+  // factor accessor: primitive factors of L with multiplicities.
+  // factors[i] is a borrowed Lfunc_t owned by L (do NOT clear it); mults[i] its
+  // multiplicity. Returns the count: 1 with (M, k) for a pure power L = M^k,
+  // 0 if L is primitive / was not produced by extraction.
+  uint64_t Lfunc_factors(Lfunc_t L, Lfunc_t **factors, uint64_t **mults);
+
   // return the first non-zero Taylor coefficient
   // L^(rank)((w + 1)/2)/rank!
   // where w/2 is the normalization (if algebraic, w = motivic weight)

@@ -122,6 +122,14 @@ extern "C"{
     arb_t moment_sum;         // running sum of |a_p|^2 over full-degree (good) primes
     uint64_t moment_count;    // number of full-degree primes folded into moment_sum
 
+    // power extraction (w70.2)
+    uint64_t *retained_p;          // supplied good/bad primes, in supply order
+    acb_poly_struct *retained_f;   // the raw supplied Euler factors L_p
+    uint64_t n_retained, retained_cap; // count and capacity of the retained store
+    Lfunc_t *factors;              // owned primitive factors (length n_factors)
+    uint64_t *factor_mults;        // their multiplicities
+    uint64_t n_factors;            // 0 unless this L was assembled from a power
+
     int64_t offset; // FFT bin index of a_1 = calc_m(1); used only for a bounds check
 
     uint64_t u_N; // upsampling kernel half-width = ceil(A^2 h^2/2); kernel = 2*u_N+1 pts
@@ -177,6 +185,7 @@ extern "C"{
   
   // from coeff.c
   Lerror_t power_guard(Lfunc *L);
+  Lerror_t power_extract_prepare(Lfunc *L, uint64_t *k_out); // fix & certify k; ERR_POWER if not a clean power
 
   // from compute.c
   void lfunc_compute(Lfunc *L);
