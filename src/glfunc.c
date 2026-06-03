@@ -34,9 +34,22 @@ void fprint_errors(FILE *f, Lerror_t ecode) {
     fprintf(f, "Fatal error in stationary point routine.\n");
   if (ecode & ERR_SPEC_VALUE)
     fprintf(f, "Fatal error in special value routine.\n");
+  if (ecode & ERR_SUPPLY_CONFLICT)
+    fprintf(f, "Incompatible supply: raw Dirichlet coefficients cannot be mixed "
+               "with Euler factors, nor supplied more than once.\n");
+  if (ecode & ERR_A1_NOT_ONE)
+    fprintf(f,
+            "Supplied a_1 is not 1 (the leading Dirichlet coefficient must be "
+            "1).\n");
+  if (ecode & ERR_COEFF_BOUND)
+    fprintf(f, "Coefficient growth bound missing or violated: call "
+               "Lfunc_set_coeff_bound before supplying raw a_n, and ensure "
+               "|a_n| <= C*n^alpha.\n");
   // warnings
   if (ecode & ERR_INSUFF_EULER)
-    fprintf(f, "Don't appear to have enough Euler factors.\n");
+    fprintf(f,
+            "Don't appear to have enough Euler factors / Dirichlet "
+            "coefficients.\n");
 
   if (ecode & ERR_SOME_DATA)
     fprintf(f, "Data became unusable after output region but before end of "
@@ -49,6 +62,10 @@ void fprint_errors(FILE *f, Lerror_t ecode) {
     fprintf(f, "Computed rank did not agree with what we were told.\n");
   if (ecode & ERR_RH_ERROR)
     fprintf(f, "Failed to confirm RH for zeros in output region.\n");
+  if (ecode & ERR_RH_UNAVAILABLE)
+    fprintf(f, "RH check skipped: raw Dirichlet coefficients were supplied, so "
+               "no per-prime Euler factors are available for the Buthe/Turing "
+               "verification.\n");
   if (ecode & ERR_DBL_ZERO)
     fprintf(
         f,
@@ -368,6 +385,13 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
   arb_init(L->X);
 #endif
   L->nmax_called = false; // noone has called nmax yet
+
+  // batch-supply state: no supply call has happened yet, no caller coeff bound
+  L->coeff_bound_set = false;
+  L->no_lpolys = false;
+  L->factor_supplied = false;
+  L->raw_supplied = false;
+  L->supply_ecode = ERR_SUCCESS;
 
   arb_init(L->Lam_d);
   arb_init(L->L_d);

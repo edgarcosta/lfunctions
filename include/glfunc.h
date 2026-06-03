@@ -9,6 +9,12 @@
 #define YES (1) // tri-state "yes" (for self_dual / rank)
 #define NO (0) // tri-state "no" (for self_dual / rank)
 
+// normalisation_of_input selector for the raw Dirichlet-coefficient front-ends
+// (Lfunc_use_dirichlet_coeffs_*). No silent default: the caller states which
+// normalisation the supplied a_n are in so the contract is explicit.
+#define ALGEBRAIC_NORM (0) // supplied a_n are algebraic; library applies n^{-normalisation}
+#define ANALYTIC_NORM  (1) // supplied a_n already analytic; no shift applied
+
 //#define BUTHE // if defined, verify RH via Buthe's method (off by default)
 #define TURING // if defined, verify RH via Booker/Turing's method (default)
 
@@ -37,6 +43,9 @@
 #define ERR_BAD_DEGREE ((uint64_t) 1024) //fatal error when the degree is too low or too high
 #define ERR_SPEC_NZ ((uint64_t) 2048) // special value routine requires Im s >= 0.
 #define ERR_G_EXTENT ((uint64_t) 4096) // fatal: G grid does not extend low enough (conductor too large for the fixed grid floor, or a cached grid was reused)
+#define ERR_SUPPLY_CONFLICT ((uint64_t) 1<<13) // fatal: incompatible/duplicate supply (raw a_n mixed with factors, or raw a_n supplied twice)
+#define ERR_A1_NOT_ONE ((uint64_t) 1<<14) // fatal: supplied a_1 is not 1 (raw a_n front-ends)
+#define ERR_COEFF_BOUND ((uint64_t) 1<<15) // fatal: raw a_n growth bound missing (Lfunc_set_coeff_bound) or violated (|a_n| > C*n^alpha)
 
 // warnings
 #define ERR_SOME_DATA ((uint64_t) 1<<32) // We had some sensible data, but not to end of Turing Zone
@@ -48,6 +57,7 @@
 #define ERR_DBL_ZERO ((uint64_t) 1<<38) // stationary point failed to converge. Double zero?
 #define ERR_SPEC_PREC ((uint64_t) 1<<39) // could not achieve target error bound in special value
 #define ERR_G_OUTFILE ((uint64_t) 1<<40) // problem opening file to write g_data cache
+#define ERR_RH_UNAVAILABLE ((uint64_t) 1<<41) // warning: RH check skipped; raw a_n supplied, so no per-prime Euler factors for Buthe/Turing
 
 #ifdef __cplusplus
 extern "C"{
