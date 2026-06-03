@@ -381,3 +381,29 @@ objects:
       first_zero: "0.51129562620003560384950671702133524278"
       first_zero_err: 1.0e-15
       tolerate_rh_error: true
+
+  # ---- (4) degree-8 classical modular form (rational, imprimitive) ----
+  # 18.4.c.b: weight-4 newform, cubic character (order 3), quartic Hecke field. Its degree-8
+  # L-function is the product of the 4 Galois conjugates: self-dual with integer coefficients,
+  # though no single conjugate is self-dual. Conductor 18^4 = 104976 is a perfect 4th power but
+  # the four conjugate factors are distinct, so it must NOT be rejected as a power (epic w70).
+  # Good factors: gen.py kind=cmf (Pari mfcoefs over the Hecke field, then normed down to Q).
+  # Bad factors at 2,3 are degree 4 (LMFDB lfunc 8-18e4-1.1-c3e4-0-0 bad_lfactors).
+  - label: "18.4.c.b"
+    kind: cmf
+    mf_level: 18
+    weight: 4
+    mf_chi: 7                  # a Conrey character in the order-3 orbit c (7 and 13 both work)
+    dim: 4                     # absolute degree of the Hecke field; degree = 2*dim = 8
+    conductor: 104976          # 18^4 = 2^4 * 3^8
+    bad_factors:
+      2: [1, -4, 12, -16, 16]
+      3: [1, -3, 30, -81, 729]
+    expected:
+      rank: 0
+      epsilon: [1.0, 0.0]
+      first_zero: "2.49126116116257301076434845504140"
+      first_zero_err: 1.0e-15
+      taylor: "2.221061581"      # central value L(1/2) (rank 0); LMFDB display value, 10 digits
+      taylor_err: 1.0e-6
+      tolerate_rh_error: true
