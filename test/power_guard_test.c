@@ -3,7 +3,7 @@
   Asserts on the error bitfield, never on printed output.
 
     1. L(chi5)^2          (degree 2, cond 25):  genuine square     -> ERR_POWER by default.
-    2. same, bypassed     (extract_powers):  guard suppressed   -> no ERR_POWER.
+    2. same, opted in     (extract_powers):  confirmed a power, M is degree 1 -> ERR_BAD_DEGREE.
     3. L(chi5)*L(chi7)     (degree 2, cond 35):  imprimitive but squarefree -> NOT rejected.
     4. L(chi3)^4          (degree 4, cond 81):  4th power          -> ERR_POWER by default.
 */
@@ -80,7 +80,8 @@ int main(void){
   Lfunc_clear(L1);
   assert(e1 & ERR_POWER);
 
-  // 2. same object, guard bypassed -> NOT flagged as ERR_POWER
+  // 2. same object, opted in: extraction attempted, M would be degree 1 -> ERR_BAD_DEGREE.
+  //    The power IS recognised (not ERR_POWER), but the primitive factor is sub-degree-2.
   Lparams_t Lp;
   Lp.degree = 2; Lp.conductor = 25; Lp.normalisation = 0.0; Lp.mus = mus2;
   Lp.target_prec = DEFAULT_TARGET_PREC; Lp.wprec = 0; Lp.gprec = 0;
@@ -91,7 +92,8 @@ int main(void){
   assert(!fatal_error(ecode));
   Lerror_t e2 = run(L2, 1);
   Lfunc_clear(L2);
-  assert(!(e2 & ERR_POWER));
+  assert(e2 & ERR_BAD_DEGREE);   // confirmed a power; M = degree 1 is unsupported
+  assert(!(e2 & ERR_POWER));     // not guard-rejected; extraction was attempted
 
   // 3. imprimitive but squarefree (two distinct primitives) -> NOT rejected
   ecode = ERR_SUCCESS;
