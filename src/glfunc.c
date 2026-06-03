@@ -190,6 +190,11 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
     want_fft_NN = (uint64_t)1 << 16;            // identical to the old glfunc.c:233 value
   }
 
+  if (want_fft_NN > L->max_fft_NN) {
+    ecode[0] |= ERR_WINDOW_TOO_LARGE;
+    return (Lfunc_t)NULL;
+  }
+
   if (Lp->wprec > 0)
     L->wprec = Lp->wprec;
   else {

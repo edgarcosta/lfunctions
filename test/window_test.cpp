@@ -17,6 +17,8 @@ static map<int64_t, vector<int64_t>> ef = {
   {67,{1,-8,67}},{71,{1,-9,71}},{73,{1,1,73}},{79,{1,-4,79}},{83,{1,15,83}},{89,{1,-4,89}},
   {97,{1,-4,97}},{101,{1,-3,101}},{103,{1,-18,103}},{107,{1,12,107}},{109,{1,16,109}},
   {113,{1,18,113}},{127,{1,-1,127}},{131,{1,12,131}},{137,{1,6,137}},{139,{1,-4,139}},
+  {149,{1,5,149}},{151,{1,-16,151}},{157,{1,-23,157}},{163,{1,18,163}},{167,{1,12,167}},
+  {173,{1,-9,173}},{179,{1,-18,179}},{181,{1,-5,181}},{191,{1,4,191}},
 };
 static void cb(acb_poly_t poly, uint64_t p, int, int64_t, void*) {
   acb_poly_zero(poly);
@@ -66,7 +68,33 @@ int main() {
   for (int i = 0; i < 10; ++i)
     assert(arb_overlaps(Lfunc_zeros(Le,0)+i, Lfunc_zeros(L,0)+i));
   Lfunc_clear(Le);
-  Lfunc_clear(L);
   printf("task2 ok\n");
+
+  // Task 3a: enlarging needs a bigger transform; with the default cap it fails loudly.
+  // H=48 requires want_fft_NN=2^17 > default cap 2^16, so ERR_WINDOW_TOO_LARGE fires.
+  Lerror_t ec3;
+  Lfunc_t Lbig_fail = build_37(48.0, 0 /*cap=2^16*/, "build/wt_cache_toobig", &ec3);
+  assert(ec3 & ERR_WINDOW_TOO_LARGE);
+  assert(fatal_error(ec3));
+  if (Lbig_fail) Lfunc_clear(Lbig_fail);
+
+  // Task 3b: raise the cap to 2^17 and enlarge from H=32 to H=48; zeros below 32 are unchanged
+  // and strictly more zeros are found.
+  Lerror_t ec3b;
+  Lfunc_t Lbig = build_37(48.0, (uint64_t)1<<17, "build/wt_cache_enlarge", &ec3b);
+  assert(!fatal_error(ec3b));
+  // |eps| = 1
+  { arb_t m; arb_init(m); acb_abs(m, Lfunc_sign(Lbig), 100);
+    arb_sub_ui(m, m, 1, 100); assert(arb_contains_zero(m)); arb_clear(m); }
+  // every default zero (all < 32) reappears in the enlarged run
+  int ndef = 0; while (ndef < (int)MAX_ZEROS && !arb_is_zero(Lfunc_zeros(L,0)+ndef)) ndef++;
+  int nbig = 0; while (nbig < (int)MAX_ZEROS && !arb_is_zero(Lfunc_zeros(Lbig,0)+nbig)) nbig++;
+  assert(nbig > ndef);
+  for (int i = 0; i < ndef; ++i)
+    assert(arb_overlaps(Lfunc_zeros(Lbig,0)+i, Lfunc_zeros(L,0)+i));
+  Lfunc_clear(Lbig);
+  printf("task3 ok\n");
+
+  Lfunc_clear(L);
   return 0;
 }
