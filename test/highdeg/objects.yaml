@@ -176,8 +176,8 @@ objects:
     expected:
       rank: 2
       epsilon: [1.0, 0.0]
-      first_zero: "3.56807591826"
-      first_zero_err: 1.0e-9
+      first_zero: "3.568075918259731556939511923609583713635"
+      first_zero_err: 1.0e-15
       taylor: "0.19236316222443534056407562323024291719956910370"
       taylor_err: 1.0e-12
       tolerate_rh_error: true
