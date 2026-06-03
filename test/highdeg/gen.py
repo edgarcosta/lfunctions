@@ -85,15 +85,54 @@ def run_lpdata(lpdata, curvespec, nmax, workdir):
     return pairs
 
 
-def good_ec_sympow(obj, der, nmax, lpdata, workdir, bad):
-    k = int(obj.get("sym", 1))
+def read_base_file(path):
+    # Base fixture: a "# nmax=<n> ..." header line, then "p v0 v1 ..." rows (the base
+    # curve a_p for ec/sympow, L-poly coeffs for genus2/cmf). Returns (nmax, [(p, [ints])]).
+    nmax = None
     rows = []
-    for p, fields in run_lpdata(lpdata, obj["curve"], nmax, workdir):
-        if p > nmax or p in bad:
-            continue
-        a = -fields[0]  # lpdata t = -a_p
-        rows.append((p, [1, -a, p] if k == 1 else lucas_sympoly(a, p, k)))
-    return rows
+    with open(path) as fh:
+        for ln in fh:
+            ln = ln.strip()
+            if ln.startswith("#"):
+                if "nmax=" in ln:
+                    nmax = int(ln.split("nmax=")[1].split()[0])
+                continue
+            if ln:
+                parts = ln.split()
+                rows.append((int(parts[0]), [int(x) for x in parts[1:]]))
+    return nmax, rows
+
+
+def base_data(obj, der, nmax, backend, lpdata, workdir, bad):
+    # The expensive, toolchain-bound part, cached verbatim as a fixture. For ec and
+    # sympow this is only the base curve's a_p from lpdata (tiny: |a_p| <= 2*sqrt(p)),
+    # NOT the Sym^k-expanded factors; for genus2 / cmf it is the final L-polys, which
+    # have no cheaper toolchain-free representation.
+    kind = obj["kind"]
+    if kind in ("ec", "sympow"):
+        return [(p, fields) for p, fields in run_lpdata(lpdata, obj["curve"], nmax, workdir)
+                if p <= nmax]
+    if kind == "genus2":
+        return good_genus2(obj, der, nmax, backend, lpdata, workdir, bad)
+    if kind == "cmf":
+        return good_cmf(obj, der, nmax, bad)
+    raise SystemExit("unknown kind: " + kind)
+
+
+def apply_transform(obj, der, nmax, bad, base):
+    # Cheap, toolchain-free reconstruction of the good Euler factors from base data.
+    # sympow expands the base a_p via Sym^k (lucas_sympoly, pure arithmetic); ec packages
+    # a_p into the degree-2 factor; genus2 / cmf base data are already the factors.
+    if obj["kind"] in ("ec", "sympow"):
+        k = int(obj.get("sym", 1))
+        rows = []
+        for p, fields in base:
+            if p > nmax or p in bad:
+                continue
+            a = -fields[0]  # lpdata t = -a_p
+            rows.append((p, [1, -a, p] if k == 1 else lucas_sympoly(a, p, k)))
+        return rows
+    return [(p, c) for (p, c) in base if p not in bad and p <= nmax]
 
 
 def sextic_from_fh(f, h):
@@ -207,6 +246,12 @@ def main():
     ap.add_argument("--lpdata", default=os.environ.get("LPDATA", "/usr/local/bin/lpdata"))
     ap.add_argument("--backend", default=os.environ.get("BACKEND", "pari"))
     ap.add_argument("--workdir", default=None)
+    ap.add_argument("--dump-base", action="store_true",
+                    help="emit only the base data (a_p for ec/sympow, L-polys for genus2/cmf) "
+                         "to stdout, to be cached as a fixture; needs the backend toolchain")
+    ap.add_argument("--base-from", default=None,
+                    help="read base data from this fixture instead of running the backend "
+                         "(toolchain-free: applies Sym^k etc. at read time)")
     a = ap.parse_args()
     # lpdata is invoked with cwd=workdir, so it MUST be an absolute path; abspath
     # the driver too so callers can pass relative paths.
@@ -232,12 +277,24 @@ def main():
         workdir = tempfile.mkdtemp(prefix="highdeg_")
         atexit.register(shutil.rmtree, workdir, ignore_errors=True)  # don't leak /tmp dirs
 
-    if obj["kind"] in ("ec", "sympow"):
-        rows = good_ec_sympow(obj, der, nmax, a.lpdata, workdir, bad)
-    elif obj["kind"] == "cmf":
-        rows = good_cmf(obj, der, nmax, bad)
+    if a.base_from:
+        fnmax, base = read_base_file(a.base_from)
+        if fnmax is not None and fnmax != nmax:
+            raise SystemExit(
+                "base fixture %s is stale: it has nmax=%d but %s now needs nmax=%d; "
+                "regenerate with `make highdeg-data LABEL=%s`" % (a.base_from, fnmax, a.label, nmax, a.label))
     else:
-        rows = good_genus2(obj, der, nmax, a.backend, a.lpdata, workdir, bad)
+        base = base_data(obj, der, nmax, a.backend, a.lpdata, workdir, bad)
+
+    if a.dump_base:  # emit the cacheable base only (fixture), no header/EXPECT
+        sys.stdout.write("# nmax=%d kind=%s label=%s\n" % (nmax, obj["kind"], a.label))
+        sys.stdout.write("\n".join(
+            "%d %s" % (p, " ".join(str(int(x)) for x in fields)) for p, fields in base) + "\n")
+        sys.stderr.write("%s: dumped base kind=%s nmax=%d rows=%d\n"
+                         % (a.label, obj["kind"], nmax, len(base)))
+        return
+
+    rows = apply_transform(obj, der, nmax, bad, base)
 
     for p, coeffs in bad.items():  # inject hardcoded bad factors
         if p <= nmax:

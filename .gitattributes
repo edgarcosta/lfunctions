@@ -1,0 +1,1 @@
+test/highdeg/fixtures/*.base filter=lfs diff=lfs merge=lfs -text

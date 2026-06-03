@@ -84,7 +84,7 @@ $(BUILD_DIRS): % :
 print-%:
 	@echo '$*=$($*)'
 
-.PHONY: clean check check-highdeg highdeg-gen configure
+.PHONY: clean check check-highdeg highdeg-gen highdeg-data configure
 
 # Regression suite. Exit code is the oracle (assertions are on by default).
 # Stale/colliding g_<mu> caches poison results, so scrub them before the suite
@@ -127,6 +127,11 @@ HIGHDEG_OBJECTS ?= test/highdeg/objects.yaml
 # LABEL=<label> restricts the run to a single object (generate + run just that one) and
 # keeps its build/test/highdeg_<label>.in for debugging; empty LABEL runs the full sweep.
 LABEL ?=
+# FIXTURES=<dir> holds committed base data (a_p for ec/sympow, L-polys for genus2/cmf).
+# When <dir>/<label>.base exists, gen.py reads it (--base-from) instead of running
+# lpdata/Sage, so the suite runs with NO toolchain (this is the CI path). Regenerate the
+# fixtures with `make highdeg-data`. Set FIXTURES= (empty) to force on-the-fly generation.
+FIXTURES ?= test/highdeg/fixtures
 check-highdeg: all
 	@rm -f g_[0-9]*
 	@fail=0; xpass=0; ran=0; \
@@ -135,9 +140,11 @@ check-highdeg: all
 	  if [ -n "$(LABEL)" ] && [ "$$label" != "$(LABEL)" ]; then continue; fi; \
 	  ran=1; \
 	  inf=build/test/highdeg_$$label.in; logf=build/test/highdeg_$$label.log; \
-	  printf 'RUN  %s\n' "$$label"; \
+	  fx=$(FIXTURES)/$$label.base; bf=""; \
+	  if [ -n "$(FIXTURES)" ] && [ -f "$$fx" ]; then bf="--base-from $$fx"; fi; \
+	  if [ -n "$$bf" ]; then printf 'RUN  %s (fixture)\n' "$$label"; else printf 'RUN  %s\n' "$$label"; fi; \
 	  if BACKEND=$(BACKEND) LPDATA=$(LPDATA) python3 test/highdeg/gen.py "$$label" \
-	        --driver build/test/highdeg_check.exe --objects $(HIGHDEG_OBJECTS) > $$inf 2>$$logf \
+	        --driver build/test/highdeg_check.exe --objects $(HIGHDEG_OBJECTS) $$bf > $$inf 2>$$logf \
 	     && ./build/test/highdeg_check.exe $$inf; then ok=1; else ok=0; fi; \
 	  if [ "$$xf" = 1 ]; then \
 	    if [ $$ok = 0 ]; then printf 'XFAIL %s (known-unsupported)\n' "$$label"; \
@@ -163,3 +170,21 @@ highdeg-gen: all
 	      --driver build/test/highdeg_check.exe --objects $(HIGHDEG_OBJECTS) > $$inf; then \
 	  printf 'wrote %s\nrun:   ./build/test/highdeg_check.exe %s\n' "$$inf" "$$inf"; \
 	else echo "gen failed for '$(LABEL)'"; rm -f $$inf; exit 1; fi
+
+# (Re)generate the committed base fixtures ($(FIXTURES)/<label>.base) that check-highdeg
+# and CI run from. This is the ONLY step that needs the backend toolchain (lpdata for
+# ec/sympow, lpdata2 or Sage for genus2, Sage for cmf). LABEL=<label> regenerates one.
+# Base data is small: ec/sympow store a_p (Sym^k is re-expanded at run time), not the
+# blown-up factors. Run this whenever an object's curve/conductor/mus (hence nmax) changes.
+highdeg-data: all
+	@mkdir -p $(FIXTURES)
+	@for label in $$(python3 -c "import yaml;print(' '.join(o['label'] for o in yaml.safe_load(open('$(HIGHDEG_OBJECTS)'))['objects']))"); do \
+	  if [ -n "$(LABEL)" ] && [ "$$label" != "$(LABEL)" ]; then continue; fi; \
+	  out=$(FIXTURES)/$$label.base; \
+	  printf 'GEN  %s\n' "$$label"; \
+	  if ! BACKEND=$(BACKEND) LPDATA=$(LPDATA) python3 test/highdeg/gen.py "$$label" \
+	        --driver build/test/highdeg_check.exe --objects $(HIGHDEG_OBJECTS) --dump-base > $$out; then \
+	    echo "FAILED to dump base for $$label"; rm -f $$out; exit 1; fi; \
+	  printf '  wrote %s (%s)\n' "$$out" "$$(wc -c < $$out | numfmt --to=iec 2>/dev/null || wc -c < $$out)"; \
+	done; \
+	echo 'HIGHDEG-DATA done'

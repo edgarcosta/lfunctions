@@ -1,13 +1,19 @@
 name: CI (high-degree)
 
-# Separate from the fast .github/workflows/ci.yml (which stays smalljac-free).
-# This workflow builds Andrew Sutherland's `lpdata` (smalljac, genus 2) and runs
-# the high-degree certified L-function regression suite (bead lfunctions-8dz):
-# degrees 2-9 via elliptic curves, their symmetric powers, and genus-2 curves.
+# Separate from the fast .github/workflows/ci.yml. Runs the high-degree certified
+# L-function regression suite (bead lfunctions-8dz) for degrees 2-9: elliptic curves,
+# their symmetric powers, genus-2 curves, and a degree-8 classical modular form.
 #
-# Pipeline:
-#   apt deps -> build lpdata (genus 2, cached) -> ./configure && make
-#   -> make check-highdeg BACKEND=smalljac LPDATA=<path>
+# The suite runs entirely from committed base fixtures (test/highdeg/fixtures/*.base,
+# stored in Git LFS): test/highdeg/gen.py reconstructs each object's Euler factors from
+# the base data (re-expanding Sym^k for symmetric powers, packaging a_p for elliptic
+# curves, using the stored L-polys for genus-2 / modular forms) with NO backend
+# toolchain. So this job needs neither smalljac/lpdata nor Sage -- it just builds
+# lfunctions and runs the asserting driver over each object.
+#
+# Regenerate the fixtures locally (the only step that needs the toolchain) with
+#   make highdeg-data BACKEND=smalljac LPDATA=/path/to/genus2-lpdata
+# and commit test/highdeg/fixtures/.
 
 on:
   push:
@@ -19,44 +25,32 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          lfs: true          # pull the base fixtures (test/highdeg/fixtures/*.base)
 
       - name: Install dependencies
         run: |
           sudo apt-get update
           # lfunctions: build-essential + FLINT (pulls GMP/MPFR/Arb) + primesieve.
-          # smalljac/ff_poly: build-essential + libgmp-dev (GMP headers).
-          # gen.py: python3 + python3-yaml (parses test/highdeg/objects.yaml).
+          # gen.py --base-from: python3 + python3-yaml only (no smalljac, no Sage).
           sudo apt-get install -y \
             build-essential \
-            libgmp-dev \
             libflint-dev \
             libprimesieve-dev \
             python3 \
             python3-yaml
 
-      # Cache the smalljac/ff_poly source + build tree. There are no git
-      # commits to pin (sources are versioned tarballs on math.mit.edu), so the
-      # cache key is the pinned-version install script itself: bump the script
-      # (e.g. change FF_POLY_TAR / SMALLJAC_TAR) and the key changes, forcing a
-      # rebuild. install_smalljac.sh defaults SMALLJAC_DIR to test/highdeg/smalljac.
-      - name: Cache smalljac (lpdata) build
-        id: cache-smalljac
-        uses: actions/cache@v4
-        with:
-          path: test/highdeg/smalljac
-          key: smalljac-${{ runner.os }}-${{ hashFiles('test/highdeg/install_smalljac.sh') }}
-
-      - name: Build smalljac lpdata (genus 2)
+      - name: Verify a base fixture exists for every object
         run: |
-          # The script logs progress to stderr and prints exactly one line to
-          # stdout: "LPDATA=<absolute-path>". Build/print in one invocation
-          # (idempotent: a cache hit re-prints the path without rebuilding).
-          out=$(test/highdeg/install_smalljac.sh)
-          LPDATA=$(printf '%s\n' "$out" | tail -1 | cut -d= -f2)
-          echo "Using lpdata at: $LPDATA"
-          test -x "$LPDATA" || { echo "lpdata not executable at $LPDATA"; exit 1; }
-          # Export for later steps.
-          echo "LPDATA=$LPDATA" >> "$GITHUB_ENV"
+          missing=0
+          for label in $(python3 -c "import yaml;print(' '.join(o['label'] for o in yaml.safe_load(open('test/highdeg/objects.yaml'))['objects']))"); do
+            if [ ! -f "test/highdeg/fixtures/$label.base" ]; then
+              echo "missing fixture: test/highdeg/fixtures/$label.base"; missing=1
+            fi
+          done
+          if [ "$missing" != 0 ]; then
+            echo "Run 'make highdeg-data' locally and commit test/highdeg/fixtures/."; exit 1
+          fi
 
       - name: Configure
         run: ./configure
@@ -64,16 +58,8 @@ jobs:
       - name: Build lfunctions
         run: make
 
-      # Runs the high-degree suite. This target is provided by Makefile.in
-      # (added under bead lfunctions-8dz, in tandem with this workflow): it
-      # builds build/test/highdeg_check.exe, runs test/highdeg/gen.py per object
-      # in test/highdeg/objects.yaml to emit a driver input file, then runs the
-      # driver over each. It accepts two make-variables:
-      #   BACKEND=smalljac  -> gen.py uses lpdata for good Euler factors
-      #   LPDATA=<path>     -> absolute path to the lpdata binary built above
-      # (BACKEND=pari is the local-only alternative; CI always uses smalljac.)
-      # NOTE: if `make check-highdeg` is not yet present when this workflow first
-      # runs, this step is the only thing that will fail -- the lpdata build and
-      # lfunctions build above are independent and will still be exercised.
-      - name: High-degree regression suite
-        run: make check-highdeg BACKEND=smalljac LPDATA="$LPDATA"
+      # check-highdeg finds a fixture for every object and runs gen.py --base-from
+      # (toolchain-free), then the asserting driver. FIXTURES defaults to
+      # test/highdeg/fixtures, so no extra flags are needed.
+      - name: High-degree regression suite (from fixtures)
+        run: make check-highdeg
