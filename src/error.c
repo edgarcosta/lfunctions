@@ -546,10 +546,10 @@ Lerror_t do_pre_iFFT_errors(Lfunc *L)
   if(verbose){printf("Adding eq 5-9 error = ");arb_printd(err,10);printf("\n");}
   for(j=0;j<i;j++)
   {
-    arb_add_error(acb_realref(L->res[i]),fhattwiddle);
-    arb_add_error(acb_imagref(L->res[i]),fhattwiddle);
-    arb_add_error(acb_realref(L->res[i]),err);
-    arb_add_error(acb_imagref(L->res[i]),err);
+    arb_add_error(acb_realref(L->res[j]),fhattwiddle);
+    arb_add_error(acb_imagref(L->res[j]),fhattwiddle);
+    arb_add_error(acb_realref(L->res[j]),err);
+    arb_add_error(acb_imagref(L->res[j]),err);
   }
 
   // figure out epsilon
