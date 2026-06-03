@@ -3,6 +3,7 @@
 #include "glfunc_internals.h"
 #include "primesieve.h"
 #include <flint/acb_mat.h>
+#include <flint/acb_poly.h>
 #include <flint/ulong_extras.h>
 
 #ifdef __cplusplus
@@ -168,6 +169,29 @@ void use_lpoly(Lfunc *L, uint64_t p, const acb_poly_t f)
   arb_init(tmp2);
   acb_poly_init(n_poly);
   acb_poly_init(inv_poly);
+  // w70.2: retain the raw Euler factor for later k-th-root extraction
+  if (L->extract_powers == YES) {
+    if (L->n_retained == L->retained_cap) {
+      uint64_t nc = L->retained_cap ? 2*L->retained_cap : 256;
+      uint64_t *new_p = (uint64_t *) realloc(L->retained_p, sizeof(uint64_t)*nc);
+      if (!new_p) {
+        printf("Attempt to (re-)allocate memory for retained primes failed. Exiting.\n");
+        exit(0);
+      }
+      acb_poly_struct *new_f = (acb_poly_struct *) realloc(L->retained_f, sizeof(acb_poly_struct)*nc);
+      if (!new_f) {
+        printf("Attempt to (re-)allocate memory for retained factors failed. Exiting.\n");
+        exit(0);
+      }
+      L->retained_p = new_p;
+      L->retained_f = new_f;
+      L->retained_cap = nc;
+    }
+    L->retained_p[L->n_retained] = p;
+    acb_poly_init(&L->retained_f[L->n_retained]);
+    acb_poly_set(&L->retained_f[L->n_retained], f);
+    L->n_retained++;
+  }
   //if(p<=2){printf("in use_lpoly pre-norm with p = %" PRIu64 "\n",p);acb_poly_printd(f,20);printf("\n");}
   arb_log_ui(logp,p,prec);
   // normalise by multiplying each term by p^(-m norm)
@@ -235,11 +259,68 @@ static bool conductor_is_perfect_power(uint64_t N)
   return n_is_perfect_power(&root, (ulong) N) != 0;
 }
 
+// root = f^(1/k) as an acb_poly (f must have unit constant term: good for L_p(0)=1).
+static void poly_kth_root(acb_poly_t root, const acb_poly_t f, uint64_t k, int64_t prec)
+{
+  slong dlen = acb_poly_degree(f)/(slong)k + 2; // a couple of guard terms
+  acb_t e; acb_init(e);
+  acb_set_ui(e, 1); acb_div_ui(e, e, k, prec);   // e = 1/k
+  acb_poly_pow_acb_series(root, f, e, dlen, prec);
+  acb_clear(e);
+}
+
+// True iff f is rigorously a perfect k-th power of a degree deg(f)/k polynomial.
+static bool poly_is_perfect_kth_power(const acb_poly_t f, uint64_t k, int64_t prec)
+{
+  slong d = acb_poly_degree(f);
+  if (d < 1 || (d % (slong)k) != 0) return false;
+  acb_poly_t root, chk; acb_poly_init(root); acb_poly_init(chk);
+  poly_kth_root(root, f, k, prec);
+  acb_poly_truncate(root, d/(slong)k + 1);    // drop spurious near-zero guard terms
+  acb_poly_pow_ui(chk, root, (ulong)k, prec); // root^k, degree d
+  bool ok = acb_poly_overlaps(chk, f);        // sole rigorous gate: root^k must contain f
+  acb_poly_clear(root); acb_poly_clear(chk);
+  return ok;
+}
+
+// Fix and rigorously certify k for a pure power L = M^k. Returns ERR_SUCCESS with
+// *k_out set when certified, ERR_POWER otherwise.
+Lerror_t power_extract_prepare(Lfunc *L, uint64_t *k_out)
+{
+  if (L->moment_count == 0) return ERR_POWER;
+  // candidate k from the 2nd moment (~ k^2)
+  arb_t S; arb_init(S);
+  arb_div_ui(S, L->moment_sum, L->moment_count, L->wprec);
+  arb_sqrt(S, S, L->wprec);
+  double kf = arf_get_d(arb_midref(S), ARF_RND_NEAR);
+  arb_clear(S);
+  uint64_t k = (uint64_t) (kf + 0.5);
+  // A mis-read 2nd moment yields a safe false ERR_POWER: the rigorous gate certifies,
+  // it cannot rescue a wrong candidate k.
+  if (k < 2) return ERR_POWER;
+  // necessary exact tell: conductor must be a perfect k-th power
+  ulong rem, base = n_rootrem(&rem, (ulong)L->conductor, (ulong)k);
+  (void)base;
+  if (rem != 0) return ERR_POWER;
+  // rigorous gate: every retained full-degree factor is a perfect k-th power
+  bool seen_full = false;
+  for (uint64_t i = 0; i < L->n_retained; i++) {
+    if (acb_poly_degree(&L->retained_f[i]) == (slong)L->degree) {
+      seen_full = true;
+      if (!poly_is_perfect_kth_power(&L->retained_f[i], k, L->wprec))
+        return ERR_POWER;
+    }
+  }
+  if (!seen_full) return ERR_POWER;
+  *k_out = k;
+  return ERR_SUCCESS;
+}
+
 // Power / repeated-factor guard. Call at the top of Lfunc_compute, after the Euler
 // factors have been supplied (so the signals are populated). Returns ERR_POWER if L
-// looks like a perfect power / has a repeated primitive factor and extract_powers is NO;
-// ERR_SUCCESS otherwise (either primitive or extract_powers=YES bypasses; Task 3 changes
-// the YES path to extract-and-assemble).
+// looks like a perfect power / has a repeated primitive factor, ERR_SUCCESS if it
+// looks primitive. The verdict is independent of extract_powers; Lfunc_compute then
+// rejects (opted out) or extracts-and-assembles (opted in) on an ERR_POWER verdict.
 //
 // Belt-and-suspenders (sound, not complete): reject ONLY when (1) is false, AND (2a OR 2b):
 //   (1)  some supplied full-degree local factor was proven squarefree, OR
@@ -249,8 +330,8 @@ static bool conductor_is_perfect_power(uint64_t N)
 // never false-rejected even if it happens to have a perfect-power conductor.
 Lerror_t power_guard(Lfunc *L)
 {
-  if(L->extract_powers == YES)   // caller opted in to extraction; guard bypass until Task 3
-    return ERR_SUCCESS;
+  // Detection is independent of extract_powers: Lfunc_compute consults this verdict
+  // and then either rejects (opted out) or extracts-and-assembles (opted in).
   if(L->seen_sqfree_fulldeg)         // rigorous certificate: no repeated factor
     return ERR_SUCCESS;
   if(L->moment_count == 0)           // no good primes seen; can't judge -> proceed

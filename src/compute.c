@@ -1,4 +1,5 @@
 #include <flint/acb_poly.h>
+#include <flint/ulong_extras.h>
 #include "glfunc.h"
 #include "glfunc_internals.h"
 #include <stdlib.h>
@@ -276,6 +277,75 @@ void final_ifft(Lfunc *L)
   }
 } /* final_ifft */
 
+// Build M = L^(1/k), compute it, and materialize its data into L. Returns the
+// error code from M's computation (fatal bits abort the assembly).
+static Lerror_t extract_and_assemble(Lfunc *L, uint64_t k)
+{
+  // ---- M's parameters: degree/k, cond^(1/k), mus every k-th ----
+  Lparams_t Mp;
+  Mp.degree = L->degree / k;
+  ulong rem; Mp.conductor = (uint64_t) n_rootrem(&rem, (ulong)L->conductor, (ulong)k);
+  Mp.normalisation = L->normalisation;    // M shares L's algebraic->analytic shift
+  double *mmus = (double *) malloc(sizeof(double)*Mp.degree);
+  for (uint64_t i = 0; i < Mp.degree; i++)
+    mmus[i] = L->mus[i*k] - L->normalisation; // M's algebraic mus (L->mus is analytic)
+  Mp.mus = mmus;
+  // CRITICAL: M is fed the RAW (algebraic) factors retained_f^(1/k), so M must carry
+  // the same normalisation L was created with; M->use_lpoly then re-normalises them
+  // exactly as L's did. (Setting normalisation=0 here computes M in the wrong
+  // normalization and produces garbage / RH errors.)
+  Mp.target_prec = L->target_prec; Mp.wprec = 0; Mp.gprec = 0;
+  Mp.self_dual = L->self_dual; Mp.rank = DK; Mp.cache_dir = L->cache_dir;
+  Mp.extract_powers = YES;                // inherit -> free recursion for M^(k*k')
+
+  Lerror_t ec = ERR_SUCCESS;
+  Lfunc_t Mt = Lfunc_init_advanced(&Mp, &ec);
+  free(mmus);
+  if (fatal_error(ec)) return ec;         // e.g. ERR_BAD_DEGREE when M would be degree 1
+  Lfunc *M = (Lfunc *) Mt;
+
+  // ---- supply M_p = retained_f^(1/k) for primes up to nmax(M) ----
+  uint64_t Mmax = Lfunc_nmax(Mt);
+  acb_poly_t Mp_poly; acb_poly_init(Mp_poly);
+  acb_t e_inv; acb_init(e_inv);
+  acb_set_ui(e_inv, 1); acb_div_ui(e_inv, e_inv, k, M->wprec);
+  for (uint64_t i = 0; i < L->n_retained; i++) {
+    uint64_t p = L->retained_p[i];
+    if (p > Mmax) break;                  // retained is in increasing prime order
+    slong dlen = acb_poly_degree(&L->retained_f[i])/(slong)k + 1;
+    acb_poly_pow_acb_series(Mp_poly, &L->retained_f[i], e_inv, dlen, M->wprec);
+    Lfunc_use_lpoly(Mt, p, Mp_poly);
+  }
+  acb_clear(e_inv); acb_poly_clear(Mp_poly);
+
+  ec |= Lfunc_compute(Mt);
+  if (fatal_error(ec)) { Lfunc_clear(Mt); return ec; }
+
+  // ---- materialize M^k into L ----
+  L->rank = (int64_t) k * M->rank;
+  // Emit each of M's isolated ordinates k times. find_zeros fills zeros[side][0..]
+  // with positive ordinates; unfilled trailing slots stay exactly 0 (arb_is_zero),
+  // which marks the end. (For self_dual M, side 1 is empty -> L side 1 is empty too.)
+  for (uint64_t side = 0; side < 2; side++) {
+    uint64_t dst = 0;
+    for (uint64_t src = 0; src < MAX_ZEROS && dst < MAX_ZEROS; src++) {
+      if (arb_is_zero(M->zeros[side][src])) break; // no more isolated zeros
+      for (uint64_t r = 0; r < k && dst < MAX_ZEROS; r++)
+        arb_set(L->zeros[side][dst++], M->zeros[side][src]);
+    }
+  }
+  acb_pow_ui(L->sign, M->sign, k, L->wprec);          // eps^k
+  acb_pow_ui(L->sqrt_sign, M->sqrt_sign, k, L->wprec); // sqrt_sign^k
+  arb_pow_ui(L->L_d, M->L_d, k, L->wprec);            // leading Taylor coeff ^ k
+  arb_pow_ui(L->Lam_d, M->Lam_d, k, L->wprec); // Lambda_L = Lambda_M^k
+
+  // ---- attach the factor (owned by L; cleared in clear.c) ----
+  L->factors = (Lfunc_t *) malloc(sizeof(Lfunc_t));
+  L->factor_mults = (uint64_t *) malloc(sizeof(uint64_t));
+  L->factors[0] = Mt; L->factor_mults[0] = k; L->n_factors = 1;
+  return ec;                                          // may carry warnings
+}
+
 // this is called by the user to compute all the bits of the Lfunc we expect them to want
 // including Lambda(t) for t =0,1/A,2/A,....
 // the zeros up to height 64/degree
@@ -313,8 +383,15 @@ Lerror_t Lfunc_compute(Lfunc_t Lf)
   // The caller can opt in to extraction via Lparams.extract_powers.
   {
     Lerror_t guard = power_guard(L);
-    if(fatal_error(guard))
-      return guard;
+    if (fatal_error(guard)) {
+      if (L->extract_powers != YES)
+        return guard;                    // opted out: reject as before
+      uint64_t k = 0;
+      Lerror_t prep = power_extract_prepare(L, &k);
+      if (fatal_error(prep))
+        return prep;                     // confirmed-not-a-clean-power -> ERR_POWER
+      return extract_and_assemble(L, k); // build M, compute, assemble; done
+    }
   }
 
   #ifdef BUTHE
