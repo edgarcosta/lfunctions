@@ -63,8 +63,27 @@ Set `((Lfunc*)L)->self_dual = YES` when self_dual==1 (glfunc_internals.h). Coeff
   (t = linear coeff of EC L-poly = -a_p). For sympow apply Sym^k (Lucas V_m: V0=2,V1=a,Vm=a*V-p*V;
   factor = prod_{j=0..floor((k-1)/2)} (1 - p^j*V_{k-2j}*T + p^k*T^2), times (1 - p^{k/2}*T) if k even).
 - genus2: `--backend pari` (LOCAL/validated): Pari `hyperellcharpoly([f_modp,h_modp])`, take `Vecrev`,
-  reverse to get ascending L-poly. `--backend smalljac` (CI): genus-2 lpdata build (format TBD by the CI agent).
+  reverse to get ascending L-poly. `--backend smalljac`: genus-2 lpdata build.
+- cmf (classical modular form): Pari `mfcoefs` over the relative Hecke field K/Q(chi); the local
+  quadratic `1 - a_p X + eps(p) p^(k-1) X^2` is normed to Q by two `polresultant`s (eliminate the
+  K/Q(chi) generator, then the character-field generator), with `eps(p) = (a_p^2 - a_{p^2})/p^(k-1)`
+  keyed by `p mod level`. Needs Sage. Row carries `mf_level`, `weight`, `mf_chi` (a Conrey index in
+  the character orbit), `dim` (absolute Hecke degree; degree = 2*dim).
 - bad primes: NEVER from lpdata; inject `bad_factors[p]` verbatim (pad to degree+1 with zeros).
+
+## E. base fixtures (toolchain-free runs + CI)
+The expensive, toolchain-bound backend output is cached under `test/highdeg/fixtures/<label>.base`
+(Git LFS) so the suite can run with no smalljac/Sage. The fixture stores the *minimal* base data,
+not the final input: for ec/sympow it is the base curve's `a_p` (tiny; Sym^k is re-expanded at run
+time, so Sym^8 is ~21 MB of a_p, not ~1 GB of factors), for genus2/cmf it is the L-polys (no cheaper
+toolchain-free form). Format: a `# nmax=<n> ...` header line, then `p v0 v1 ...` rows.
+- `gen.py --dump-base` emits the base (runs the backend) -> the fixture. `make highdeg-data [LABEL=]`
+  regenerates fixtures (the only step that needs the toolchain).
+- `gen.py --base-from <fixture>` reconstructs the full driver input from the base (applies Sym^k /
+  packaging) with NO backend; it re-derives the header + `EXPECT` + bad factors from `objects.yaml`
+  every run, and aborts if the fixture's `nmax` no longer matches the object (stale -> regenerate).
+- `make check-highdeg` uses `$(FIXTURES)/<label>.base` when present (CI path), else generates;
+  `FIXTURES=` forces generation. `.github/workflows/highdeg.yml` runs purely from fixtures.
 
 Validated reference prototypes already in `bench/`: `sympow_bench.cpp` (driver core, has nmax-query +
 self_dual + fmpz parsing), `gen.py` (sym powers), `gen_g2.py` (genus-2 via Pari, self-test OK).
