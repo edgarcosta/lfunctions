@@ -12,34 +12,14 @@ extern "C"{
   // This is probably huge overkill
 
 
+  // Buthe smoothing parameter h.  Was emitted by gp/buthe_ints.gp into
+  // gp/buthe_ints.out alongside the (now removed) archimedean-integral table;
+  // the integrals are computed on the fly in buthe_Winf via buthe_winf_integral,
+  // so we keep only this scalar here.
+#define BUTHE_H (8)
+
   // setup Buthe zero check stuff
   void init_buthe(Lfunc *L, int64_t prec) {
-    /*
-       buthe_ints.out contains output from buthe_ints.gp
-       each entry is a value of
-       2\int\limits_0^\infty \frac{\exp(-(1/2+\mu_k)t)}{1-\exp(-2t)}\left[\frac{b}{\pi}-\frac{\sin(bt)}{\pi t\cosh(2t)} \dif t
-       where the \mu_k are the (analytic) mus so non-negative 1/2 integers
-       each "row" consists of 2*MAX_MUI_2+1 entries corresponding to \mu=0,0.5,1.0...
-       a row for each degree (and therefore b) from 2
-       The entries are integers which must be multiplied by 2^BUTHE_INT_SHIFT
-       Once the entries in a row get small enough, we pad with zeros.
-       If mu is outside MAX_MU_2 or the relevant entry is zero, use the nearest preceding non-zero entry uinioned with 0.
-       */
-
-#define BUTHE_INT_SHIFT (-20)
-    uint64_t buthe_r_ints [(MAX_R-1)*(2*MAX_MUI_2+1)]=
-#include "../gp/buthe_ints.out"
-
-    arb_t one;
-    arb_init(one);
-    arb_set_ui(one,1);
-    for(uint64_t i=0;i<(MAX_R-1)*(2*MAX_MUI_2+1);i++)
-    {
-      arb_init(L->buthe_ints[i]);
-      arb_set_ui(L->buthe_ints[i],buthe_r_ints[i]);
-      arb_add_error(L->buthe_ints[i],one);
-      arb_mul_2exp_si(L->buthe_ints[i],L->buthe_ints[i],BUTHE_INT_SHIFT);
-    }
     arb_init(L->buthe_Wf);
     arb_init(L->buthe_Winf);
     arb_init(L->buthe_Ws);
@@ -55,7 +35,7 @@ extern "C"{
     // we set buthe_h as big as possible
     // we need b-a>5h/Pi were b-a =512/16/10
     // 
-    arb_set_ui(L->buthe_h,BUTHE_H); // defined in buthe_ints.out
+    arb_set_ui(L->buthe_h,BUTHE_H);
     //printf("Buthe h set to ");arb_printd(L->buthe_h,20);printf("\n");
 
     // check h<pi*2*b/5 will be OK so long as degree <=10
@@ -82,7 +62,6 @@ extern "C"{
     }
 
     arb_clear(tmp);
-    arb_clear(one);
   }
 
   // the terms making up wf are computed using the coefficients bm
@@ -336,11 +315,10 @@ extern "C"{
   void buthe_Winf(arb_t res, Lfunc *L, int64_t prec)
   {
     static bool init=false;
-    static arb_t tmp,tmp1,logpi;
+    static arb_t tmp,logpi;
     if(!init) {
       init=true;
       arb_init(tmp);
-      arb_init(tmp1);
       arb_init(logpi);
     }
     arb_log(logpi,L->pi,prec);
@@ -351,29 +329,11 @@ extern "C"{
     arb_div(tmp,L->buthe_b,L->pi,prec);
     arb_mul(res,res,tmp,prec);
     if(verbose) {printf("Winf before integral = ");arb_printd(res,20);printf("\n");}
+    // archimedean integrals: one per Gamma_R factor, computed rigorously on the
+    // fly for the live (b,h) (replaces the old gp/buthe_ints.out static table).
     for(uint64_t k=0;k<L->degree;k++) {
-      uint64_t ptr;
-      bool approx;
-      if(L->mus[k]>MAX_MU)
-      {
-        ptr=(L->degree-1)*(2*MAX_MUI_2+1)-1;
-        approx=true;
-      }
-      else
-      {
-        ptr=(L->degree-2)*(2*MAX_MUI_2+1)+(uint64_t)(2.0*L->mus[k]);
-        approx=arb_is_zero(L->buthe_ints[ptr]);
-      }
-      if(approx)
-      {
-        while(arb_is_zero(L->buthe_ints[ptr])) ptr--;
-        arb_set(tmp,L->buthe_ints[ptr]);
-        arb_zero(tmp1);
-        arb_union(tmp,tmp,tmp1,prec);
-      }
-      else
-        arb_set(tmp,L->buthe_ints[ptr]);
-      //if(verbose){printf("Integral contributing ");arb_printd(buthe_ints[(Lf->r-2)*(2*MAX_MUI_2+1)+(uint64_t)(2.0*Lf->mus[k])],20);printf("\n");}
+      buthe_winf_integral(tmp,L->buthe_b,L->buthe_h,L->mus[k],prec);
+      if(verbose){printf("Integral contributing ");arb_printd(tmp,20);printf("\n");}
       arb_add(res,res,tmp,prec);
     }
     if(verbose) {printf("Winf = ");arb_printd(res,20);printf("\n");}

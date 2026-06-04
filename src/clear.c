@@ -62,8 +62,6 @@ extern "C"{
     arb_cclear(L->buthe_b);
     arb_cclear(L->buthe_C);
     arb_cclear(L->buthe_h);
-    for(uint64_t i=0;i<(MAX_R-1)*(2*MAX_MUI_2+1);i++)
-      arb_cclear(L->buthe_ints[i]);
 
     #ifdef TURING
     arb_cclear(L->imint);

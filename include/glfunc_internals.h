@@ -15,12 +15,6 @@
 #define verbose (false) // compile-time toggle for all diagnostic printf
 #define BAD_64 (1LL<<62) // sentinel: an arb value did not pin to a unique integer
 
-// how many integrals have I precomputed for Buthe's method?
-#define MAX_MUI (100)
-#define MAX_MUI_2 (200) // = 2*MAX_MUI; a Buthe table row holds 2*MAX_MUI_2+1 entries
-#define MAX_MU ((double) MAX_MUI) // largest mu Buthe can handle (MAX_MUI as a double)
-#define MAX_MU_2 ((double) MAX_MUI_2) // MAX_MUI_2 as a double
-
 #define MAX_L (10) // maximum differential allowed in upsampling
 
 
@@ -85,12 +79,11 @@ extern "C"{
     arb_t ftwiddle_error; // truncation bound = pre_ftwiddle_error*sqrt(N); added per sample
 
     arb_t buthe_Wf; // prime/Euler-sum term of Buthe's inequality
-    arb_t buthe_Winf; // archimedean (gamma) term of Buthe's inequality (uses buthe_ints)
+    arb_t buthe_Winf; // archimedean (gamma) term of Buthe's inequality (computed on the fly via buthe_winf_integral)
     arb_t buthe_Ws; // sum-over-computed-zeros term of Buthe's inequality
     arb_t buthe_b; // height up to which RH is confirmed, b = B/OUTPUT_RATIO
     arb_t buthe_C; // Buthe constant = degree (Lemma 3.4); unused
     arb_t buthe_h; // Buthe test-function step h = BUTHE_H
-    arb_t buthe_ints[(MAX_R-1)*(2*MAX_MUI_2+1)]; // precomputed gamma-integral table [deg-2][2*mu]
     uint64_t buthe_M; // prime-power cutoff for the Wf sum = floor(sqrt(#coeffs))
 
 #ifdef TURING
