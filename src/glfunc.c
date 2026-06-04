@@ -17,6 +17,20 @@ static uint64_t next_pow2_u64(uint64_t n) {
   return p;
 }
 
+// Free everything Lfunc_init_advanced allocated before a window guard rejects, then
+// signal the error (origin's free-on-error convention; have_B selects whether L->B
+// was initialised yet). The caller receives NULL and never double-frees.
+static Lfunc_t window_reject(Lfunc *L, bool have_B, Lerror_t *ecode, Lerror_t code) {
+  if (have_B) arb_clear(L->B);
+  arb_clear(L->pi);
+  arb_clear(L->zero_error);
+  arb_clear(L->zero_prec);
+  free(L->mus);
+  free(L);
+  *ecode |= code;
+  return (Lfunc_t)NULL;
+}
+
 bool fatal_error(Lerror_t ecode) { return ecode & 0xFFFFFFFF; }
 
 void fprint_errors(FILE *f, Lerror_t ecode) {
@@ -188,8 +202,7 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
   // the default-window branch (the bare Lp->max_t > 0.0 test let NaN through,
   // since NaN > 0.0 is false). The sentinel is exactly 0.0, which is finite.
   if (!isfinite(Lp->max_t)) {
-    ecode[0] |= ERR_WINDOW_TOO_SMALL;
-    return (Lfunc_t)NULL;
+    return window_reject(L, false, ecode, ERR_WINDOW_TOO_SMALL);
   }
   if (Lp->max_t > 0.0) {                       // non-default window
     L->max_t = Lp->max_t;
@@ -199,8 +212,7 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
     // small or zero count.
     double need = ceil(1024.0 * (double)L->degree * L->max_t);
     if (!isfinite(need) || need > (double)UINT64_MAX) {
-      ecode[0] |= ERR_WINDOW_TOO_LARGE;
-      return (Lfunc_t)NULL;
+      return window_reject(L, false, ecode, ERR_WINDOW_TOO_LARGE);
     }
     want_fft_NN = next_pow2_u64((uint64_t)need);
   } else if (Lp->max_t == 0.0) {                // sentinel: default window
@@ -208,14 +220,12 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
     L->one_over_B = (double)L->degree / 512.0;  // identical to the old g.c:848 value
     want_fft_NN = (uint64_t)1 << 16;            // identical to the old glfunc.c:233 value
   } else {                                      // finite, < 0: too small
-    ecode[0] |= ERR_WINDOW_TOO_SMALL;
-    return (Lfunc_t)NULL;
+    return window_reject(L, false, ecode, ERR_WINDOW_TOO_SMALL);
   }
 
   // Upper bound: the required transform must fit under the cap.
   if (want_fft_NN > L->max_fft_NN) {
-    ecode[0] |= ERR_WINDOW_TOO_LARGE;
-    return (Lfunc_t)NULL;
+    return window_reject(L, false, ecode, ERR_WINDOW_TOO_LARGE);
   }
 
   // ---- Lower-bound guards (spec step 4); any failure => fatal, before compute_g ----
@@ -223,8 +233,7 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
   //     out of the buffer sized fft_NN (heap overflow). fft_N never drops below
   //     1<<11, so want_fft_NN must reach it too.
   if (want_fft_NN < ((uint64_t)1 << 11)) {
-    ecode[0] |= ERR_WINDOW_TOO_SMALL;
-    return (Lfunc_t)NULL;
+    return window_reject(L, false, ecode, ERR_WINDOW_TOO_SMALL);
   }
 
   // Derive B now (needed by the beta preflight below and reused later for L->B).
@@ -244,9 +253,7 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
   // (3) taylor_terms termination needs B > 4/degree (necessary asymptotic floor;
   //     the hard cap in g.c is the belt-and-suspenders backstop).
   if (!(B_eff > 4.0 / (double)L->degree)) {
-    arb_clear(L->B);
-    ecode[0] |= ERR_WINDOW_TOO_SMALL;
-    return (Lfunc_t)NULL;
+    return window_reject(L, true, ecode, ERR_WINDOW_TOO_SMALL);
   }
 
   // (2) ftwiddle truncation: need B > 0.5 + mu_max AND the resulting decay rate
@@ -255,9 +262,7 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
   //     init_ftwiddle_error) rather than inspecting the damage afterwards.
   arb_const_pi(L->pi, 100); // beta preflight (and decay) need pi
   if (!(B_eff > 0.5 + mu_max) || !ftwiddle_beta_positive(L, 100)) {
-    arb_clear(L->B);
-    ecode[0] |= ERR_WINDOW_TOO_SMALL;
-    return (Lfunc_t)NULL;
+    return window_reject(L, true, ecode, ERR_WINDOW_TOO_SMALL);
   }
 
   if (Lp->wprec > 0)
