@@ -164,6 +164,7 @@ extern "C"{
 #ifdef TURING
   // from turing.c
   Lerror_t turing_check_RH(Lfunc *L, int64_t);
+  Lerror_t turing_check_RH_classify(Lfunc *L, int64_t, bool *too_many);
 #endif
   
   // from compute.c

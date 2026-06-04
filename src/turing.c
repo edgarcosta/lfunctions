@@ -470,6 +470,33 @@ Lerror_t turing_check_RH(Lfunc *L, int64_t prec) {
   return 0; // success
 }
 
+// BOTH-mode helper: like turing_check_RH, but also reports whether the failure
+// (if any) was a HARD over-count (hi < zeros_found, "too many zeros"), which is
+// a genuine inconsistency, versus a mere inability to confirm ("too few").
+// *too_many is set to true only on the hard over-count. The return value is the
+// same Lerror_t turing_check_RH would return.
+Lerror_t turing_check_RH_classify(Lfunc *L, int64_t prec, bool *too_many) {
+  *too_many = false;
+  Lerror_t e = turing_check_RH(L, prec);
+  if (e & ERR_RH_ERROR) {
+    // Re-derive the bracket verdict to classify. turing_check_RH left L->imint,
+    // L->X, and the zero arrays in place; recompute the count and compare.
+    arb_t tcount;
+    arb_init(tcount);
+    uint64_t zeros_found = turing_count(tcount, L, prec);
+    if (zeros_found != 0) {
+      arb_t tmp;
+      arb_init(tmp);
+      arb_sub_ui(tmp, tcount, zeros_found, prec); // hi - zeros_found
+      if (arb_is_negative(tmp))                   // hi < zeros_found
+        *too_many = true;
+      arb_clear(tmp);
+    }
+    arb_clear(tcount);
+  }
+  return e;
+}
+
 #ifdef __cplusplus
 }
 #endif

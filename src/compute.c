@@ -409,10 +409,22 @@ Lerror_t Lfunc_compute(Lfunc_t Lf)
   case LFUNC_RH_TURING:
     ecode |= turing_check_RH(L, prec);
     break;
-  case LFUNC_RH_BOTH:
-    (void)turing_check_RH(L, prec); // cross-check; verdict discarded for now
-    ecode |= buthe_check_RH(L);
+  case LFUNC_RH_BOTH: {
+    bool turing_too_many = false;
+    Lerror_t turing_e = turing_check_RH_classify(L, prec, &turing_too_many);
+    Lerror_t buthe_e = buthe_check_RH(L);
+    ecode |= buthe_e; // BOTH returns Buthe's verdict
+    // Genuine contradiction = one verifier CONFIRMS completeness while the
+    // other reports a HARD over-count. A mere failure to certify (Turing
+    // "too few", or Buthe S>=threshold => ERR_RH_ERROR) is NOT a contradiction.
+    bool buthe_confirms = !(buthe_e & (ERR_RH_ERROR | ERR_BUT_ERROR));
+    bool turing_confirms = !(turing_e & ERR_RH_ERROR);
+    bool buthe_overcount = (buthe_e & ERR_BUT_ERROR) != 0; // Wf+Winf-Ws* < 0
+    if ((buthe_confirms && turing_too_many) ||
+        (turing_confirms && buthe_overcount))
+      ecode |= ERR_RH_METHODS_DISAGREE;
     break;
+  }
   case LFUNC_RH_BUTHE:
   default:
     ecode |= buthe_check_RH(L);
