@@ -9,6 +9,10 @@
 void sym_power_lpoly(fmpz_poly_t out, slong a_p, ulong p, int k)
 {
   assert(k >= 1);
+  if (k < 1) {  // out of contract; stay defined (no out-of-bounds) when NDEBUG drops the assert
+    fmpz_poly_one(out);
+    return;
+  }
 
   fmpz_t pp, pk, pj, c1, t;
   fmpz_init_set_ui(pp, p);          // p
