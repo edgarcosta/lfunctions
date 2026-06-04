@@ -1,0 +1,61 @@
+# Doxygen configuration for liblfun.
+#
+# This file is consumed by Breathe (via conf.py, which runs `doxygen` before the
+# Sphinx build). It extracts the declarations and comments from the public
+# header include/glfunc.h into XML under doc/_build/doxygen/xml, which Breathe
+# then renders inside Sphinx. The header therefore stays the single source of
+# truth for the per-function reference.
+#
+# Paths are relative to the repository root: conf.py changes into the repo root
+# (the parent of doc/) before invoking doxygen, so `doxygen doc/Doxyfile` is run
+# from there and resolves INPUT/OUTPUT_DIRECTORY consistently with the Makefile.
+
+PROJECT_NAME           = liblfun
+PROJECT_BRIEF          = "Generic motivic L-function calculator"
+
+# Only the public API header. The internal header (glfunc_internals.h) and the
+# .c sources are deliberately excluded: the docs cover the public interface.
+INPUT                  = include/glfunc.h
+FILE_PATTERNS          = *.h
+RECURSIVE              = NO
+
+# All output lands under the Sphinx build tree so `make clean`-style removal of
+# doc/_build wipes the generated XML too. Only the XML feeds Breathe.
+OUTPUT_DIRECTORY       = doc/_build/doxygen
+GENERATE_HTML          = NO
+GENERATE_LATEX         = NO
+GENERATE_XML           = YES
+XML_OUTPUT             = xml
+XML_PROGRAMLISTING     = YES
+
+# C, not C++: turn off the C++-isms in the output and parse the header as C.
+OPTIMIZE_OUTPUT_FOR_C  = YES
+
+# Render every declaration in the header even when it carries no doc-comment, so
+# the API reference is complete (all types, macros, and function prototypes)
+# from day one. As the header's comments are migrated to Doxygen style (/// or
+# /** */), their text attaches to these entries automatically, with no change
+# here or in conf.py.
+EXTRACT_ALL            = YES
+EXTRACT_STATIC         = YES
+HIDE_UNDOC_MEMBERS     = NO
+HIDE_UNDOC_CLASSES     = NO
+
+# Treat a leading comment line as the brief description (JavaDoc style) when the
+# header gains /** */ blocks.
+JAVADOC_AUTOBRIEF      = YES
+
+# Expand the error-code and tri-state macros so they appear with their values.
+# PREDEFINED feeds the preprocessor the guards the header expects.
+ENABLE_PREPROCESSING   = YES
+MACRO_EXPANSION        = YES
+EXPAND_ONLY_PREDEF     = NO
+PREDEFINED             = __cplusplus TURING
+
+# Keep the run quiet and fail loudly on a genuinely broken header. WARN_AS_ERROR
+# is left off so an undocumented-but-valid prototype does not break the docs build;
+# Sphinx's own -W (warnings-as-errors) guards the prose build.
+QUIET                  = YES
+WARNINGS               = YES
+WARN_IF_UNDOCUMENTED   = NO
+WARN_NO_PARAMDOC       = NO

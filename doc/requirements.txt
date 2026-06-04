@@ -1,0 +1,11 @@
+# Python packages needed to build the liblfun documentation (run `make html` from this directory)
+# (and on Read the Docs / CI). The doxygen *binary* is a separate, non-pip
+# dependency: install it from your OS package manager (Debian/Ubuntu:
+# `apt-get install doxygen`; macOS: `brew install doxygen`).
+#
+# Lower bounds, not exact pins: these are the versions the scaffold was built
+# and verified against. Bump as needed.
+sphinx>=8.0
+myst-parser[linkify]>=4.0
+breathe>=4.36
+furo>=2024.8

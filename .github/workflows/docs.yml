@@ -1,0 +1,28 @@
+name: Docs
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  build-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3"
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          # doxygen for the API reference; the docs build is self-contained and
+          # does not compile the library, so no FLINT / primesieve are needed.
+          sudo apt-get install -y doxygen
+          python3 -m pip install --upgrade pip
+          python3 -m pip install -r doc/requirements.txt
+      - name: Build docs (warnings are errors)
+        run: make -C doc html
+      - name: Upload HTML
+        uses: actions/upload-artifact@v4
+        with:
+          name: html-docs
+          path: doc/_build/html
