@@ -154,7 +154,7 @@ extern "C"{
   void buthe_winf_integral(arb_t res, const arb_t b, const arb_t h, double mu, slong prec);
 
   // from buthe.c
-  void init_buthe(Lfunc *L, int64_t prec);
+  Lerror_t init_buthe(Lfunc *L, int64_t prec);
   void wf(Lfunc *L, uint64_t p, acb_poly_t fp1, acb_poly_t fp, int64_t prec);
   void buthe_Wf_error(Lfunc *L);
   Lerror_t buthe_check_RH(Lfunc *L);

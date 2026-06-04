@@ -35,6 +35,7 @@
 #define ERR_RH_METHODS_DISAGREE ((uint64_t) 1<<13) // fatal: BOTH mode, Buthe and Turing gave contradictory verdicts
 // (BOTH mode only; set when one verifier confirms RH while the other reports a
 //  hard over-count: Turing hi<zeros_found, or Buthe Wf+Winf-Ws* < 0.)
+#define ERR_BUTHE_PARAMS ((uint64_t) 1<<14) // fatal: Buthe (b,h) violate h < 2*pi*b/5
 
 // warnings
 #define ERR_SOME_DATA ((uint64_t) 1<<32) // We had some sensible data, but not to end of Turing Zone

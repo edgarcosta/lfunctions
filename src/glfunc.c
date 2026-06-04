@@ -34,6 +34,8 @@ void fprint_errors(FILE *f, Lerror_t ecode) {
     fprintf(f, "Fatal error in special value routine.\n");
   if (ecode & ERR_RH_METHODS_DISAGREE)
     fprintf(f, "Buthe and Turing RH verifiers disagreed (BOTH mode).\n");
+  if (ecode & ERR_BUTHE_PARAMS)
+    fprintf(f, "Buthe parameters out of range (need h < 2*pi*b/5).\n");
   // warnings
   if (ecode & ERR_INSUFF_EULER)
     fprintf(f, "Don't appear to have enough Euler factors.\n");
@@ -362,7 +364,7 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
 
   arb_clear(tmp);
 
-  init_buthe(L, L->wprec); // setup stuff for Buthe zero check
+  ecode[0] |= init_buthe(L, L->wprec); // setup stuff for Buthe zero check
   arb_init(L->imint);
   arb_init(L->X);
   L->nmax_called = false; // noone has called nmax yet

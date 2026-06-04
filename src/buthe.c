@@ -19,7 +19,7 @@ extern "C"{
 #define BUTHE_H (8)
 
   // setup Buthe zero check stuff
-  void init_buthe(Lfunc *L, int64_t prec) {
+  Lerror_t init_buthe(Lfunc *L, int64_t prec) {
     arb_init(L->buthe_Wf);
     arb_init(L->buthe_Winf);
     arb_init(L->buthe_Ws);
@@ -53,15 +53,12 @@ extern "C"{
     arb_sub(tmp,tmp,L->buthe_h,prec);
     if(!arb_is_positive(tmp))
     {
-      fprintf(stderr,"Buthe h is too large at ");
-      arb_fprintd(stderr,L->buthe_h,20);
-      fprintf(stderr,"for Buthe B = ");
-      arb_fprintd(stderr,L->buthe_b,20);
-      fprintf(stderr,". Exiting.\n");
-      exit(0);
+      arb_clear(tmp);
+      return ERR_BUTHE_PARAMS;
     }
 
     arb_clear(tmp);
+    return ERR_SUCCESS;
   }
 
   // the terms making up wf are computed using the coefficients bm
