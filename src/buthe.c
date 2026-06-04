@@ -285,6 +285,7 @@ extern "C"{
     {
       arb_init(s);
       arb_init(tmp);
+      init=true;
     }
     arb_set_d(s,1.0/4.0+(double)mu/2.0); // all normalised to (1-s)
     arb_digamma(tmp,s,prec);
