@@ -116,12 +116,23 @@ int main() {
   Lfunc_t L = build_37(0.0, 0, "build/wt_cache_default", &ec);
   assert(!fatal_error(ec));
   assert(Lfunc_rank(L) == 1);
-  arb_t z0ref; arb_init(z0ref);
-  arb_set_str(z0ref, "5.0031700140066586953", 300);
-  arb_add_error_2exp_si(z0ref, -50);
-  assert(arb_overlaps(Lfunc_zeros(L,0) + 0, z0ref));
-  arb_clear(z0ref);
-  printf("task1 ok\n");
+  // Cross-check the default-window zeros against LMFDB (bead 31c.8 validation):
+  // EllipticCurve/Q/37/a positive_zeros lists 13 zeros (to t~19.81) at ~16 sig figs;
+  // allow 2^-44 (~5.7e-14) for LMFDB's last-digit uncertainty. The enlarge run (task3)
+  // reproduces these and extends past LMFDB's range, validated by overlap + |eps|=1.
+  static const char *lmfdb_zeros[13] = {
+    "5.003170014006659","6.870391216954432","8.014330807872879","9.933098353605352",
+    "10.77513816254080","11.75732472284978","12.95838641388285","15.60385787320432",
+    "16.19201741687448","17.14169364801487","18.06365420291071","18.78719562466392",
+    "19.81482224536338"};
+  for (int i = 0; i < 13; ++i) {
+    arb_t ref; arb_init(ref);
+    arb_set_str(ref, lmfdb_zeros[i], 300);
+    arb_add_error_2exp_si(ref, -44);
+    assert(arb_overlaps(Lfunc_zeros(L,0) + i, ref));
+    arb_clear(ref);
+  }
+  printf("task1 ok (13 zeros vs LMFDB)\n");
 
   // Task 2: an explicit max_t equal to the default reproduces the sentinel result.
   Lerror_t ec2;
