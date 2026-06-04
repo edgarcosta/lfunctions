@@ -40,6 +40,21 @@ extern "C"{
 // the body then failed to parse) is a genuinely broken file and stays fatal.
 typedef enum { GCACHE_OK, GCACHE_STALE, GCACHE_CORRUPT } gcache_status;
 
+// A mid-write failure in computeall (header flushed, body short or absent) would
+// leave a valid-header/short-body file that read_gfile later flags GCACHE_CORRUPT
+// -> fatal ERR_G_INFILE, permanently poisoning that cache name.  Before any such
+// error return, close the file and unlink the partial path so the next run simply
+// misses and recomputes.  fp is the handle computeall was writing on and cache_path
+// is the exact path it was opened on; both may be NULL (no cache being written, e.g.
+// op == false), in which case this is a no-op.  computeall nulls nothing of the
+// caller's, so the caller must not fclose again on the error path (it keys its close
+// on a clean return) -- this never double-closes.
+  static void gcache_writer_abort(FILE *fp, const char *cache_path) {
+    if(fp)
+      fclose(fp);
+    if(cache_path)
+      remove(cache_path);
+  }
 
   static void printarf(FILE *fp,const arf_t x) {
     static int init;
@@ -516,7 +531,7 @@ computeres:
 
   // compute G data into L
   // if(op) then also write the data to fp (in the cache dierctory)
-  static Lerror_t computeall(Lfunc *L, double umin,double Binv,long prec, bool op, FILE *fp)
+  static Lerror_t computeall(Lfunc *L, double umin,double Binv,long prec, bool op, FILE *fp, const char *cache_path)
   {
     long i, j, k, prec2, imin, imax;
     double delta;
@@ -570,9 +585,12 @@ computeres:
       // taylor_terms hit its certification cap: the configured window is too
       // small for the recurrence to contract. Fail loudly before allocating
       // anything off k (the init-time B > 4/degree preflight normally rejects
-      // such windows first, so this is a belt-and-suspenders safety net).
+      // such windows first, so this is a belt-and-suspenders safety net). The
+      // header has already been written (and would flush on fclose), so discard
+      // the partial file before returning so it cannot poison the cache name.
       arb_clear(u); arb_clear(eps); arb_clear(thresh); arf_clear(m);
       arb_clear(L->C); arb_clear(L->alpha);
+      gcache_writer_abort(fp, cache_path);
       return ERR_WINDOW_TOO_SMALL;
     }
     L->max_K=k;
@@ -599,16 +617,27 @@ computeres:
     L->Gs=(arb_t **)malloc(sizeof(arb_t *)*k);
     if(!L->Gs)
     {
-      fprintf(stderr,"Fatal error allocating memory in computeall. Exiting.\n");
-      exit(0);
+      // Graceful fatal return (no exit() on this branch); discard the partial
+      // cache file so it cannot poison the cache name on a later run.
+      arb_clear(u); arb_clear(eps); arb_clear(thresh); arf_clear(m);
+      arb_clear(L->C); arb_clear(L->alpha); arb_clear(L->eq59);
+      gcache_writer_abort(fp, cache_path);
+      return ERR_OOM;
     }
     for(i=0;i<k;i++)
     {
       L->Gs[i]=(arb_t *)malloc(sizeof(arb_t)*(imax-imin+1));
       if(!L->Gs[i])
       {
-        fprintf(stderr,"Fatal error allocating memory in computeall. Exiting.\n");
-        exit(0);
+        // Unwind the rows already allocated (none are arb_init'd yet), then fail
+        // gracefully and discard the partial cache file.
+        for(j=0;j<i;j++)
+          free(L->Gs[j]);
+        free(L->Gs);
+        arb_clear(u); arb_clear(eps); arb_clear(thresh); arf_clear(m);
+        arb_clear(L->C); arb_clear(L->alpha); arb_clear(L->eq59);
+        gcache_writer_abort(fp, cache_path);
+        return ERR_OOM;
       }
     }
     for(i=0;i<k;i++)
@@ -824,6 +853,9 @@ computeres:
     Lerror_t ecode=ERR_SUCCESS;
     bool op = false; // true if we are going to write a cache file
     FILE *ofile = NULL; // file to write to
+    char fname[1337]; // cache path; set when op becomes true (function scope so
+                      // computeall can unlink the partial file on a mid-write error)
+    const char *cache_path = NULL; // == fname once a writer is open, else NULL
 
     // "Default mode" means the caller left gprec at 0; we then both derive the
     // working gprec ourselves and may consult the on-disk cache.  Capture that
@@ -849,7 +881,6 @@ computeres:
       printf("g precision set to %" PRId64 " bits\n", L->gprec);
 
     if(use_cache) {
-      char fname[1337];
       char fname1[1024] = "";
       size_t off = 0;
       // Build the cache filename, bailing out if any snprintf hits an encoding
@@ -895,12 +926,18 @@ computeres:
           op = false;
         } else {
           op = true; // file open ok so we can output
+          cache_path = fname; // so computeall can unlink it on a mid-write error
         }
       }
     }
 
-    ecode |= computeall(L, -32*M_LN2, L->one_over_B, L->gprec, op, ofile);
-    if(op)
+    // computeall closes AND unlinks the cache file itself on any mid-write error
+    // (so a partial header never poisons the cache name). On a clean run it leaves
+    // the file open for us to close here. Closing only on a clean return avoids a
+    // double fclose of an already-closed handle.
+    Lerror_t gcode = computeall(L, -32*M_LN2, L->one_over_B, L->gprec, op, ofile, cache_path);
+    ecode |= gcode;
+    if(op && !fatal_error(gcode))
       fclose(ofile);
     return ecode;
   }
