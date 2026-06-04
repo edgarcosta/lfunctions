@@ -48,24 +48,6 @@ def query_nmax(driver, der, cond):
     raise SystemExit("could not query nmax; driver said:\n" + out)
 
 
-def lucas_sympoly(a, p, k):
-    V = [2, a]
-    for _ in range(2, k + 1):
-        V.append(a * V[-1] - p * V[-2])
-    poly = [1]
-    def mul(P, Q):
-        R = [0] * (len(P) + len(Q) - 1)
-        for i, pi in enumerate(P):
-            for j, qj in enumerate(Q):
-                R[i + j] += pi * qj
-        return R
-    for j in range((k + 1) // 2):
-        poly = mul(poly, [1, -(p ** j) * V[k - 2 * j], p ** k])
-    if k % 2 == 0:
-        poly = mul(poly, [1, -(p ** (k // 2))])
-    return poly
-
-
 def run_lpdata(lpdata, curvespec, nmax, workdir):
     pref = "lp"
     # flags=1 (SMALLJAC_GOOD_ONLY); NO jobs arg -> serial, single output file
@@ -121,8 +103,9 @@ def base_data(obj, der, nmax, backend, lpdata, workdir, bad):
 
 def apply_transform(obj, der, nmax, bad, base):
     # Cheap, toolchain-free reconstruction of the good Euler factors from base data.
-    # sympow expands the base a_p via Sym^k (lucas_sympoly, pure arithmetic); ec packages
-    # a_p into the degree-2 factor; genus2 / cmf base data are already the factors.
+    # ec packages a_p into its degree-2 factor; sympow emits the base a_p unchanged
+    # and the C driver forms the Sym^k factor (sym_power_lpoly, the single Sym^k
+    # implementation); genus2 / cmf base data are already the factors.
     if obj["kind"] in ("ec", "sympow"):
         k = int(obj.get("sym", 1))
         rows = []
@@ -130,7 +113,7 @@ def apply_transform(obj, der, nmax, bad, base):
             if p > nmax or p in bad:
                 continue
             a = -fields[0]  # lpdata t = -a_p
-            rows.append((p, [1, -a, p] if k == 1 else lucas_sympoly(a, p, k)))
+            rows.append((p, [1, -a, p]) if k == 1 else (p, [a]))
         return rows
     return [(p, c) for (p, c) in base if p not in bad and p <= nmax]
 
@@ -308,11 +291,16 @@ def main():
         (str(tay) if tay is not None else "NA"),
         repr(float(e.get("taylor_err", 0.0))), 1 if e["tolerate_rh_error"] else 0)
 
-    out = ["%d %d %s %d" % (der["degree"], cond, der["norm"], der["sd"]),
-           " ".join(repr(x) for x in der["mus"]), expect]
+    is_sympow = obj["kind"] == "sympow"
+    head = "%d %d %s %d%s" % (der["degree"], cond, der["norm"], der["sd"],
+                              " sympow" if is_sympow else "")
+    out = [head, " ".join(repr(x) for x in der["mus"]), expect]
     for p, coeffs in rows:
-        coeffs = list(coeffs) + [0] * (der["degree"] + 1 - len(coeffs))
-        out.append(str(p) + " " + " ".join(str(c) for c in coeffs))
+        if is_sympow and p not in bad:   # base a_p (single value); driver forms Sym^k
+            out.append("%d %d" % (p, coeffs[0]))
+        else:                            # explicit local factor, padded to degree+1
+            coeffs = list(coeffs) + [0] * (der["degree"] + 1 - len(coeffs))
+            out.append(str(p) + " " + " ".join(str(c) for c in coeffs))
     sys.stdout.write("\n".join(out) + "\n")
     sys.stderr.write("%s: kind=%s degree=%d cond=%d nmax=%d primes=%d backend=%s\n"
                      % (a.label, obj["kind"], der["degree"], cond, nmax, len(rows), a.backend))
