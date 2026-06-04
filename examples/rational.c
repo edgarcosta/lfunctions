@@ -19,10 +19,10 @@
  */
 
 #include <flint/acb_poly.h>
+#include <flint/fmpz_poly.h>
 #include <assert.h>
 #include <ctype.h>
 #include <inttypes.h>
-#include <primesieve.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -179,30 +179,30 @@ static inline int split(char * str, char delim, char ***array, size_t *length ) 
 
 
 void populate_local_factors(Lfunc_rational_t L) {
-  size_t bound = Lfunc_nmax(L->L);
-  // printf("bound = %ld\n", bound);
-  size_t size;
-  int64_t * primes = (int64_t*) primesieve_generate_primes(0, bound, &size, INT64_PRIMES);
-  // FIXME check that we have enough euler factors
-  // use Lfunc_reduce_nmax if euler_factors is too short
-  assert(L->size_euler_factors >= size);
-
+  size_t n = L->size_euler_factors;
   size_t d = L->degree;
-  acb_poly_t local_factor;
-  acb_poly_init(local_factor);
-  acb_poly_fit_length(local_factor, d + 1);
+  if (n == 0) // nothing parsed: leave ans as the all-ones init
+    return;
 
-
-  for (size_t i = 0; i < size; ++i) {
-    acb_poly_zero(local_factor);
-    _acb_poly_set_length(local_factor, d + 1);
-    for(size_t j = 0; j <= d; ++j) {
-      acb_set_si(local_factor->coeffs + j, L->euler_factors[i*(d+1) + j]);
-    }
-    Lfunc_use_lpoly(L->L, primes[i], local_factor);
+  // Pack the parsed integer Euler factors into one contiguous fmpz_poly array,
+  // factor i (= the i-th prime, 2, 3, 5, ...) being 1 + c_1 T + ... + c_d T^d.
+  fmpz_poly_struct *factors = (fmpz_poly_struct *) malloc(n * sizeof(fmpz_poly_struct));
+  for (size_t i = 0; i < n; ++i) {
+    fmpz_poly_init(factors + i);
+    for (size_t j = 0; j <= d; ++j)
+      fmpz_poly_set_coeff_si(factors + i, j, L->euler_factors[i*(d+1) + j]);
   }
 
-  acb_poly_clear(local_factor);
+  // One array call replaces the manual prime sieve and the per-prime push: the
+  // library sieves the primes itself and consumes the k-th factor for the k-th
+  // prime. If the array is shorter than the library needs it reduces nmax and
+  // warns (ERR_INSUFF_EULER) rather than the old hard assert, so a truncated
+  // factor list (as in the genus-2 example above) just works.
+  L->ecode |= Lfunc_use_lpolys_fmpz(L->L, factors, n);
+
+  for (size_t i = 0; i < n; ++i)
+    fmpz_poly_clear(factors + i);
+  free(factors);
 }
 
 
