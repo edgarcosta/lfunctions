@@ -87,6 +87,24 @@ static int wt_count_zeros(Lfunc_t L, uint64_t side) {
   return n;
 }
 
+// Init-only synthetic degree-r object (mus all 0, normalisation 0.5 => analytic
+// mus all 0.5) at a chosen window/cap, for white-box checks of the window
+// GEOMETRY. B / one_over_B / fft_NN / A depend only on degree and H -- not on the
+// conductor, the Euler factors, or gprec -- so no factors/compute are needed. We
+// pin gprec to a small value: it does not affect the asserted geometry, keeps
+// compute_g (hence the suite) fast, and (being non-zero) bypasses the on-disk
+// G-cache so these ~100 inits leave no cache files behind.
+static Lfunc_t geo_init(uint64_t degree, double max_t, uint64_t max_fft_NN, Lerror_t *ecode) {
+  vector<double> mus(degree, 0.0);
+  Lparams_t Lp = {};
+  Lp.degree = degree; Lp.conductor = 11; Lp.normalisation = 0.5; Lp.mus = mus.data();
+  Lp.target_prec = DEFAULT_TARGET_PREC; Lp.wprec = 0; Lp.gprec = 30;
+  Lp.self_dual = DK; Lp.rank = DK; Lp.cache_dir = (char*)"build/wt_cache_geo";
+  Lp.max_t = max_t; Lp.max_fft_NN = max_fft_NN;
+  *ecode = ERR_SUCCESS;
+  return Lfunc_init_advanced(&Lp, ecode); // copies mus
+}
+
 // Build ec_37.a1 via the advanced API at a given window and cap, in a private
 // cache_dir so runs never poison each other. Returns the accumulated ecode.
 static Lfunc_t build_37(double max_t, uint64_t max_fft_NN, const char *cache_dir, Lerror_t *ecode) {
@@ -625,6 +643,87 @@ int main() {
     Lfunc_clear(Ldk); Lfunc_clear(Lr1);
   }
   printf("supplied-rank-window ok\n");
+
+  // ---- power-of-two window-geometry sweep (init-only, white-box) ----
+  // For degree r and k=1..9 with H = 2^k/r the geometry is forced to exact powers
+  // of two: B = 2^(k+3)/r, one_over_B = r/2^(k+3), fft_NN = 2^(k+10), A = 128*r,
+  // output reach fft_NN/(OUTPUT_RATIO*A) = H, and Turing-end reach
+  // (fft_NN/OUTPUT_RATIO + fft_NN/TURING_RATIO)/A = 1.5*H. This pins those
+  // relationships across the whole degree range (the "what about other powers of
+  // two" question) with no Euler factors or zero-finding. Windows below the
+  // small-window floor are rejected LOUD (ERR_WINDOW_TOO_SMALL) and skipped. The
+  // first four equalities are exact (integer / power-of-two scaling / a single
+  // correctly-rounded division of 2^k/r); the Turing reach gets a tolerance
+  // because 1.5*H double-rounds (off by 1 ulp at e.g. r=5).
+  for (uint64_t r = 2; r <= (uint64_t)MAX_DEGREE; ++r) {
+    for (int k = 1; k <= 9; ++k) {
+      double H = ldexp(1.0, k) / (double)r;                       // 2^k / r
+      Lerror_t ecg;
+      Lfunc_t Lg = geo_init(r, H, (uint64_t)1 << 20, &ecg);
+      if (fatal_error(ecg)) {                                     // below the floor => loud
+        assert(ecg & ERR_WINDOW_TOO_SMALL);
+        if (Lg) Lfunc_clear(Lg);
+        continue;
+      }
+      Lfunc *G = (Lfunc*)Lg;
+      assert(G->fft_NN == ((uint64_t)1 << (k + 10)));             // fft_NN = 2^(k+10)
+      assert(G->one_over_B == (double)r / ldexp(1.0, k + 3));     // 1/B = r/2^(k+3)
+      assert(G->A == 128.0 * (double)r);                          // A = 128*r
+      double reach_out = (double)G->fft_NN / ((double)OUTPUT_RATIO * G->A);
+      assert(reach_out == H);                                     // output reach = H
+      double reach_tur = ((double)(G->fft_NN / OUTPUT_RATIO) + (double)(G->fft_NN / TURING_RATIO)) / G->A;
+      assert(fabs(reach_tur - 1.5 * H) <= 1e-12 * (1.5 * H));     // Turing-end reach = 1.5*H
+      Lfunc_clear(Lg);
+    }
+  }
+  printf("geometry-sweep ok\n");
+
+  // ---- boundary: explicit H = 64/r reproduces the sentinel (max_t = 0) geometry ----
+  for (uint64_t r = 2; r <= (uint64_t)MAX_DEGREE; ++r) {
+    Lerror_t es, ee;
+    Lfunc_t Ls = geo_init(r, 0.0, 0, &es);                            // sentinel default
+    Lfunc_t Le = geo_init(r, 64.0 / (double)r, (uint64_t)1 << 20, &ee); // explicit 64/r
+    assert(!fatal_error(es) && !fatal_error(ee));
+    Lfunc *S = (Lfunc*)Ls, *E = (Lfunc*)Le;
+    assert(S->fft_NN == ((uint64_t)1 << 16) && E->fft_NN == S->fft_NN);
+    assert(E->one_over_B == S->one_over_B);
+    assert(E->A == S->A && S->A == 128.0 * (double)r);
+    Lfunc_clear(Ls); Lfunc_clear(Le);
+  }
+  printf("explicit-default ok\n");
+
+  // ---- boundary: the cap rejects below / admits at the required power of two ----
+  // H = 128/r needs fft_NN = 2^17: a 2^16 cap must fail loud, a 2^17 cap must pass.
+  for (uint64_t r = 2; r <= (uint64_t)MAX_DEGREE; ++r) {
+    double H = 128.0 / (double)r;
+    Lerror_t e1, e2;
+    Lfunc_t L1 = geo_init(r, H, (uint64_t)1 << 16, &e1);
+    assert(e1 & ERR_WINDOW_TOO_LARGE);
+    if (L1) Lfunc_clear(L1);
+    Lfunc_t L2 = geo_init(r, H, (uint64_t)1 << 17, &e2);
+    assert(!fatal_error(e2));
+    assert(((Lfunc*)L2)->fft_NN == ((uint64_t)1 << 17));
+    Lfunc_clear(L2);
+  }
+  printf("cap-threshold ok\n");
+
+  // ---- boundary: round-up just above / just below the default H = 64/r ----
+  // Just above 64/r the required length rounds up to 2^17 and A climbs above 128*r;
+  // just below it stays at 2^16 but A still rises above 128*r -- A = fft_NN/(8H) is
+  // not pinned to 128*r for non-default windows.
+  for (uint64_t r = 2; r <= (uint64_t)MAX_DEGREE; ++r) {
+    double A128 = 128.0 * (double)r;
+    Lerror_t eu, eb;
+    Lfunc_t Lu = geo_init(r, 64.0 / (double)r + 1.0 / 1024.0, (uint64_t)1 << 20, &eu);
+    assert(!fatal_error(eu));
+    assert(((Lfunc*)Lu)->fft_NN == ((uint64_t)1 << 17) && ((Lfunc*)Lu)->A > A128);
+    Lfunc_clear(Lu);
+    Lfunc_t Lb = geo_init(r, 64.0 / (double)r - 1.0 / 1024.0, (uint64_t)1 << 20, &eb);
+    assert(!fatal_error(eb));
+    assert(((Lfunc*)Lb)->fft_NN == ((uint64_t)1 << 16) && ((Lfunc*)Lb)->A > A128);
+    Lfunc_clear(Lb);
+  }
+  printf("round-boundary ok\n");
 
   Lfunc_clear(L);
   return 0;
