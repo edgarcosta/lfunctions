@@ -47,3 +47,7 @@ To run a single test or example, execute its binary directly, e.g. `./build/test
 
 See [INSTALL.md](INSTALL.md) for the configure options, the SageMath shortcut, and troubleshooting (including scrubbing stale `g_*` cache files).
 
+## Usage
+
+The quickest way to compute an L-function without writing C is the `rational` command-line tool (`examples/rational.c`), which reads a one-line spec `label:degree:conductor:weight:[mus]:[[euler_factors]]` and prints the rank, root number, leading Taylor coefficient, and first zero. See [doc/rational.md](doc/rational.md) for the input grammar and a worked example.
+
