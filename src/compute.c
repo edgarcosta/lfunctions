@@ -109,14 +109,18 @@ Lerror_t finalise_comp(Lfunc *L)
 {
   double two_pi_by_B=L->one_over_B*2*M_PI;
   L->offset=calc_m(1,two_pi_by_B,L->dc);
-  if(L->offset<L->low_i)
+  // finish_convolves' direct path starts at n=-1, so it reads the G grid down to
+  // Gs[offset-1]; the floor must reach offset-1, not just offset, to close a one-cell
+  // out-of-bounds read at offset==low_i. offset is conductor-dependent; the grid floor
+  // (fixed at umin=-32 ln2) is degree-dependent only. Reachable only at astronomically
+  // large conductor, but the cost of being exact here is one subtraction.
+  if(L->offset-1<L->low_i)
   {
-    // The grid floor (fixed at umin=-32 ln2, so degree-dependent only) does not
-    // reach the conductor-dependent offset we need.  Report it as a recoverable
-    // fatal error rather than exit()ing out from under the caller.
+    // Report the short grid as a recoverable fatal error rather than exit()ing out
+    // from under the caller.
     if(verbose)
       fprintf(stderr,"G values need to go down to %" PRId64 ". We only have down to %" PRId64 ".\n",
-          L->offset,L->low_i);
+          L->offset-1,L->low_i);
     return ERR_G_EXTENT;
   }
   // Backstop: the length-fft_N cyclic convolution aliases if the grid+coeff support exceeds
