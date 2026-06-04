@@ -139,16 +139,18 @@ extern "C"{
     arb_t L_d; // L^(rank)(1/2)/rank!
   } Lfunc;
 
-  // Upper bound on the linear-convolution support (G grid [low_i,hi_i] plus the coefficient
-  // buckets, which reach down to calc_m(M0)) that the length-fft_N cyclic convolution must
-  // hold without aliasing. M0/sqrt(N) >= 1/100 (M0 = ceil(sqrt(N)/100)), so
-  // calc_m(M0) >= floor(log(0.01)/(2*pi/B)); using that floor makes this conductor-
-  // independent and guarantees it never undercounts the true support. Shared by the fft_N
-  // sizing (glfunc.c) and the runtime alias backstop (compute.c) so they cannot diverge.
+  // Upper bound on the linear-convolution support (the G grid [low_i,hi_i] together with the
+  // coefficient buckets) that the length-fft_N cyclic convolution must hold without aliasing.
+  // The SMALLEST coefficient is n=1, mapped to bucket calc_m(1) = round(log(1/sqrt(N))/(2pi/B));
+  // finish_convolves writes res[] down to it. For sqrt(N) > 100 that is below
+  // floor(log(0.01)/(2pi/B)) (the old M0/sqrt(N) >= 1/100 bound), which therefore UNDERCOUNTED
+  // and silently aliased enlarged windows at conductor > ~1e4. floor() gives a safe
+  // (<= calc_m(1)) conductor-dependent lower index. Shared by the fft_N sizing (glfunc.c)
+  // and the runtime alias backstop (compute.c) so they cannot diverge.
   static inline uint64_t conv_support(const Lfunc *L) {
     double two_pi_by_B = L->one_over_B * 2.0 * M_PI;
-    int64_t cm0_min = (int64_t)floor(log(0.01) / two_pi_by_B);
-    return (uint64_t)(L->hi_i - L->low_i + 1) + (uint64_t)(L->hi_i - cm0_min + 1);
+    int64_t cm1 = (int64_t)floor(log(1.0 / sqrt((double)L->conductor)) / two_pi_by_B);
+    return (uint64_t)(L->hi_i - L->low_i + 1) + (uint64_t)(L->hi_i - cm1 + 1);
   }
 
   // from glfunc_g.c

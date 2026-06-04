@@ -2,6 +2,7 @@
 #include <flint/acb_poly.h>
 #include <flint/arith.h>
 #include <flint/fmpz.h>
+#include <flint/ulong_extras.h>
 #include "glfunc.h"
 #include "glfunc_internals.h"
 #include <cassert>
@@ -109,6 +110,36 @@ static Lfunc_t build_tau(double max_t, const char *cache_dir, Lerror_t *ecode) {
   return L;
 }
 
+// Product of the quadratic characters mod 227 and mod 229: a degree-2, self-dual
+// L-function of conductor 227*229 = 51983, so M0 = ceil(sqrt(N)/100) = 3 > 1
+// (unlike conductor 37, where M0 = 1). chi_227 is odd (227 = 3 mod 4) and chi_229
+// even, giving analytic mus {0,1} at normalisation 0. The good-prime Euler factor
+// is (1 - chi_227(p) x)(1 - chi_229(p) x); a ramified chi_p(p) = 0 drops its factor.
+static void dir_cb(acb_poly_t poly, uint64_t p, int, int64_t, void*) {
+  acb_poly_zero(poly);
+  long a = n_jacobi((slong)(p % 227), 227);   // chi_227(p) in {-1,0,1}
+  long b = n_jacobi((slong)(p % 229), 229);   // chi_229(p)
+  acb_poly_set_coeff_si(poly, 0, 1);
+  acb_poly_set_coeff_si(poly, 1, -(a + b));
+  if (a != 0 && b != 0) acb_poly_set_coeff_si(poly, 2, a * b);
+}
+static Lfunc_t build_dir(double max_t, uint64_t max_fft_NN, const char *cache_dir, Lerror_t *ecode) {
+  static double mus[2] = {0,1};
+  Lparams_t Lp = {};
+  Lp.degree = 2; Lp.conductor = 227 * 229; Lp.normalisation = 0.0; Lp.mus = mus;
+  Lp.target_prec = DEFAULT_TARGET_PREC; Lp.wprec = 0; Lp.gprec = 0;
+  Lp.self_dual = DK; Lp.rank = DK; Lp.cache_dir = (char*)cache_dir;
+  Lp.max_t = max_t; Lp.max_fft_NN = max_fft_NN;
+  mkdir(cache_dir, 0777);
+  *ecode = ERR_SUCCESS;
+  Lfunc_t L = Lfunc_init_advanced(&Lp, ecode);
+  if (fatal_error(*ecode)) return L;
+  *ecode |= Lfunc_use_all_lpolys(L, dir_cb, NULL);
+  if (fatal_error(*ecode)) return L;
+  *ecode |= Lfunc_compute(L);
+  return L;
+}
+
 int main() {
   // Task 1 assertion: the new fields exist, defaults (sentinels) reproduce the
   // known ec_37.a1 results computed via the plain Lfunc_init path.
@@ -170,6 +201,39 @@ int main() {
     assert(arb_overlaps(Lfunc_zeros(Lbig,0)+i, Lfunc_zeros(L,0)+i));
   Lfunc_clear(Lbig);
   printf("task3 ok\n");
+
+  // ---- conv_support must be conductor-aware (Reviewer A blocker) ----
+  // For conductor > ~1e4 (M0 = ceil(sqrt(N)/100) > 1) the small-coefficient path
+  // (finish_convolves) fills the convolution down to bucket calc_m(1) =
+  // round(log(1/sqrt(N))/(2pi/B)); once sqrt(N) > 100 that is BELOW the old
+  // floor(log(0.01)/(2pi/B)) bound, so a conductor-independent conv_support sized
+  // fft_N too small, the cyclic convolution aliased, and the certified zeros
+  // silently stopped containing the truth -- with no error raised. Conductor 37
+  // (M0=1, used by task1-3) never exercised this. Here the default window is
+  // correct (it never aliases at any conductor) and the enlarged window's trusted
+  // zeros must overlap it; on the buggy conv_support the enlarge aliases and the
+  // overlap fails. fft_N goes 2048 (default) -> 4096 (enlarged at this conductor).
+  {
+    Lerror_t ecd;
+    Lfunc_t Ld = build_dir(0.0, 0, "build/wt_cache_dir_def", &ecd);          // reference
+    assert(!fatal_error(ecd));
+    { arb_t m; arb_init(m); acb_abs(m, Lfunc_sign(Ld), 100);
+      arb_sub_ui(m, m, 1, 100); assert(arb_contains_zero(m)); arb_clear(m); }
+    int nd = 0; while (nd < (int)MAX_ZEROS && !arb_is_zero(Lfunc_zeros(Ld,0)+nd)) nd++;
+    assert(nd > 0);
+
+    Lerror_t ece;
+    Lfunc_t Lde = build_dir(48.0, (uint64_t)1<<18, "build/wt_cache_dir_big", &ece);  // enlarge
+    assert(!fatal_error(ece));
+    { arb_t m; arb_init(m); acb_abs(m, Lfunc_sign(Lde), 100);
+      arb_sub_ui(m, m, 1, 100); assert(arb_contains_zero(m)); arb_clear(m); }
+    int ne = 0; while (ne < (int)MAX_ZEROS && !arb_is_zero(Lfunc_zeros(Lde,0)+ne)) ne++;
+    assert(ne > nd);                                  // the wider window finds strictly more
+    for (int i = 0; i < nd; ++i)                      // and every default zero reappears
+      assert(arb_overlaps(Lfunc_zeros(Lde,0)+i, Lfunc_zeros(Ld,0)+i));
+    Lfunc_clear(Ld); Lfunc_clear(Lde);
+  }
+  printf("highcond ok\n");
 
   // ---- bead 31c.6: a cache written for one window must not poison another ----
   //
