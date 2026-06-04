@@ -54,7 +54,7 @@ extern "C"{
     arb_t alpha;       // alpha = 1 under Ramanujan (set in g.c)
     //arb_t k0; // no longer used
     //arb_t k2;
-    double one_over_B; // 1/B = degree/512; the G-kernel u-grid step is 2*pi/B
+    double one_over_B; // 1/B = degree/512 for the default window (= 1/(OUTPUT_RATIO*max_t) in general); the G-kernel u-grid step is 2*pi/B
     arb_t B; // scaling parameter B = 1/one_over_B; sets the t-spacing of Lambda samples
     arb_t two_pi_by_B; // 2*pi/B: u-spacing between consecutive G/Lambda sample indices
     arb_t pi; // the constant pi at working precision wprec
@@ -70,8 +70,8 @@ extern "C"{
 
     // computation related
     uint64_t fft_N; // length of the short DFT for the Euler-product convolutions (2^11)
-    uint64_t fft_NN; // length of the final output iFFT (2^16)
-    double A; // output sampling rate = fft_NN/B; output sample i is Lambda at t = i/A
+    uint64_t fft_NN; // length of the final output iFFT (2^16 for the default window; scales with the window)
+    double A; // output sampling rate = fft_NN/B (runtime value); output sample i is Lambda at t = i/A
     arb_t arb_A; // A as a rigorous real ball (for the error analysis)
     arf_t arf_A; // A as an arf_t; only used to form arf_one_over_A
     arb_t one_over_A; // 1/A as a ball; the t-grid spacing (sample i has imag part i/A)

@@ -377,13 +377,12 @@ ostream& operator<<(ostream& s, const Lplot_t *Lpp) {
 }
 
 // << operator for Lfunc_zeros
-// Only the zeros in 64/degree get checked against RH.
-// There may be some missing in [64/degree,96/degree]
+// Only the zeros up to the configured window height L->max_t get checked against RH.
+// There may be some missing above that height.
 ostream& ostream_zeros(ostream& s, const Lfunc_t L, uint64_t side=0, bool checked=true) {
   arb_t rh_lim;
   arb_init(rh_lim); // to what height do we check RH?
-  arb_set_ui(rh_lim,64);
-  arb_div_ui(rh_lim,rh_lim, ((Lfunc *) L)->degree, 200);
+  arb_set_d(rh_lim, ((Lfunc *) L)->max_t);   // RH-verified window height (= 64/degree by default)
   const arb_srcptr zeros = Lfunc_zeros(L, side);
   s << "[";
   for(size_t i = 0; i < 10; ++i) {

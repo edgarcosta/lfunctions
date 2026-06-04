@@ -1,10 +1,10 @@
 // Copyright Dave Platt 2024
 // See LICENSE file for license details.
 //
-// Use Booker's generalisation of Turing's method to confirm RH
-// to height B/(OUTPUT_RATIO*degree).
+// Use Booker’s generalisation of Turing’s method to confirm RH
+// to height H = B/OUTPUT_RATIO, where B = OUTPUT_RATIO*H is derived
+// from the requested window H (default H = 64/degree).
 // see Artin’s Conjecture, Turing’s Method, and the Riemann Hypothesis
-// B is hard wired to 512 in g.c so height is 64/degree
 
 // Note that RH is only verifiable for rank <=1
 // This code will trust larger values of rank and will
