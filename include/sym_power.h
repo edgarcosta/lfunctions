@@ -22,7 +22,8 @@ extern "C" {
    * With k=1 this is the curve's own factor 1 - a_p*T + p*T^2.
    *
    * Coefficients are exact and routinely exceed 64 bits (the leading one has
-   * absolute value p^{k(k+1)/2}), hence the fmpz_poly output.  Requires k >= 1.
+   * absolute value p^{k(k+1)/2}), hence the fmpz_poly output.  Requires k >= 1
+   * (k < 1 yields the trivial factor 1 rather than reading out of bounds).
    *
    * GOOD PRIMES ONLY: this is a pure function of (a_p, p, k).  Bad/ramified
    * factors are not a function of a_p (e.g. Sym^4 of 27.a at p=3 is 1 - p^2*T,
