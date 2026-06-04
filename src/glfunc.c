@@ -36,6 +36,8 @@ void fprint_errors(FILE *f, Lerror_t ecode) {
     fprintf(f, "Buthe and Turing RH verifiers disagreed (BOTH mode).\n");
   if (ecode & ERR_BUTHE_PARAMS)
     fprintf(f, "Buthe parameters out of range (need h < 2*pi*b/5).\n");
+  if (ecode & ERR_BAD_RH_METHOD)
+    fprintf(f, "Lfunc_set_rh_method called with an invalid method or after Lfunc_compute.\n");
   // warnings
   if (ecode & ERR_INSUFF_EULER)
     fprintf(f, "Don't appear to have enough Euler factors.\n");
@@ -413,10 +415,10 @@ int64_t Lfunc_wprec(Lfunc_t Lf) {
 Lerror_t Lfunc_set_rh_method(Lfunc_t Lf, Lfunc_rh_method method) {
   Lfunc *L = (Lfunc *)Lf;
   if (L->computed) // too late: the verifier has already run
-    return ERR_RH_ERROR;
+    return ERR_BAD_RH_METHOD;
   if (method != LFUNC_RH_BUTHE && method != LFUNC_RH_TURING &&
       method != LFUNC_RH_BOTH)
-    return ERR_RH_ERROR; // unknown method; ignore
+    return ERR_BAD_RH_METHOD; // unknown method; ignore
   L->rh_method = method;
   return ERR_SUCCESS;
 }

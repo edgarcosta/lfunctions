@@ -37,7 +37,8 @@ int main(void) {
   assert(((Lfunc *)L)->rh_method == LFUNC_RH_BUTHE);
 
   // an out-of-range method is rejected and leaves rh_method unchanged
-  assert(Lfunc_set_rh_method(L, (Lfunc_rh_method)99) == ERR_RH_ERROR);
+  assert(Lfunc_set_rh_method(L, (Lfunc_rh_method)99) == ERR_BAD_RH_METHOD);
+  assert(fatal_error(ERR_BAD_RH_METHOD));
   assert(((Lfunc *)L)->rh_method == LFUNC_RH_BUTHE);
 
   // after compute, the setter is rejected
@@ -45,7 +46,7 @@ int main(void) {
   assert(!fatal_error(ec));
   ec |= Lfunc_compute(L); // verdict/warnings irrelevant; we only need computed=true
   assert(((Lfunc *)L)->computed);
-  assert(Lfunc_set_rh_method(L, LFUNC_RH_TURING) == ERR_RH_ERROR);
+  assert(Lfunc_set_rh_method(L, LFUNC_RH_TURING) == ERR_BAD_RH_METHOD);
   assert(((Lfunc *)L)->rh_method == LFUNC_RH_BUTHE); // unchanged
 
   Lfunc_clear(L);

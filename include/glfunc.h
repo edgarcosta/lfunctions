@@ -36,6 +36,7 @@
 // (BOTH mode only; set when one verifier confirms RH while the other reports a
 //  hard over-count: Turing hi<zeros_found, or Buthe Wf+Winf-Ws* < 0.)
 #define ERR_BUTHE_PARAMS ((uint64_t) 1<<14) // fatal: Buthe (b,h) violate h < 2*pi*b/5
+#define ERR_BAD_RH_METHOD ((uint64_t) 1<<15) // fatal: Lfunc_set_rh_method misused (bad method, or called after Lfunc_compute)
 
 // warnings
 #define ERR_SOME_DATA ((uint64_t) 1<<32) // We had some sensible data, but not to end of Turing Zone
@@ -118,9 +119,10 @@ extern "C"{
 
   // Choose the RH-completeness verifier run by Lfunc_compute.
   // Default (if never called) is LFUNC_RH_BUTHE. Must be called AFTER init and
-  // BEFORE Lfunc_compute; calling it after Lfunc_compute returns ERR_RH_ERROR
-  // (a warning) and leaves the method unchanged. An out-of-range method also
-  // returns ERR_RH_ERROR and is ignored. Returns ERR_SUCCESS otherwise.
+  // BEFORE Lfunc_compute; calling it after Lfunc_compute returns
+  // ERR_BAD_RH_METHOD (fatal) and leaves the method unchanged. An out-of-range
+  // method also returns ERR_BAD_RH_METHOD and is ignored. Returns ERR_SUCCESS
+  // otherwise.
   Lerror_t Lfunc_set_rh_method(Lfunc_t L, Lfunc_rh_method method);
 
   // Largest prime p (equivalently largest index M) for which an Euler factor /
