@@ -3,6 +3,100 @@
 These are the fixed contracts shared by `gen.py`, `highdeg_check.cpp`, and
 `objects.yaml`; keep all three in sync when changing the format.
 
+Sections A through E below are the format contracts. The section immediately
+below is the operator's guide: how to run the suite, regenerate fixtures, and
+add an object.
+
+## Running the suite
+
+The suite certifies the degree 2 to 9 objects in `test/highdeg/objects.yaml`
+against LMFDB and Pari golden values. Run it from the repository root after a
+build (`make check-highdeg` depends on `all`):
+
+```
+make check-highdeg
+```
+
+For each object, the `make check-highdeg` target generates a driver input file,
+runs `build/test/highdeg_check.exe` on it, and checks the assertions in
+section C. The exit code is the oracle (it exits non-zero if any non-`xfail`
+object fails). `g_*` caches are scrubbed before the run and after each object.
+
+### Fixtures versus on-the-fly generation
+
+By default the suite runs **purely from committed base fixtures** and needs no
+external toolchain:
+
+- `FIXTURES` (default `test/highdeg/fixtures`) is the directory of committed
+  base data (`<label>.base`, stored in Git LFS). When `$(FIXTURES)/<label>.base`
+  exists, `gen.py` reconstructs the full driver input from it (`--base-from`)
+  with **no** `smalljac` and **no** Sage. This is the CI path
+  (`.github/workflows/highdeg.yml` runs purely from fixtures).
+- Set `FIXTURES=` (empty) to force on-the-fly generation, which runs the backend
+  toolchain for every object. This needs `lpdata` (and Sage for the `cmf` and,
+  by default, the `genus2` objects).
+
+### Knobs
+
+| Make variable | Default | Effect |
+| --- | --- | --- |
+| `FIXTURES` | `test/highdeg/fixtures` | Directory of committed base fixtures. A present `<label>.base` is used (toolchain-free); `FIXTURES=` forces on-the-fly generation. |
+| `LABEL` | (empty) | Restrict the run to a single object by label (for example `LABEL=11.a1`). Empty runs the full sweep. With `LABEL` set, the generated input file `build/test/highdeg_<label>.in` is **kept** (and the re-run command printed) for debugging. |
+| `BACKEND` | `smalljac` | Good-factor source for the **genus-2** objects when generating: `smalljac` (needs a genus-2 `lpdata`) or `pari` (routes genus-2 good factors through Sage's `hyperellcharpoly`, slower). `ec` / `sympow` good factors always come from `lpdata` regardless of `BACKEND`; only genus-2 is affected. Irrelevant when running from fixtures. |
+| `LPDATA` | `/usr/local/bin/lpdata` | Path to the `smalljac` `lpdata` binary used when generating. |
+| `HIGHDEG_OBJECTS` | `test/highdeg/objects.yaml` | The object list to run. |
+
+### The genus-2 `lpdata` requirement
+
+The default `lpdata` on a typical box is a **genus-1-only** `smalljac` build: it
+silently emits no good factors for the genus-2 (degree-4) objects, so when those
+objects are generated on the fly they end up with only their hardcoded bad
+factors and fail. **When regenerating genus-2 data, or running the suite without
+fixtures, point `LPDATA` at a genus-2 build:**
+
+```
+make check-highdeg BACKEND=smalljac LPDATA=/usr/local/bin/lpdata2
+```
+
+`test/highdeg/install_smalljac.sh` builds a suitable genus-2 `lpdata` (smalljac
+v4.1.3 with `SMALLJAC_GENUS=2`, which handles genus 1 and 2 simultaneously); see
+[`SMALLJAC_FORMAT.md`](SMALLJAC_FORMAT.md). The fixtures path (the default) needs
+no `lpdata` at all, since the genus-2 L-polys are stored in the fixture.
+
+### Regenerating the base fixtures
+
+`make highdeg-data` regenerates the committed base fixtures under `$(FIXTURES)`.
+This is the **only** step that needs the backend toolchain (`lpdata` for
+`ec` / `sympow`, `lpdata2` or Sage for `genus2`, Sage for `cmf`):
+
+```
+make highdeg-data                                  # regenerate all fixtures
+make highdeg-data LABEL=169.a LPDATA=/usr/local/bin/lpdata2   # one object
+```
+
+The base data is minimal (for `ec` / `sympow` it is the base curve's `a_p`; the
+Sym^k factor is re-expanded at run time), so the fixtures stay small. Regenerate
+a fixture whenever its object's curve, conductor, or `mus` (hence `nmax`)
+changes; `gen.py --base-from` aborts if a fixture's recorded `nmax` no longer
+matches the object.
+
+To generate (only) one object's driver input for interactive debugging without
+running the assertions, use `make highdeg-gen LABEL=<label>`, which writes
+`build/test/highdeg_<label>.in` and prints the command to run it.
+
+### Adding an object to `objects.yaml`
+
+Append a new entry to the `objects:` list in `test/highdeg/objects.yaml`
+following the schema in section A: a unique filename-safe `label`, the `kind`
+(`ec`, `sympow`, `genus2`, or `cmf`), the curve / form data that `kind` requires,
+the `conductor`, the hardcoded `bad_factors` (from the LMFDB, never from
+`lpdata`), and the `expected` block (rank, epsilon, first zero and its error,
+optional Taylor coefficient, and `tolerate_rh_error`, which **must** be `true`
+for degree >= 3). `gen.py` derives degree / normalisation / `mus` / `self_dual`
+from `kind` (+ `sym` for `sympow`), so do not store those. Then generate the base
+fixture for the new object with `make highdeg-data LABEL=<label>` (using
+`LPDATA=.../lpdata2` for a `genus2` object) and commit `<label>.base`.
+
 ## A. `test/highdeg/objects.yaml` (data) — consumed by `gen.py`
 ```yaml
 objects:
