@@ -363,10 +363,8 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
   arb_clear(tmp);
 
   init_buthe(L, L->wprec); // setup stuff for Buthe zero check
-#ifdef TURING
   arb_init(L->imint);
   arb_init(L->X);
-#endif
   L->nmax_called = false; // noone has called nmax yet
 
   arb_init(L->Lam_d);

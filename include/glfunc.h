@@ -9,8 +9,6 @@
 #define YES (1) // tri-state "yes" (for self_dual / rank)
 #define NO (0) // tri-state "no" (for self_dual / rank)
 
-#define TURING // if defined, verify RH via Booker/Turing's method (default)
-
 #define MAX_DEGREE (9) // if increasing, need more integrals in buthe.c
 // and probably need to take a good look at g.c
 #define MAX_R MAX_DEGREE // alias for MAX_DEGREE (max degree r)

@@ -63,10 +63,8 @@ extern "C"{
     arb_cclear(L->buthe_C);
     arb_cclear(L->buthe_h);
 
-    #ifdef TURING
     arb_cclear(L->imint);
     arb_cclear(L->X);
-    #endif
     
     arb_cclear(L->one_over_root_N);
     arb_cclear(L->sum_ans);

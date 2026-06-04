@@ -15,7 +15,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-#ifdef TURING
 
 // We use N(t)=Phi(t)+S(t) (4-2)
 //
@@ -499,6 +498,4 @@ Lerror_t turing_check_RH_classify(Lfunc *L, int64_t prec, bool *too_many) {
 
 #ifdef __cplusplus
 }
-#endif
-
 #endif

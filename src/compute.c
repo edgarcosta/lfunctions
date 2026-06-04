@@ -400,11 +400,12 @@ Lerror_t Lfunc_compute(Lfunc_t Lf)
     if(fatal_error(ecode))
       return ecode;
   }
-  // Runtime RH-verifier dispatch (Plan 3). Default is Buthe (LFUNC_RH_BUTHE,
-  // set in Lfunc_init_advanced); callers opt into Turing or BOTH via
-  // Lfunc_set_rh_method. BOTH runs both and returns Buthe's verdict; the
-  // genuine-contradiction flag ERR_RH_METHODS_DISAGREE is wired up in a later
-  // task, so for now BOTH simply keeps Buthe's result.
+  // Runtime RH-verifier dispatch. Default is Buthe (LFUNC_RH_BUTHE, set in
+  // Lfunc_init_advanced); callers opt into Turing or BOTH via
+  // Lfunc_set_rh_method. BOTH runs both verifiers: Buthe's verdict is
+  // returned, but ERR_RH_METHODS_DISAGREE is also raised if one verifier
+  // confirms completeness while the other reports a hard over-count (a
+  // genuine inconsistency, not merely a failure to certify).
   switch (L->rh_method) {
   case LFUNC_RH_TURING:
     ecode |= turing_check_RH(L, prec);

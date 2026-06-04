@@ -88,10 +88,8 @@ extern "C"{
     Lfunc_rh_method rh_method; // which RH verifier Lfunc_compute runs; default LFUNC_RH_BUTHE
     bool computed;             // set true by Lfunc_compute; gates Lfunc_set_rh_method
 
-#ifdef TURING
     arb_t X; // Turing zero-counting verification height (see eq 4.10)
     arb_t imint; // integral of Im sum_j logGamma((1/2+it+mu_j)/2) over the Turing region
-#endif
     
     arb_t one_over_root_N; // 1/sqrt(N), the N^{s/2} factor base in Lambda
     arb_t sum_ans; // running sum of |a_n|/sqrt(n), n<=M; scales the eq59 tail error
@@ -161,11 +159,9 @@ extern "C"{
   void buthe_Wf_error(Lfunc *L);
   Lerror_t buthe_check_RH(Lfunc *L);
 
-#ifdef TURING
   // from turing.c
   Lerror_t turing_check_RH(Lfunc *L, int64_t);
   Lerror_t turing_check_RH_classify(Lfunc *L, int64_t, bool *too_many);
-#endif
   
   // from compute.c
   void lfunc_compute(Lfunc *L);
