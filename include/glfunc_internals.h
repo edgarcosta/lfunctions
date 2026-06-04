@@ -85,6 +85,8 @@ extern "C"{
     arb_t buthe_C; // Buthe constant = degree (Lemma 3.4); unused
     arb_t buthe_h; // Buthe test-function step h = BUTHE_H
     uint64_t buthe_M; // prime-power cutoff for the Wf sum = floor(sqrt(#coeffs))
+    Lfunc_rh_method rh_method; // which RH verifier Lfunc_compute runs; default LFUNC_RH_BUTHE
+    bool computed;             // set true by Lfunc_compute; gates Lfunc_set_rh_method
 
 #ifdef TURING
     arb_t X; // Turing zero-counting verification height (see eq 4.10)

@@ -298,6 +298,8 @@ Lerror_t Lfunc_compute(Lfunc_t Lf)
 
   Lfunc *L=(Lfunc *) Lf;
 
+  L->computed = true; // any Lfunc_set_rh_method after this point is rejected
+
   if(verbose) {
     for(int i = 0; i < 100; i++) {
       printf("a[%d] = ", i + 1);

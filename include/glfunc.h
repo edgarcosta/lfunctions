@@ -34,6 +34,9 @@
 #define ERR_BAD_DEGREE ((uint64_t) 1024) //fatal error when the degree is too low or too high
 #define ERR_SPEC_NZ ((uint64_t) 2048) // special value routine requires Im s >= 0.
 #define ERR_G_EXTENT ((uint64_t) 4096) // fatal: G grid does not extend low enough (conductor too large for the fixed grid floor, or a cached grid was reused)
+#define ERR_RH_METHODS_DISAGREE ((uint64_t) 1<<13) // fatal: BOTH mode, Buthe and Turing gave contradictory verdicts
+// (BOTH mode only; set when one verifier confirms RH while the other reports a
+//  hard over-count: Turing hi<zeros_found, or Buthe Wf+Winf-Ws* < 0.)
 
 // warnings
 #define ERR_SOME_DATA ((uint64_t) 1<<32) // We had some sensible data, but not to end of Turing Zone
@@ -54,6 +57,14 @@ extern "C"{
 
   // keep details under wraps
   typedef void *Lfunc_t;
+
+  // RH-completeness verifier selection (see Lfunc_set_rh_method).
+  // LFUNC_RH_BUTHE is the default; the integer values are ABI; do not renumber.
+  typedef enum {
+    LFUNC_RH_BUTHE  = 0, // Buthe's Weil-Barner method (default)
+    LFUNC_RH_TURING = 1, // Booker's generalisation of Turing's method
+    LFUNC_RH_BOTH   = 2  // run both; return Buthe's verdict, flag genuine contradictions
+  } Lfunc_rh_method;
 
   typedef struct{
     uint64_t degree;
@@ -105,6 +116,13 @@ extern "C"{
   // range M implicitly, as in Lfunc_init (see Lfunc_nmax); no Lparams field sets
   // the prime/coefficient count directly.
   Lfunc_t Lfunc_init_advanced(Lparams_t *Lparams, Lerror_t *ecode);
+
+  // Choose the RH-completeness verifier run by Lfunc_compute.
+  // Default (if never called) is LFUNC_RH_BUTHE. Must be called AFTER init and
+  // BEFORE Lfunc_compute; calling it after Lfunc_compute returns ERR_RH_ERROR
+  // (a warning) and leaves the method unchanged. An out-of-range method also
+  // returns ERR_RH_ERROR and is ignored. Returns ERR_SUCCESS otherwise.
+  Lerror_t Lfunc_set_rh_method(Lfunc_t L, Lfunc_rh_method method);
 
   // Largest prime p (equivalently largest index M) for which an Euler factor /
   // coefficient a_n is expected. M is derived from the conductor, not passed in:
