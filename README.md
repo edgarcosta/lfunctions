@@ -41,9 +41,14 @@ The main targets are:
  - `make lib`: build only the shared library `build/liblfun.so` (`.dylib` on macOS).
  - `make test` / `make executables`: *compile* the tests / examples into `build/test/*.exe` and `build/examples/*.exe` (they do not run them).
  - `make check`: build everything, then run the curated self-checking regression suite; it exits non-zero if any binary fails (the exit code is the oracle). It also scrubs stale `g_<...>` cache files before the suite and after each binary.
+ - `make check-highdeg`: run the high-degree regression suite (certified degree 2 to 9 L-functions: elliptic curves, their symmetric powers, genus-2 curves, classical newforms) against LMFDB and Pari golden values. By default it runs purely from committed base fixtures, so it needs no external toolchain. See below.
  - `make clean`: remove the `build/` directory (`rm -rf build`).
 
 To run a single test or example, execute its binary directly, e.g. `./build/test/dir_test.exe` or `./build/examples/ec_37.a1.exe`.
+
+### High-degree regression suite
+
+`make check-highdeg` certifies the degree 2 to 9 objects listed in `test/highdeg/objects.yaml`. By default it runs from the committed base fixtures in `test/highdeg/fixtures/`, so it needs no `smalljac` or Sage; regenerating those fixtures, or running without them, needs `smalljac`'s `lpdata` (and, for the genus-2 objects, a genus-2 `lpdata` build passed as `LPDATA=.../lpdata2`). Its knobs (`FIXTURES`, `LABEL`, `BACKEND`, `LPDATA`), the `make highdeg-data` fixture-regeneration target, and how to add an object to `objects.yaml` are documented in **[test/highdeg/INTERFACES.md](test/highdeg/INTERFACES.md)**.
 
 See [INSTALL.md](INSTALL.md) for the configure options, the SageMath shortcut, and troubleshooting (including scrubbing stale `g_*` cache files).
 
