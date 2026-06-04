@@ -281,6 +281,30 @@ int main() {
   }
   printf("tau ok\n");
 
+  // bead 31c.5: a valid shrink (H=16) returns a correct prefix of the default zeros.
+  // H=16 (B=128) clears every lower-bound guard; its zeros reach only ~1.5*16=24,
+  // a strict subset of the default (H=32, reach ~48). The low zeros must agree.
+  {
+    Lerror_t ecs;
+    Lfunc_t Ls = build_37(16.0, 0, "build/wt_cache_shrink", &ecs);
+    assert(!fatal_error(ecs));
+    assert(Lfunc_rank(Ls) == 1);
+    // |eps| = 1
+    { arb_t m; arb_init(m); acb_abs(m, Lfunc_sign(Ls), 100);
+      arb_sub_ui(m, m, 1, 100); assert(arb_contains_zero(m)); arb_clear(m); }
+    int nshr = 0; while (nshr < (int)MAX_ZEROS && !arb_is_zero(Lfunc_zeros(Ls,0)+nshr)) nshr++;
+    int ndef = 0; while (ndef < (int)MAX_ZEROS && !arb_is_zero(Lfunc_zeros(L,0)+ndef)) ndef++;
+    assert(nshr > 0 && nshr < ndef);                 // strictly fewer zeros than default
+    for (int i = 0; i < nshr; ++i)                   // and a correct prefix (overlap)
+      assert(arb_overlaps(Lfunc_zeros(Ls,0)+i, Lfunc_zeros(L,0)+i));
+    // the largest shrunk zero is within the H=16 reach (well under the default's ~48)
+    arb_t lim; arb_init(lim); arb_set_d(lim, 30.0);
+    assert(arb_lt(Lfunc_zeros(Ls,0)+(nshr-1), lim));
+    arb_clear(lim);
+    Lfunc_clear(Ls);
+  }
+  printf("shrink ok\n");
+
   Lfunc_clear(L);
   return 0;
 }
