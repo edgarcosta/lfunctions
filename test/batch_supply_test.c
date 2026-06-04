@@ -1,7 +1,7 @@
 /*
   Tests for the batch / array supply front-ends (bead lfunctions-c4h):
     Lfunc_use_lpolys_acb / _fmpz       (Euler-factor arrays)
-    Lfunc_use_dirichlet_coeffs_fmpz / _acb + Lfunc_set_coeff_bound (raw a_n)
+    Lfunc_use_dirichlet_coeffs_fmpz / _acb (raw a_n)
 
   Canonical object: the degree-2 self-dual L-function L(s,chi5)*L(s,chi7), the
   product of the quadratic characters mod 5 and mod 7 (conductor 35,
@@ -122,19 +122,11 @@ static long an(uint64_t n) {
   return s;
 }
 
-// the degree-2 default bound coeff_bound(2) = 1, alpha = 1: |a_n| <= d(n) <= n.
-static void set_default_bound(Lfunc_t L, Lerror_t *ec) {
-  arb_t C; arb_init(C); arb_set_ui(C, 1);
-  *ec |= Lfunc_set_coeff_bound(L, C, 1.0);
-  arb_clear(C);
-}
-
 static Lfunc_t run_raw_fmpz(Lerror_t *ec) {
   double mus[] = {0, 1};
   Lfunc_t L = Lfunc_init(2, 5 * 7, 0.0, mus, ec);
   if (fatal_error(*ec)) return L;
   uint64_t nmax = Lfunc_nmax(L);
-  set_default_bound(L, ec);
   fmpz *a = _fmpz_vec_init(nmax);
   for (uint64_t n = 1; n <= nmax; n++) fmpz_set_si(a + (n - 1), an(n));
   *ec |= Lfunc_use_dirichlet_coeffs_fmpz(L, a, nmax, ALGEBRAIC_NORM); // norm 0: no shift
@@ -149,7 +141,6 @@ static Lfunc_t run_raw_acb(Lerror_t *ec) {
   Lfunc_t L = Lfunc_init(2, 5 * 7, 0.0, mus, ec);
   if (fatal_error(*ec)) return L;
   uint64_t nmax = Lfunc_nmax(L);
-  set_default_bound(L, ec);
   acb_ptr a = _acb_vec_init(nmax);
   for (uint64_t n = 1; n <= nmax; n++) acb_set_si(a + (n - 1), an(n));
   *ec |= Lfunc_use_dirichlet_coeffs_acb(L, a, nmax, ALGEBRAIC_NORM);
@@ -169,7 +160,6 @@ static Lfunc_t run_shift_algebraic(Lerror_t *ec) {
   Lfunc_t L = Lfunc_init(2, 5 * 7, 0.5, mus, ec);
   if (fatal_error(*ec)) return L;
   uint64_t nmax = Lfunc_nmax(L);
-  set_default_bound(L, ec);
   acb_ptr a = _acb_vec_init(nmax);
   arb_t rt; arb_init(rt);
   for (uint64_t n = 1; n <= nmax; n++) {
@@ -189,7 +179,6 @@ static Lfunc_t run_shift_analytic(Lerror_t *ec) {
   Lfunc_t L = Lfunc_init(2, 5 * 7, 0.5, mus, ec);
   if (fatal_error(*ec)) return L;
   uint64_t nmax = Lfunc_nmax(L);
-  set_default_bound(L, ec);
   acb_ptr a = _acb_vec_init(nmax);
   for (uint64_t n = 1; n <= nmax; n++) acb_set_si(a + (n - 1), an(n)); // analytic b_n
   *ec |= Lfunc_use_dirichlet_coeffs_acb(L, a, nmax, ANALYTIC_NORM);    // no shift
@@ -292,7 +281,6 @@ static fmpz *make_an_fmpz(uint64_t len) {
 static void test_guard_a1_fmpz(void) {
   double mus[] = {0, 1}; Lerror_t ec = ERR_SUCCESS;
   Lfunc_t L = Lfunc_init(2, 35, 0.0, mus, &ec); assert(!fatal_error(ec));
-  set_default_bound(L, &ec); assert(!fatal_error(ec));
   uint64_t nmax = Lfunc_nmax(L);
   fmpz *a = make_an_fmpz(nmax);
   fmpz_set_si(a + 0, 2); // a_1 = 2
@@ -306,7 +294,6 @@ static void test_guard_a1_fmpz(void) {
 static void test_guard_a1_acb(void) {
   double mus[] = {0, 1}; Lerror_t ec = ERR_SUCCESS;
   Lfunc_t L = Lfunc_init(2, 35, 0.0, mus, &ec); assert(!fatal_error(ec));
-  set_default_bound(L, &ec); assert(!fatal_error(ec));
   uint64_t nmax = Lfunc_nmax(L);
   acb_ptr a = _acb_vec_init(nmax);
   for (uint64_t n = 1; n <= nmax; n++) acb_set_si(a + (n - 1), an(n));
@@ -317,18 +304,6 @@ static void test_guard_a1_acb(void) {
   Lfunc_clear(L);
 }
 
-// raw a_n with no prior Lfunc_set_coeff_bound is rejected.
-static void test_guard_missing_bound(void) {
-  double mus[] = {0, 1}; Lerror_t ec = ERR_SUCCESS;
-  Lfunc_t L = Lfunc_init(2, 35, 0.0, mus, &ec); assert(!fatal_error(ec));
-  uint64_t nmax = Lfunc_nmax(L);
-  fmpz *a = make_an_fmpz(nmax); // a_1 = 1, valid; only the bound is missing
-  Lerror_t e = Lfunc_use_dirichlet_coeffs_fmpz(L, a, nmax, ALGEBRAIC_NORM);
-  assert((e & ERR_COEFF_BOUND) && fatal_error(e));
-  _fmpz_vec_clear(a, nmax);
-  Lfunc_clear(L);
-}
-
 // raw a_n incompatible with factors / a second raw supply.
 static void test_guard_conflicts(void) {
   double mus[] = {0, 1};
@@ -336,7 +311,6 @@ static void test_guard_conflicts(void) {
   {
     Lerror_t ec = ERR_SUCCESS;
     Lfunc_t L = Lfunc_init(2, 35, 0.0, mus, &ec); assert(!fatal_error(ec));
-    set_default_bound(L, &ec);
     uint64_t nmax = Lfunc_nmax(L);
     uint64_t *primes = (uint64_t *)malloc(sizeof(uint64_t) * (nmax + 1));
     uint64_t np = primes_upto(nmax, primes);
@@ -356,7 +330,6 @@ static void test_guard_conflicts(void) {
   {
     Lerror_t ec = ERR_SUCCESS;
     Lfunc_t L = Lfunc_init(2, 35, 0.0, mus, &ec); assert(!fatal_error(ec));
-    set_default_bound(L, &ec);
     uint64_t nmax = Lfunc_nmax(L);
     fmpz *a = make_an_fmpz(nmax);
     ec |= Lfunc_use_dirichlet_coeffs_fmpz(L, a, nmax, ALGEBRAIC_NORM);
@@ -376,7 +349,6 @@ static void test_guard_conflicts(void) {
   {
     Lerror_t ec = ERR_SUCCESS;
     Lfunc_t L = Lfunc_init(2, 35, 0.0, mus, &ec); assert(!fatal_error(ec));
-    set_default_bound(L, &ec);
     uint64_t nmax = Lfunc_nmax(L);
     fmpz *a = make_an_fmpz(nmax);
     ec |= Lfunc_use_dirichlet_coeffs_fmpz(L, a, nmax, ALGEBRAIC_NORM);
@@ -388,19 +360,17 @@ static void test_guard_conflicts(void) {
   }
 }
 
-// NEGATIVE soundness test: a declared bound the data violates must be caught,
-// not silently accepted (otherwise M_error's tail bound is invalid). Declaring
-// |a_n| <= 1 * n^0 = 1 is violated by a_9 = 3.
+// NEGATIVE soundness test: a supplied coefficient exceeding the degree's
+// Euler-product Ramanujan bound (|a_n| <= C*n, with C = coeff_bound(2) = 1) is
+// caught, not silently accepted -- the net for a wrong normalisation_of_input or
+// packed garbage. a_2 is forced to 1000, well above the |a_2| <= 2 it requires.
 static void test_guard_violated_bound(void) {
   double mus[] = {0, 1}; Lerror_t ec = ERR_SUCCESS;
   Lfunc_t L = Lfunc_init(2, 35, 0.0, mus, &ec); assert(!fatal_error(ec));
-  arb_t C; arb_init(C); arb_set_ui(C, 1);
-  ec |= Lfunc_set_coeff_bound(L, C, 0.0); // alpha = 0 => bound is the constant 1
-  arb_clear(C);
-  assert(!fatal_error(ec));
   uint64_t nmax = Lfunc_nmax(L);
-  assert(nmax >= 9); // a_9 = 3 must be in range to trip the check
-  fmpz *a = make_an_fmpz(nmax); // a_1 = 1 (valid), but a_9 = 3 > 1
+  assert(nmax >= 2);
+  fmpz *a = make_an_fmpz(nmax); // genuine coefficients all satisfy |a_n| <= n
+  fmpz_set_si(a + 1, 1000);     // a_2 = 1000 > C*2 = 2: a definite violation
   Lerror_t e = Lfunc_use_dirichlet_coeffs_fmpz(L, a, nmax, ALGEBRAIC_NORM);
   assert((e & ERR_COEFF_BOUND) && fatal_error(e));
   _fmpz_vec_clear(a, nmax);
@@ -448,7 +418,6 @@ static Lfunc_t run_raw_fmpz_short(uint64_t rlen, Lerror_t *ec) {
   if (fatal_error(*ec)) return L;
   uint64_t nmax = Lfunc_nmax(L);
   assert(rlen < nmax); // genuinely short
-  set_default_bound(L, ec);
   fmpz *a = _fmpz_vec_init(rlen);
   for (uint64_t n = 1; n <= rlen; n++) fmpz_set_si(a + (n - 1), an(n));
   *ec |= Lfunc_use_dirichlet_coeffs_fmpz(L, a, rlen, ALGEBRAIC_NORM);
@@ -507,7 +476,6 @@ int main(void) {
   test_normalisation_flag();
   test_guard_a1_fmpz();
   test_guard_a1_acb();
-  test_guard_missing_bound();
   test_guard_conflicts();
   test_guard_violated_bound();
   test_insufficient_supply();

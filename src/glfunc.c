@@ -42,9 +42,9 @@ void fprint_errors(FILE *f, Lerror_t ecode) {
             "Supplied a_1 is not 1 (the leading Dirichlet coefficient must be "
             "1).\n");
   if (ecode & ERR_COEFF_BOUND)
-    fprintf(f, "Coefficient growth bound missing or violated: call "
-               "Lfunc_set_coeff_bound before supplying raw a_n, and ensure "
-               "|a_n| <= C*n^alpha.\n");
+    fprintf(f, "A supplied Dirichlet coefficient exceeds the degree's "
+               "Euler-product bound |a_n| <= C*n^alpha (check "
+               "normalisation_of_input).\n");
   // warnings
   if (ecode & ERR_INSUFF_EULER)
     fprintf(f,
@@ -194,14 +194,6 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
   L->self_dual = Lp->self_dual;
   L->rank = Lp->rank;
   L->cache_dir = Lp->cache_dir;
-
-  // batch-supply state: initialise BEFORE compute_g, which reads coeff_bound_set
-  // to decide whether to install the default Euler-product coefficient bound.
-  L->coeff_bound_set = false;
-  L->no_lpolys = false;
-  L->factor_supplied = false;
-  L->raw_supplied = false;
-  L->supply_ecode = ERR_SUCCESS;
 
   // See Lemma 2 of M_error1.pdf, Lemma 5 of g.pdf
   // r is always >=2
@@ -393,6 +385,12 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
   arb_init(L->X);
 #endif
   L->nmax_called = false; // noone has called nmax yet
+
+  // batch-supply state: no supply call has happened yet
+  L->no_lpolys = false;
+  L->factor_supplied = false;
+  L->raw_supplied = false;
+  L->supply_ecode = ERR_SUCCESS;
 
   arb_init(L->Lam_d);
   arb_init(L->L_d);

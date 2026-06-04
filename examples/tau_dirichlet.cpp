@@ -7,14 +7,11 @@
  * examples/tau.cpp hands over the local factors 1 - tau(p) T + p^11 T^2 and lets
  * the library build the Dirichlet coefficients. Here we instead hand over the
  * coefficients tau(n) directly with Lfunc_use_dirichlet_coeffs_fmpz, which is the
- * natural entry point when you already hold a_n (say from a database row). Two
- * things differ from the factor route:
- *   - Lfunc_set_coeff_bound must declare the growth of the analytic coefficients
- *     (|tau(n)| n^{-11/2} <= d(n) <= n, so C = 1, alpha = 1) for the rigorous tail
- *     truncation; and
- *   - with no per-prime factors the RH check cannot run, so ERR_RH_UNAVAILABLE is
- *     raised (a warning, not fatal). The certified central value and first zero
- *     still match tau.cpp.
+ * natural entry point when you already hold a_n (say from a database row). The
+ * library validates each tau(n) against the degree-2 Euler-product bound
+ * automatically (no caller-supplied bound needed); with no per-prime factors the
+ * RH check cannot run, so ERR_RH_UNAVAILABLE is raised (a warning, not fatal).
+ * The certified central value and first zero still match tau.cpp.
  *
  * See https://www.lmfdb.org/L/ModularForm/GL2/Q/holomorphic/1/12/a/a/.
  */
@@ -101,13 +98,9 @@ int main() {
   vector<int64_t> tau;
   build_tau(tau, len);
 
-  // Declare the analytic growth bound |a_n| = |tau(n)| n^{-11/2} <= d(n) <= n.
-  arb_t C; arb_init(C); arb_set_ui(C, 1);
-  ecode |= Lfunc_set_coeff_bound(L, C, 1.0);
-  arb_clear(C);
-
   // Hand over the coefficients directly. ALGEBRAIC_NORM: these are the algebraic
-  // tau(n); the library applies the n^{-5.5} shift to the analytic normalisation.
+  // tau(n); the library applies the n^{-5.5} shift to the analytic normalisation
+  // and validates |tau(n)| n^{-11/2} <= d(n) <= n against the degree-2 bound.
   fmpz *a = _fmpz_vec_init(len);
   for (size_t n = 1; n <= len; ++n) fmpz_set_si(a + (n - 1), tau[n]);
   ecode |= Lfunc_use_dirichlet_coeffs_fmpz(L, a, len, ALGEBRAIC_NORM);

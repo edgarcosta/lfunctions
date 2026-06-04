@@ -115,7 +115,6 @@ extern "C"{
     bool nmax_called; // true if user/system has called Lfunc_nmax
 
     // batch-supply bookkeeping (see coeff.c front-ends)
-    bool coeff_bound_set; // true once Lfunc_set_coeff_bound supplied (C,alpha); then g.c must not clobber them
     bool no_lpolys;       // true if raw a_n were supplied: no per-prime factors, so RH (Buthe/Turing) is skipped
     bool factor_supplied; // true once any factor route (push/callback/factor array) ran: blocks a later raw a_n supply
     bool raw_supplied;    // true once a raw a_n array was supplied: blocks any further supply call

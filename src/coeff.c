@@ -319,22 +319,6 @@ Lerror_t Lfunc_use_lpolys_fmpz(Lfunc_t Lf, const fmpz_poly_struct *f, uint64_t l
   return ecode;
 }
 
-// Declare the Ramanujan-type growth bound |a_n| <= C * n^alpha on the *analytic*
-// coefficients. The raw-a_n paths feed these to M_error in place of the
-// Euler-product default that g.c installs (alpha=1, C=coeff_bound(degree)); only
-// the caller can certify the unsupplied tail beyond the supplied coefficients.
-// compute_g runs at init (before this), so the values stored here survive to
-// Lfunc_compute; the g.c assignment is also guarded on coeff_bound_set as a
-// belt-and-suspenders against that ordering ever changing.
-Lerror_t Lfunc_set_coeff_bound(Lfunc_t Lf, const arb_t C, double alpha)
-{
-  Lfunc *L=(Lfunc *)Lf;
-  arb_set(L->C,C);            // C/alpha were arb_init'd by compute_g at init
-  arb_set_d(L->alpha,alpha);
-  L->coeff_bound_set=true;
-  return ERR_SUCCESS;
-}
-
 // Move one supplied coefficient at index n (1-based) into the analytic
 // normalisation: ALGEBRAIC_NORM multiplies by n^{-normalisation} (the direct
 // analogue of use_lpoly's per-factor p^{-m*normalisation}); ANALYTIC_NORM, the
@@ -356,9 +340,8 @@ static void apply_input_norm(acb_t z, uint64_t n, int norm_of_input, Lfunc *L)
   arb_clear(f);
 }
 
-// Common fatal entry guards for the raw-a_n front-ends, in priority order:
-// (1) overwrite mode conflicts with any factor supply or a second raw supply;
-// (2) the coefficient growth bound must have been declared; (3) a_1 must be 1.
+// Common fatal entry guards for the raw-a_n front-ends: (1) overwrite mode
+// conflicts with any factor supply or a second raw supply; (2) a_1 must be 1.
 // Also records the code in supply_ecode so Lfunc_compute bails even if the
 // caller ignores the return value.
 static Lerror_t raw_guard(Lfunc *L, bool a1_is_one)
@@ -368,11 +351,6 @@ static Lerror_t raw_guard(Lfunc *L, bool a1_is_one)
     L->supply_ecode|=ERR_SUPPLY_CONFLICT;
     return ERR_SUPPLY_CONFLICT;
   }
-  if(!L->coeff_bound_set)
-  {
-    L->supply_ecode|=ERR_COEFF_BOUND;
-    return ERR_COEFF_BOUND;
-  }
   if(!a1_is_one)
   {
     L->supply_ecode|=ERR_A1_NOT_ONE;
@@ -381,11 +359,11 @@ static Lerror_t raw_guard(Lfunc *L, bool a1_is_one)
   return ERR_SUCCESS;
 }
 
-// Sanity-check a supplied analytic coefficient a_n against the declared bound:
-// fatal ERR_COEFF_BOUND if |a_n| certainly exceeds C*n^alpha. Conservative (only
-// a definite violation fires, via arb_gt), so a legitimately wide ball that
-// merely reaches the bound is not rejected. This catches gross caller errors in
-// the supplied range; the tail beyond len rests on the caller's declared bound.
+// Sanity-check a supplied analytic coefficient a_n against the degree's
+// Euler-product Ramanujan bound |a_n| <= C*n^alpha (C, alpha set in g.c; the same
+// bound the factor paths satisfy and M_error uses for the tail). Fatal
+// ERR_COEFF_BOUND if |a_n| certainly exceeds it (arb_gt, so only a definite
+// violation fires); catches a wrong normalisation_of_input or packed garbage.
 static Lerror_t check_coeff_bound(Lfunc *L, const acb_t an, uint64_t n, int64_t prec)
 {
   arb_t absn,bound,t;

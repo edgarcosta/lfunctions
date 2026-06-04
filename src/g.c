@@ -526,16 +526,9 @@ computeres:
 
     coeff_bound(m,L->degree,53);
     arb_init(L->C);
+    arb_set_arf(L->C,m);
     arb_init(L->alpha);
-    // Install the Euler-product default unless the caller already vouched for a
-    // bound via Lfunc_set_coeff_bound. compute_g runs at init (before any
-    // supply), so coeff_bound_set is false here today; the guard is defensive
-    // against that ordering ever changing and clobbering a caller bound.
-    if(!L->coeff_bound_set)
-    {
-      arb_set_arf(L->C,m);
-      arb_set_ui(L->alpha,1);
-    }
+    arb_set_ui(L->alpha,1);
 
     if(op) {
       // Self-describing header (see GCACHE_MAGIC): version, degree, the gprec
@@ -729,14 +722,9 @@ computeres:
     arb_init(L->alpha);
     if(fscanf(infile,"%" PRId64 " %" PRId64 " %" PRId64 "\n",&m,&e,&alpha)!=3)
       return GCACHE_CORRUPT;
-    // Still read/validate the cached bound, but keep a caller-supplied one (see
-    // the matching guard in computeall).
-    if(!L->coeff_bound_set)
-    {
-      arb_set_si(L->C,m);
-      arb_mul_2exp_si(L->C,L->C,e);
-      arb_set_si(L->alpha,alpha);
-    }
+    arb_set_si(L->C,m);
+    arb_mul_2exp_si(L->C,L->C,e);
+    arb_set_si(L->alpha,alpha);
     if(fscanf(infile,"%lf %" PRId64 " %" PRId64 "\n",&L->one_over_B,&L->low_i,&L->hi_i)!=3)
       return GCACHE_CORRUPT;
     if(fscanf(infile,"%" PRIu64 "",&L->max_K)!=1)

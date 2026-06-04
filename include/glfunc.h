@@ -47,7 +47,7 @@
 #define ERR_G_EXTENT ((uint64_t) 4096) // fatal: G grid does not extend low enough (conductor too large for the fixed grid floor, or a cached grid was reused)
 #define ERR_SUPPLY_CONFLICT ((uint64_t) 1<<13) // fatal: incompatible/duplicate supply (raw a_n mixed with factors, or raw a_n supplied twice)
 #define ERR_A1_NOT_ONE ((uint64_t) 1<<14) // fatal: supplied a_1 is not 1 (raw a_n front-ends)
-#define ERR_COEFF_BOUND ((uint64_t) 1<<15) // fatal: raw a_n growth bound missing (Lfunc_set_coeff_bound) or violated (|a_n| > C*n^alpha)
+#define ERR_COEFF_BOUND ((uint64_t) 1<<15) // fatal: a supplied raw a_n exceeds the degree's Euler-product bound (|a_n| > C*n^alpha)
 
 // warnings
 #define ERR_SOME_DATA ((uint64_t) 1<<32) // We had some sensible data, but not to end of Turing Zone
@@ -151,21 +151,15 @@ extern "C"{
 
   // ---- Batch / array supply front-ends (alongside the callback and push) -----
 
-  // Declare the coefficient growth bound |a_n| <= C * n^alpha on the *analytic*
-  // Dirichlet coefficients. REQUIRED before either raw-a_n front-end below: the
-  // rigorous tail truncation (M_error) needs an a-priori bound on the whole
-  // sequence, including the unsupplied tail, which only the caller can certify.
-  // The Euler-factor routes do not need it (they carry the Euler-product bound).
-  Lerror_t Lfunc_set_coeff_bound(Lfunc_t L, const arb_t C, double alpha);
-
   // Supply the Dirichlet coefficients a_n directly, indexed n = 1..len with
   // a[0] = a_1 (which must be 1). normalisation_of_input is ALGEBRAIC_NORM (the
   // library applies the n^{-normalisation} shift) or ANALYTIC_NORM (a_n already
   // analytic; no shift). The library uses min(len, Lfunc_nmax(L)) of them; len <
-  // nmax reduces nmax and warns (ERR_INSUFF_EULER), surplus is ignored. Requires
-  // a prior Lfunc_set_coeff_bound (else ERR_COEFF_BOUND); each used a_n is checked
-  // against the bound (ERR_COEFF_BOUND if violated). Overwrites the coefficient
-  // array, so it cannot be combined with any Euler-factor supply nor called twice
+  // nmax reduces nmax and warns (ERR_INSUFF_EULER), surplus is ignored. Each
+  // supplied a_n is checked against the degree's Euler-product Ramanujan bound
+  // (|a_n| <= C n); a coefficient exceeding it is fatal ERR_COEFF_BOUND (catching
+  // e.g. a wrong normalisation_of_input). Overwrites the coefficient array, so it
+  // cannot be combined with any Euler-factor supply nor called twice
   // (ERR_SUPPLY_CONFLICT), and it disables the RH check (ERR_RH_UNAVAILABLE) since
   // there are no per-prime factors. fmpz coefficients are exact; the acb form
   // trusts the supplied balls (a_1's ball must contain 1).
