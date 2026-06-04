@@ -12,25 +12,23 @@
  *
  * Fix: change the four L->res[i] to L->res[j] in that loop.
  *
- * Distinguishing signal attempted:
- *   The F_hat_twiddle bound (fhattwiddle) and the eq-59 G-tail bound (err)
- *   are both exponentially small by design -- they are the per-request
- *   G-truncation and aliasing bounds, each chosen to be ~2^{-wprec}.
- *   For ec_37.a1 at default precision (wprec ~165 bits):
- *     fhattwiddle  ~= 0  (the G-function decays to ~0 before the grid edge)
- *     eq59_err     ~= 2.15e-62
- *   The contribution of eq59_err to the iFFT output is roughly
- *     i * eq59_err / fft_NN ~= 203 * 2.15e-62 / 65536  ~  6.7e-65
- *   which is ~12 orders of magnitude below the dominant M_error contribution
- *   (~1.09e-52 for the Taylor coefficient).
- *   r_broken = 1.094285e-52, r_fixed = 1.094363e-52 (differ by ~7e-57, <0.01%).
- *   No robust radius threshold exists to separate them (ratio ~1.000000064).
+ * Why public-API ball radii do NOT distinguish fixed from broken:
+ *   fhattwiddle and err (= L->eq59 * L->sum_ans) are ~2^{-wprec} and, on every
+ *   reachable configuration, are dominated by M_error on the SAME populated bins.
+ *   Lowering gprec inflates eq59 but inflates M_error in lockstep (the G grid
+ *   shrinks, so the coefficient cutoff M drops), so the output radius moves
+ *   together for both versions -- e.g. at gprec 50 the Taylor radius is ~4.7e-9
+ *   either way.  No radius threshold on a public output separates them.
  *
- * This is a soundness hole, not a numerical regression detectable via
- * public-API ball radii at default precision.  The test therefore verifies
- * code correctness: the computation completes without fatal error and the
- * Taylor coefficient overlaps the known BSD constant, catching any regression
- * the fix might introduce.
+ * The test therefore has two parts:
+ *   (1) Correctness/regression (full public compute): rank, first zero, and the
+ *       Taylor coefficient overlapping the known BSD constant.
+ *   (2) A white-box discriminator that FAILS on the broken res[i] code.  M_error
+ *       does not depend on sum_ans, so inflating sum_ans on a fresh handle and
+ *       calling do_pre_iFFT_errors directly makes err dominate res[0]: the fix
+ *       (res[j]) leaves res[0] with radius ~= eq59*sum_ans (~1e-33), while the bug
+ *       (res[i]) sends err to res[break] -- which src/error.c ~683 then zeroes --
+ *       leaving res[0] at ~= M_error[0] (~1e-61).
  */
 
 #include <assert.h>
@@ -39,6 +37,7 @@
 #include <flint/acb_poly.h>
 #include <flint/mag.h>
 #include "glfunc.h"
+#include "glfunc_internals.h"  /* white-box: Lfunc, L->res/sum_ans, do_pre_iFFT_errors */
 
 /* Euler factors for ec_37.a1 (from the LMFDB sidebar).
  * https://www.lmfdb.org/EllipticCurve/Q/37/a/1 */
@@ -117,13 +116,10 @@ int main(void)
    * This catches any regression introduced by the fix (the certified ball
    * must still contain the truth).
    *
-   * NOTE: a radius-threshold test to distinguish the broken res[i] from the
-   * fixed res[j] is not feasible.  The two omitted error terms (fhattwiddle
-   * ~= 0 and eq59_err ~= 2.15e-62) contribute ~6.7e-65 to the output ball
-   * radius after the iFFT, while M_error contributes ~1.09e-52.  The ratio
-   * (r_fixed - r_broken) / r_broken < 1e-6, so no robust threshold exists.
-   * The bug is a soundness hole; correctness verification (BSD overlap) is the
-   * appropriate test here.
+   * NOTE: a radius threshold on this PUBLIC output cannot distinguish the broken
+   * res[i] from the fixed res[j] (M_error dominates the omitted terms on the same
+   * bins, in lockstep across gprec).  The distinguishing check is the white-box
+   * res[0] assertion at the end of this file.
    */
   arb_t bsd;
   arb_init(bsd);
@@ -145,6 +141,32 @@ int main(void)
   assert(arb_overlaps(zeros, ref));
   printf("First zero overlaps reference: PASS\n");
   arb_clear(ref);
+
+  /*
+   * White-box discriminator (FAILS on the broken res[i] code; see the header).
+   * M_error ignores sum_ans, so inflate sum_ans on a fresh handle and call
+   * do_pre_iFFT_errors directly: the fix routes err = eq59*sum_ans onto the
+   * populated bin res[0]; the bug routes it to res[break], later zeroed.
+   */
+  {
+    Lerror_t e = ERR_SUCCESS;
+    Lfunc_t Lw = Lfunc_init(2, 37, 0.5, mus, &e);
+    e |= Lfunc_use_all_lpolys(Lw, lpoly_callback, NULL);
+    assert(!fatal_error(e));
+    Lfunc *Li = (Lfunc *)Lw;
+    arb_set_d(Li->sum_ans, 1e30);   /* err = eq59*sum_ans ~ 1e-33, far above any M_error */
+    acb_set_ui(Li->res[0], 1);      /* unit midpoint: epsilon branch well-defined, |sqrt_sign|=1 */
+    e = do_pre_iFFT_errors(Li);
+    assert(!fatal_error(e));
+    double r0 = mag_get_d(arb_radref(acb_realref(Li->res[0])));
+    printf("res[0] radius after inflated do_pre_iFFT_errors = %.4e\n", r0);
+    /* FIXED: err landed on res[0] -> r0 ~ 1e-33.  BROKEN: err went to res[break]
+     * and was zeroed -> r0 ~ M_error[0] ~ 1e-61.  Threshold 1e-40 has ~7 orders
+     * of margin above the fixed value and ~21 below the broken value. */
+    assert(r0 > 1e-40);
+    Lfunc_clear(Lw);
+    printf("res[j] error-distribution discriminator: PASS\n");
+  }
 
   Lfunc_clear(L);
   printf("PASS: error_propagation_test\n");
