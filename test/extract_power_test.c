@@ -66,6 +66,23 @@ static void lk_inexact_callback(acb_poly_t poly, uint64_t p, int d, int64_t prec
     arb_add_error_2exp_si(acb_realref(acb_poly_get_coeff_ptr(poly, 0)), -150);
 }
 
+// callback for C1: like lk_callback (E^2) but OVERRIDES the bad prime 37 with a
+// non-square degree-2 factor 1 - 3T + T^2. Every GOOD factor is a genuine square,
+// but the bad factor is not, so L = M^2 is false and extraction must be refused.
+// Pre-fix (good-prime-only certificate) the uncertified bad factor was k-th-rooted
+// blindly and L extracted (n_factors=1); the exact-integer certificate over ALL
+// factors must now reject with ERR_POWER.
+static void lk_badprime_callback(acb_poly_t poly, uint64_t p, int d, int64_t prec, void *param)
+{
+  lk_callback(poly, p, d, prec, param);
+  if (p == 37) {                       // overwrite the bad factor with a non-square
+    acb_poly_zero(poly);
+    acb_poly_set_coeff_si(poly, 0, 1);
+    acb_poly_set_coeff_si(poly, 1, -3);
+    acb_poly_set_coeff_si(poly, 2, 1); // 1 - 3T + T^2 (discriminant 5, not a square)
+  }
+}
+
 int main(void)
 {
   Lerror_t ec = ERR_SUCCESS;
@@ -300,6 +317,26 @@ int main(void)
   Lfunc_clear(LIn);
 
   printf("extract_power_test: I3 inexact factor OK\n");
+
+  // ---- C1: a bad factor that is NOT a k-th power must be rejected (soundness) ----
+  // Supply 37.a1's GOOD factors as (E_p)^2 but OVERRIDE the bad prime 37 with the
+  // non-square 1 - 3T + T^2. The good-prime-only certificate (pre-fix) k-th-rooted
+  // this uncertified bad factor blindly and extracted (n_factors=1); the exact-integer
+  // certificate over EVERY supplied factor must reject it. Expect ERR_POWER.
+  k_param = 2;
+  Lparams_t LpBad = { .degree = 4, .conductor = 37u*37u, .normalisation = 0.5,
+                      .mus = (double[]){0,0,1,1}, .target_prec = 100, .wprec = 0,
+                      .gprec = 0, .self_dual = YES, .rank = DK, .cache_dir = ".",
+                      .extract_powers = YES };
+  Lerror_t eBad = ERR_SUCCESS;
+  Lfunc_t LBad = Lfunc_init_advanced(&LpBad, &eBad);
+  assert(!fatal_error(eBad));
+  eBad |= Lfunc_use_all_lpolys(LBad, lk_badprime_callback, NULL); // INSUFF_EULER warning is fine
+  eBad |= Lfunc_compute(LBad);
+  assert(eBad & ERR_POWER);            // bad factor not a square -> refuse to extract
+  Lfunc_clear(LBad);
+
+  printf("extract_power_test: C1 non-square bad factor OK\n");
 
   return 0;
 }

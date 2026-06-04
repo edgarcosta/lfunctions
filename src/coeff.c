@@ -4,6 +4,7 @@
 #include "primesieve.h"
 #include <flint/acb_mat.h>
 #include <flint/acb_poly.h>
+#include <flint/fmpz_poly.h>
 #include <flint/ulong_extras.h>
 
 #ifdef __cplusplus
@@ -259,38 +260,44 @@ static bool conductor_is_perfect_power(uint64_t N)
   return n_is_perfect_power(&root, (ulong) N) != 0;
 }
 
-// root = f^(1/k) as an acb_poly (f must have unit constant term: good for L_p(0)=1).
-static void poly_kth_root(acb_poly_t root, const acb_poly_t f, uint64_t k, int64_t prec)
+// Rigorously decide whether the EXACT integer Euler factor Lp is a perfect k-th
+// power of an integer polynomial. If so, set Mp to that integer root and return
+// true; else return false. EXACT: rounds the ball k-th root to integers and checks
+// Mp^k == Lp over fmpz_poly. (Real callers supply exact integer Euler factors; an
+// inexact or non-integer coefficient returns false -> extract-or-reject.)
+bool poly_exact_kth_root(fmpz_poly_t Mp, const acb_poly_t Lp, uint64_t k, int64_t prec)
 {
-  slong dlen = acb_poly_degree(f)/(slong)k + 2; // a couple of guard terms
-  acb_t e; acb_init(e);
-  acb_set_ui(e, 1); acb_div_ui(e, e, k, prec);   // e = 1/k
-  acb_poly_pow_acb_series(root, f, e, dlen, prec);
-  acb_clear(e);
-}
-
-// True iff f is rigorously a perfect k-th power of a degree deg(f)/k polynomial.
-static bool poly_is_perfect_kth_power(const acb_poly_t f, uint64_t k, int64_t prec)
-{
-  slong d = acb_poly_degree(f);
-  if (d < 1 || (d % (slong)k) != 0) return false;
-  // The certificate is rigorous only for EXACT (point-ball) Euler factors: it proves
-  // f = M_p^k by ball containment, meaningful only when f carries no width. All real
-  // callers supply exact integer Euler factors; refuse to certify an inexact one so
-  // we never claim a power we cannot prove.
-  for (slong i = 0; i <= d; i++) {
-    acb_srcptr ci = acb_poly_get_coeff_ptr(f, i);
-    if (ci != NULL && !acb_is_exact(ci)) return false;
+  slong d = acb_poly_degree(Lp);
+  if (d < 0 || (d % (slong)k) != 0) return false;
+  fmpz_poly_t F; fmpz_poly_init(F);
+  bool ok = true;
+  for (slong i = 0; i <= d && ok; i++) {
+    acb_srcptr c = acb_poly_get_coeff_ptr(Lp, i);
+    fmpz_t z; fmpz_init(z);
+    if (c == NULL) { fmpz_zero(z); }
+    else if (acb_is_exact(c) && arb_is_zero(acb_imagref(c)) && arb_is_int(acb_realref(c)))
+      arf_get_fmpz(z, arb_midref(acb_realref(c)), ARF_RND_DOWN);
+    else ok = false;
+    if (ok) fmpz_poly_set_coeff_fmpz(F, i, z);
+    fmpz_clear(z);
   }
-  acb_poly_t root, chk; acb_poly_init(root); acb_poly_init(chk);
-  poly_kth_root(root, f, k, prec);
-  acb_poly_truncate(root, d/(slong)k + 1);    // drop spurious near-zero guard terms
-  acb_poly_pow_ui(chk, root, (ulong)k, prec); // root^k, degree d
-  // f being exact, root^k overlapping f certifies it: a non-power differs from any
-  // k-th power by at least the integer coefficient gap (>= 1), far exceeding the
-  // ~2^-prec width of the root^k ball, so an overlap can only mean f IS a k-th power.
-  bool ok = acb_poly_overlaps(chk, f);
-  acb_poly_clear(root); acb_poly_clear(chk);
+  if (!ok) { fmpz_poly_clear(F); return false; }
+  acb_poly_t root; acb_poly_init(root);
+  acb_t e; acb_init(e); acb_set_ui(e, 1); acb_div_ui(e, e, k, prec);
+  acb_poly_pow_acb_series(root, Lp, e, d/(slong)k + 1, prec);
+  acb_clear(e);
+  fmpz_poly_zero(Mp);
+  for (slong i = 0; i <= d/(slong)k; i++) {
+    acb_srcptr c = acb_poly_get_coeff_ptr(root, i);
+    fmpz_t z; fmpz_init(z);
+    if (c != NULL) arf_get_fmpz(z, arb_midref(acb_realref(c)), ARF_RND_NEAR); else fmpz_zero(z);
+    fmpz_poly_set_coeff_fmpz(Mp, i, z); fmpz_clear(z);
+  }
+  acb_poly_clear(root);
+  fmpz_poly_t chk; fmpz_poly_init(chk);
+  fmpz_poly_pow(chk, Mp, (ulong)k);
+  ok = fmpz_poly_equal(chk, F);
+  fmpz_poly_clear(chk); fmpz_poly_clear(F);
   return ok;
 }
 
@@ -313,15 +320,17 @@ Lerror_t power_extract_prepare(Lfunc *L, uint64_t *k_out)
   ulong rem, base = n_rootrem(&rem, (ulong)L->conductor, (ulong)k);
   (void)base;
   if (rem != 0) return ERR_POWER;
-  // rigorous gate: every retained full-degree factor is a perfect k-th power
+  // rigorous gate: EVERY retained factor (good AND bad) must be an exact integer k-th
+  // power, certified over fmpz_poly. A single uncertified bad factor would make L = M^k
+  // false, so the k-th root fed to M would be unsound; reject. Still require at least
+  // one full-degree (good) factor as a sanity floor on the degree-k structure.
+  fmpz_poly_t Mp; fmpz_poly_init(Mp);
   bool seen_full = false;
   for (uint64_t i = 0; i < L->n_retained; i++) {
-    if (acb_poly_degree(&L->retained_f[i]) == (slong)L->degree) {
-      seen_full = true;
-      if (!poly_is_perfect_kth_power(&L->retained_f[i], k, L->wprec))
-        return ERR_POWER;
-    }
+    if (acb_poly_degree(&L->retained_f[i]) == (slong)L->degree) seen_full = true;
+    if (!poly_exact_kth_root(Mp, &L->retained_f[i], k, L->wprec)) { fmpz_poly_clear(Mp); return ERR_POWER; }
   }
+  fmpz_poly_clear(Mp);
   if (!seen_full) return ERR_POWER;
   // The archimedean data must also be k copies: each sorted block of k mus must be
   // equal (mus are sorted in Lfunc_init_advanced). A mismatch means L's gamma factors

@@ -3,6 +3,7 @@
 
 #include "inttypes.h"
 #include <flint/acb.h>
+#include <flint/fmpz_poly.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <math.h>
@@ -186,6 +187,8 @@ extern "C"{
   // from coeff.c
   Lerror_t power_guard(Lfunc *L);
   Lerror_t power_extract_prepare(Lfunc *L, uint64_t *k_out); // fix & certify k; ERR_POWER if not a clean power
+  // True iff the EXACT integer Euler factor Lp is a perfect k-th power; sets Mp to the root.
+  bool poly_exact_kth_root(fmpz_poly_t Mp, const acb_poly_t Lp, uint64_t k, int64_t prec);
 
   // from compute.c
   void lfunc_compute(Lfunc *L);

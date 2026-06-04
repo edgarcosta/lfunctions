@@ -1,4 +1,5 @@
 #include <flint/acb_poly.h>
+#include <flint/fmpz_poly.h>
 #include <flint/ulong_extras.h>
 #include "glfunc.h"
 #include "glfunc_internals.h"
@@ -305,24 +306,23 @@ static Lerror_t extract_and_assemble(Lfunc *L, uint64_t k)
   Lfunc *M = (Lfunc *) Mt;
 
   // ---- supply M_p = retained_f^(1/k) for primes up to nmax(M) ----
-  // Bad (lower-degree) primes are k-th-rooted here WITHOUT a separate certificate:
-  // the good-prime k-th-power certificate plus the perfect-k-th-power conductor
-  // already force L = M^k globally, hence every local factor (good or bad) is M_p^k,
-  // so taking the k-th root of each retained factor is sound.
+  // EVERY supplied factor (good AND bad) was certified an exact integer k-th power by
+  // power_extract_prepare, so re-extracting the exact integer root here is sound (a
+  // false L = M^k would have already been rejected with ERR_POWER). We feed M the EXACT
+  // fmpz_poly root, not a ball k-th root, so M sees the same point factors L did.
   uint64_t Mmax = Lfunc_nmax(Mt);
   acb_poly_t Mp_poly; acb_poly_init(Mp_poly);
-  acb_t e_inv; acb_init(e_inv);
-  acb_set_ui(e_inv, 1); acb_div_ui(e_inv, e_inv, k, M->wprec);
+  fmpz_poly_t Mp_z; fmpz_poly_init(Mp_z);
   for (uint64_t i = 0; i < L->n_retained; i++) {
     uint64_t p = L->retained_p[i];
     if (p > Mmax) continue;               // retention is in SUPPLY order, not prime
                                           // order (callers may append bad factors
                                           // last), so skip-and-continue, never break.
-    slong dlen = acb_poly_degree(&L->retained_f[i])/(slong)k + 1;
-    acb_poly_pow_acb_series(Mp_poly, &L->retained_f[i], e_inv, dlen, M->wprec);
+    poly_exact_kth_root(Mp_z, &L->retained_f[i], k, M->wprec); // certified above
+    acb_poly_set_fmpz_poly(Mp_poly, Mp_z, M->wprec);
     Lfunc_use_lpoly(Mt, p, Mp_poly);
   }
-  acb_clear(e_inv); acb_poly_clear(Mp_poly);
+  fmpz_poly_clear(Mp_z); acb_poly_clear(Mp_poly);
 
   ec |= Lfunc_compute(Mt);
   if (fatal_error(ec)) { Lfunc_clear(Mt); return ec; }
