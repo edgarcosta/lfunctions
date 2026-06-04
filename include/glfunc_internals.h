@@ -154,6 +154,16 @@ extern "C"{
   Lerror_t do_pre_iFFT_errors(Lfunc *L);
   bool M_error(arb_t res, arb_t x, Lfunc *L, int64_t prec);
 
+  // from buthe_winf.c
+  // Rigorous Arb enclosure of  I(b,h,mu) = 2 * \int_0^\infty
+  //   e^{-(1/2+mu) t} / (1 - e^{-2 t})
+  //   * ( b/pi - sin(b t)/(pi t cosh(h t / 2)) )  dt
+  // The integrand is regular at t=0 (B has a double zero there, A a simple
+  // pole), so the routine integrates a pole-free rearrangement on [0,eps],
+  // uses Arb's rigorous integrator on [eps,T], and adds a closed-form tail
+  // bound on [T,infty).  res is a verified ball containing the true value.
+  void buthe_winf_integral(arb_t res, const arb_t b, const arb_t h, double mu, slong prec);
+
 #ifdef BUTHE
   // from buthe.c
   void init_buthe(Lfunc *L, int64_t prec);
