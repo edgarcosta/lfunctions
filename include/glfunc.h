@@ -71,7 +71,8 @@ extern "C"{
     int self_dual; // -1 = DK, 0 = No, 1 = Yes
     int rank; // -1 = DK
     char *cache_dir;
-    double max_t;        // output-window half-height H; <= 0 => default 64/degree
+    double max_t;        // output-window half-height H; exactly 0 => default 64/degree;
+                         // a negative or non-finite value is rejected (ERR_WINDOW_TOO_SMALL)
     uint64_t max_fft_NN; // cap on output transform length; 0 => default 1<<16
   } Lparams_t;
 
@@ -112,8 +113,9 @@ extern "C"{
   // range M implicitly, as in Lfunc_init (see Lfunc_nmax); no Lparams field sets
   // the prime/coefficient count directly.
   // NOTE: zero-initialise Lparams_t (memset, or set every field) before calling.
-  // The newer fields (max_t, max_fft_NN) use 0 / <= 0 as the "use the default"
-  // sentinel, so leaving them uninitialised yields garbage window geometry.
+  // The newer fields use exactly 0 as the "use the default" sentinel (max_t => 64/degree,
+  // max_fft_NN => 1<<16); a negative or non-finite max_t is a caller error rejected with
+  // ERR_WINDOW_TOO_SMALL, so leaving these uninitialised yields garbage window geometry.
   Lfunc_t Lfunc_init_advanced(Lparams_t *Lparams, Lerror_t *ecode);
 
   // Largest prime p (equivalently largest index M) for which an Euler factor /

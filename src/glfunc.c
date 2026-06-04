@@ -211,7 +211,9 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
     // overflow before the (uint64_t) cast, so an absurd H can never wrap to a
     // small or zero count.
     double need = ceil(1024.0 * (double)L->degree * L->max_t);
-    if (!isfinite(need) || need > (double)UINT64_MAX) {
+    // >= not >: (double)UINT64_MAX rounds up to exactly 2^64, and (uint64_t)2^64 is
+    // undefined behaviour, so need == 2^64 must be rejected too (not just > 2^64).
+    if (!isfinite(need) || need >= (double)UINT64_MAX) {
       return window_reject(L, false, ecode, ERR_WINDOW_TOO_LARGE);
     }
     want_fft_NN = next_pow2_u64((uint64_t)need);
@@ -350,10 +352,10 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
   L->fft_NN = want_fft_NN; // final output length (= 1<<16 for the default window)
   // Defensive backstop only: this branch is UNREACHABLE for any accepted input.
   // want_fft_NN >= 1<<11 (the sub-floor guard above rejects anything smaller), and
-  // fft_N = next_pow2(max(1<<11, support)). support ~ (hi_i-low_i) + (hi_i-calc_m(1))
-  // grows like B*(1+log N) = 8*max_t*(1+log N), while fft_NN ~ 1024*degree*max_t; for
-  // fft_N to exceed fft_NN we would need 1+log N > ~128*degree, i.e. log N > 255 at
-  // degree 2, far beyond any uint64_t conductor (log N <= ~44). So fft_N <= fft_NN
+  // fft_N = next_pow2(max(1<<11, support)). The conductor-dependent part of support is
+  // hi_i - calc_m(1) ~ B*ln(N)/(4*pi); with fft_NN ~ 1024*degree*max_t = 128*degree*B,
+  // fft_N exceeds fft_NN only once ln(N) > ~512*pi*degree (thousands; ~3217 at degree 2),
+  // far beyond any uint64_t conductor (ln N <= ~44). So fft_N <= fft_NN
   // always. L is only PARTIALLY constructed here (compute_g ran, but the w/ww/res/
   // zeros/upsampling allocations below have not), so Lfunc_clear would dereference
   // not-yet-allocated pointers; we keep the graceful fatal return instead. Freeing the
