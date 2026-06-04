@@ -86,3 +86,7 @@ See [INSTALL.md](INSTALL.md) for the configure options, the SageMath shortcut, a
 
 The quickest way to compute an L-function without writing C is the `rational` command-line tool (`examples/rational.c`), which reads a one-line spec `label:degree:conductor:weight:[mus]:[[euler_factors]]` and prints the rank, root number, leading Taylor coefficient, and first zero. See [doc/rational.md](doc/rational.md) for the input grammar and a worked example.
 
+### Symmetric powers
+
+The library can compute symmetric-power L-functions `Sym^k(E)` of an elliptic curve. The good-prime Euler factors are formed from the curve's `a_p` by the helper `sym_power_lpoly` (`include/sym_power.h`); a worked example (Sym^2 and Sym^3 of `11.a1`, with certified assertions) is [`examples/ec_sym.cpp`](examples/ec_sym.cpp). See [doc/sympow.md](doc/sympow.md) for the assembly conventions (degree, normalisation, `mus`, `self_dual`) and the bad-factor caveats.
+
