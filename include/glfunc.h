@@ -83,7 +83,11 @@ extern "C"{
   // return initialised Lfunc structure
   /* Input:
    *  - degree, the degree of the L-function
-   *  - conductor, the conductor of the L-function
+   *  - conductor, the conductor of the L-function. There is no separate
+   *      "number of primes/coefficients" parameter: the coefficient range M is
+   *      derived from the conductor, computed lazily on the first Lfunc_nmax
+   *      call (triggered by Lfunc_use_all_lpolys / Lfunc_reduce_nmax) and then
+   *      frozen. See Lfunc_nmax for the formula and the ERR_G_EXTENT caveat.
    *  - normalisation, the shift on s axis to go from the algebraic normalization to the analytic one, i.e., if an is the Dirichlet in the algebraic normalization, then an/n^{normalisation} is the Dirichlet coefficient of in the analytic normalization. Lambda(s)=eps Lambda(k-s) -> normalisation = (k-1)/2
    *  - mus, the shifts of Gamma_R, mu[i] + normalisation must be half integers
    *  - ecode, where we keep track of errors and warnings
@@ -100,18 +104,34 @@ extern "C"{
    *        mus = [6, 7] and normalisation = 0
    */
   Lfunc_t Lfunc_init(uint64_t degree, uint64_t conductor, double normalisation, const double *mus, Lerror_t *ecode);
-  // do the same but with more control
+  // do the same but with more control. Lparams.conductor fixes the coefficient
+  // range M implicitly, as in Lfunc_init (see Lfunc_nmax); no Lparams field sets
+  // the prime/coefficient count directly.
   Lfunc_t Lfunc_init_advanced(Lparams_t *Lparams, Lerror_t *ecode);
 
-  // for a given conductor, what is the max_p for which an Euler poly
-  // will be expected.
+  // Largest prime p (equivalently largest index M) for which an Euler factor /
+  // coefficient a_n is expected. M is derived from the conductor, not passed in:
+  //   dc = sqrt(conductor);  M = floor(dc * exp(2*pi*(hi_i + 0.5) / B))
+  // (hi_i and B are fixed by degree/mus/precision at init). It is computed on
+  // the first call and then frozen (the nmax_called flag); Lfunc_use_all_lpolys
+  // and Lfunc_reduce_nmax trigger that first call, so the range is set once any
+  // of them runs.
+  //
+  // ERR_G_EXTENT: the G data (gamma grid, built at init) is conductor-blind, its
+  // floor set by the degree; the conductor only sets how far down the grid is
+  // read at compute time. A large enough conductor pushes that read below the
+  // floor, and Lfunc_compute returns the recoverable ERR_G_EXTENT.
   uint64_t Lfunc_nmax(Lfunc_t L);
-  // if you can't get to nmax, tell the computation how many euler factors
-  // will be provided. NB It takes your word for it and doesn't check
+  // If you can't get to nmax, declare how many Euler factors will be provided.
+  // NB it takes your word for it and does not check. It calls Lfunc_nmax first
+  // (so it triggers and freezes the conductor-derived M), then lowers M to nmax;
+  // nmax must be strictly below the current M, else it returns false.
   bool Lfunc_reduce_nmax(Lfunc_t LL, uint64_t nmax);
 
-  // lpoly_callback will be called for each prime<=max_p
-  // it will stop calling if poly is set to zero and reset nmax accordingly
+  // lpoly_callback is called for each prime p <= M (the conductor-derived bound;
+  // see Lfunc_nmax). The first call here triggers Lfunc_nmax, computing and
+  // freezing M if not already done. Setting poly to zero stops the iteration,
+  // lowers M to p-1, and flags ERR_INSUFF_EULER.
   Lerror_t Lfunc_use_all_lpolys(Lfunc_t L, void (*lpoly_callback) (acb_poly_t lpoly, uint64_t p, int d, int64_t prec, void *parm), void *param);
 
   // you provide one Euler polynomial at a time
