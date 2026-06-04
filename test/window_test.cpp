@@ -10,6 +10,7 @@
 #include <map>
 #include <vector>
 #include <cstdint>
+#include <sys/stat.h>
 using std::map; using std::vector;
 
 // ec_37.a1 Euler factors (degree 2, conductor 37), from examples/ec_37.a1.cpp.
@@ -40,6 +41,10 @@ static Lfunc_t build_37(double max_t, uint64_t max_fft_NN, const char *cache_dir
   Lp.target_prec = DEFAULT_TARGET_PREC; Lp.wprec = 0; Lp.gprec = 0;
   Lp.self_dual = DK; Lp.rank = DK; Lp.cache_dir = (char*)cache_dir;
   Lp.max_t = max_t; Lp.max_fft_NN = max_fft_NN;
+  // The G cache is only written if cache_dir exists: fopen(...,"w") fails on a
+  // missing directory and caching is then SILENTLY skipped. Create it (ignore
+  // EEXIST) so the cache is actually exercised by these tests.
+  mkdir(cache_dir, 0777);
   *ecode = ERR_SUCCESS;
   Lfunc_t L = Lfunc_init_advanced(&Lp, ecode);
   if (fatal_error(*ecode)) return L;
@@ -96,6 +101,7 @@ static Lfunc_t build_tau(double max_t, const char *cache_dir, Lerror_t *ecode) {
   Lp.target_prec = DEFAULT_TARGET_PREC; Lp.wprec = 0; Lp.gprec = 0;
   Lp.self_dual = DK; Lp.rank = DK; Lp.cache_dir = (char*)cache_dir;
   Lp.max_t = max_t; Lp.max_fft_NN = 0;
+  mkdir(cache_dir, 0777); // see build_37: cache is skipped if the dir is absent
   *ecode = ERR_SUCCESS;
   Lfunc_t L = Lfunc_init_advanced(&Lp, ecode);
   if (fatal_error(*ecode)) return L;
@@ -153,6 +159,68 @@ int main() {
     assert(arb_overlaps(Lfunc_zeros(Lbig,0)+i, Lfunc_zeros(L,0)+i));
   Lfunc_clear(Lbig);
   printf("task3 ok\n");
+
+  // ---- bead 31c.6: a cache written for one window must not poison another ----
+  //
+  // The on-disk G-cache filename is keyed only on mus, so two windows with the
+  // same mus and default precision collide on ONE file. read_gheader must also
+  // validate the window (one_over_B): otherwise a cache written for a LARGER
+  // window (B=512) is silently reused for a SMALLER one (B=256) -- the body
+  // overwrites L->one_over_B with the cached B and the whole L-function is
+  // computed on the wrong grid. The ordering is load-bearing: the larger window
+  // has a higher gprec, so writing it FIRST makes the cached gprec pass the
+  // (cached >= required) sufficiency check when the smaller window reuses it,
+  // unmasking the window bug specifically. On fixed code the one_over_B header
+  // mismatch makes the file STALE -> recompute+overwrite at B=256 -> correct.
+  {
+    const char *shared = "build/wt_cache_poison";
+    // 1) Enlarged: H=64 (B=512), cap 2^18. Writes the poisoning cache file.
+    Lerror_t ecp;
+    Lfunc_t Lp_big = build_37(64.0, (uint64_t)1<<18, shared, &ecp);
+    assert(!fatal_error(ecp));
+    // The cache must actually have been written (dir exists -> fopen "w" ok).
+    {
+      struct stat sb;
+      assert(stat("build/wt_cache_poison/g_0.5_1.5", &sb) == 0);
+    }
+    Lfunc_clear(Lp_big);
+
+    // 2) Default window (H=32, B=256) in the SAME directory. On BROKEN code
+    // compute_g reads the enlarged file and the body OVERWRITES L->one_over_B to
+    // 1/512 (B=512), so the rest of init derives A=fft_NN/512=128 (half the
+    // correct 256) and the whole transform runs on the wrong geometry; on FIXED
+    // code the one_over_B header mismatch makes the file STALE -> recompute at
+    // B=256.
+    Lerror_t ecp2;
+    Lfunc_t Lp_def = build_37(0.0, 0, shared, &ecp2);
+    assert(!fatal_error(ecp2));
+    assert(Lfunc_rank(Lp_def) == 1);
+    // The low zeros are intrinsic and come out at the right t in both cases, so
+    // the first-zero VALUE alone does not distinguish broken from fixed: it is
+    // only its radius and the window EXTENT that the wrong B corrupts. We assert
+    // the extent. A correct B=256 default trusts t up to the Turing zone
+    // 1.5*H = 48, so its largest returned zero is < 50 (here ~47.57). The
+    // poisoned B=512 geometry trusts twice as far and returns zeros out to ~79,
+    // far above 50. Assert no returned zero exceeds 55: FAILS on broken
+    // (max ~79.15), PASSES on fixed (max ~47.57).
+    arb_t z0ref; arb_init(z0ref);
+    arb_set_str(z0ref, "5.0031700140066586953", 300);
+    arb_add_error_2exp_si(z0ref, -50);
+    assert(arb_overlaps(Lfunc_zeros(Lp_def,0) + 0, z0ref));
+    arb_clear(z0ref);
+    arb_t hi; arb_init(hi); arb_set_ui(hi, 55);
+    int nzp = 0;
+    while (nzp < (int)MAX_ZEROS && !arb_is_zero(Lfunc_zeros(Lp_def,0)+nzp)) {
+      // every trusted zero of the correctly-windowed default run is below the
+      // 1.5*H = 48 Turing reach, hence < 55. A poisoned B=512 run returns zeros
+      // up to ~79, violating this on at least one index.
+      assert(arb_lt(Lfunc_zeros(Lp_def,0)+nzp, hi));
+      nzp++;
+    }
+    arb_clear(hi);
+    Lfunc_clear(Lp_def);
+  }
+  printf("poison ok\n");
 
   // ---- bead 31c.4: every rejected/degenerate window must fail LOUD and fast ----
 

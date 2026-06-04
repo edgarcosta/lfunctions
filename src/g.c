@@ -27,7 +27,12 @@ extern "C"{
 // EXTRA_BITS or the gprec formula needs no bump, since the stored gprec is
 // checked for sufficiency (a too-low cached gprec is rejected automatically).
 #define GCACHE_MAGIC "GCACHE"
-#define GCACHE_VERSION 1
+// Version 2 added one_over_B (the window's 1/B) to the header so a cache written
+// for one output window cannot be reused for another: the body is B-dependent
+// (low_i/hi_i/max_K and the Gs u-grid all scale with B) and read_gfile even
+// overwrites L->one_over_B from the file, so without this check a different-B
+// cache was silently reused with the wrong geometry.
+#define GCACHE_VERSION 2
 
 // Outcome of validating a cached file against the current request.  GCACHE_STALE
 // (foreign / old version / different L-function / insufficient precision) means
@@ -544,13 +549,17 @@ computeres:
 
     if(op) {
       // Self-describing header (see GCACHE_MAGIC): version, degree, the gprec
-      // this grid was computed at, and the sorted analytic mus as exact halved
-      // integers.  read_gfile reads and verifies this before the body.
+      // this grid was computed at, the sorted analytic mus as exact halved
+      // integers, and the window's one_over_B.  read_gfile reads and verifies
+      // this before the body.  one_over_B is written with %a (hex float) so it
+      // round-trips the binary64 value bit-for-bit; read_gheader compares it to
+      // the request's one_over_B with ==, so any lossy format (e.g. %.9f) would
+      // reject a freshly written cache every run.
       fprintf(fp, "%s %d %lu %ld", GCACHE_MAGIC, GCACHE_VERSION,
               (unsigned long)L->degree, prec);
       for(i = 0; i < (long)L->degree; i++)
         fprintf(fp, " %ld", twomu[i]);
-      fprintf(fp, "\n");
+      fprintf(fp, " %a\n", Binv);
       printarf(fp,m);
       fprintf(fp," 1\n");
     }
@@ -575,7 +584,11 @@ computeres:
     arb_init(L->eq59);
     arb_set(L->eq59,thresh);
     if(op) {
-      fprintf(fp,"%.9f %ld %ld\n", Binv, imin, imax);
+      // %a (hex float) so this body copy of one_over_B round-trips bit-for-bit;
+      // it must agree exactly with the header value the read path already
+      // validated, so read_gfile cannot silently change L->one_over_B to a
+      // rounded value after the header check passed.
+      fprintf(fp,"%a %ld %ld\n", Binv, imin, imax);
       arb_get_abs_ubound_arf(m,thresh,prec);
       fprintf(fp,"%ld ",k);
       printarf(fp,m);
@@ -695,10 +708,14 @@ computeres:
   // Read and validate the GCACHE header (see GCACHE_MAGIC).  Returns false --
   // so the caller recomputes (overwriting the file) rather than returning wrong
   // numbers -- when the file is foreign or from an older format (magic/version
-  // mismatch), describes a different L-function (degree or mus mismatch), or
-  // was computed at too low a precision for the current request
-  // (cached gprec < req_gprec; recall hi_i and max_K grow with gprec).  This
-  // runs before read_gfile allocates anything, so a rejected file leaks nothing.
+  // mismatch), describes a different L-function (degree or mus mismatch), was
+  // computed for a different output window (one_over_B mismatch), or was computed
+  // at too low a precision for the current request (cached gprec < req_gprec;
+  // recall hi_i and max_K grow with gprec).  This runs before read_gfile
+  // allocates anything, so a rejected file leaks nothing.  L->one_over_B holds
+  // the REQUEST's window here (set in Lfunc_init_advanced before compute_g, not
+  // yet overwritten by the body), so it is the authoritative value to validate
+  // against.
   static bool read_gheader(FILE *infile, const Lfunc *L, int64_t req_gprec)
   {
     char magic[16];
@@ -720,6 +737,17 @@ computeres:
       if(twomu != (long)round(L->mus[i] * 2.0)) // identity: exact halved mu
         return false;
     }
+    // Window: the body is B-dependent (low_i/hi_i/max_K and the Gs u-grid scale
+    // with B) and read_gfile overwrites L->one_over_B from it, so a cache written
+    // for a different window must be rejected here.  The header value was written
+    // with %a, so this %la reparse is bit-exact and the == compare against the
+    // request's one_over_B neither rejects a freshly written matching cache nor
+    // accepts a near-equal foreign window.
+    double cached_one_over_B;
+    if(fscanf(infile, "%la", &cached_one_over_B) != 1)
+      return false;
+    if(cached_one_over_B != L->one_over_B) // exact: distinct windows differ in bits
+      return false;
     if(cached_gprec < req_gprec) // sufficiency: cached grid is precise enough
       return false;
     return true;
@@ -747,7 +775,11 @@ computeres:
     arb_set_si(L->C,m);
     arb_mul_2exp_si(L->C,L->C,e);
     arb_set_si(L->alpha,alpha);
-    if(fscanf(infile,"%lf %" PRId64 " %" PRId64 "\n",&L->one_over_B,&L->low_i,&L->hi_i)!=3)
+    // %la matches the %a the body was written with, so the value reparses
+    // bit-for-bit.  read_gheader already validated this exact one_over_B against
+    // the request, so this overwrite restores the identical bits, never a rounded
+    // (or foreign-window) value.
+    if(fscanf(infile,"%la %" PRId64 " %" PRId64 "\n",&L->one_over_B,&L->low_i,&L->hi_i)!=3)
       return GCACHE_CORRUPT;
     if(fscanf(infile,"%" PRIu64 "",&L->max_K)!=1)
       return GCACHE_CORRUPT;
