@@ -21,7 +21,7 @@
 // fatalities
 #define ERR_NO_DATA (1) // the first two Lambda(t) values contained zero. Totally fatal
 #define ERR_ZERO_ERROR (2) // some unexpected error isolating zeros
-#define ERR_BUT_ERROR (4) // Wf+Winf-Ws* must be negative (we cant find too many zeros)
+#define ERR_BUT_ERROR (4) // fatal: Buthe S = Wf+Winf-Ws* < 0 (impossible if zeros correct => too many found)
 #define ERR_OOM (8) // out of memory error
 #define ERR_UPSAMPLE (16) // something bad happened trying to upsample
 #define ERR_MU_HALF (32) // mus should be 1/2 integers
@@ -123,6 +123,9 @@ extern "C"{
   // ERR_BAD_RH_METHOD (fatal) and leaves the method unchanged. An out-of-range
   // method also returns ERR_BAD_RH_METHOD and is ignored. Returns ERR_SUCCESS
   // otherwise.
+  // Under the default Buthe verifier a hard over-count is fatal (ERR_BUT_ERROR);
+  // a mere failure to certify completeness is the warning ERR_RH_ERROR.
+  // (The legacy Turing default only raised the latter.)
   Lerror_t Lfunc_set_rh_method(Lfunc_t L, Lfunc_rh_method method);
 
   // Largest prime p (equivalently largest index M) for which an Euler factor /

@@ -85,7 +85,7 @@ extern "C"{
     arb_t buthe_Ws; // sum-over-computed-zeros term of Buthe's inequality
     arb_t buthe_b; // height up to which RH is confirmed, b = B/OUTPUT_RATIO
     arb_t buthe_C; // Buthe constant = degree (Lemma 3.4); unused
-    arb_t buthe_h; // Buthe test-function step h = BUTHE_H
+    arb_t buthe_h; // Buthe smoothing parameter h; set per grid point during the adaptive verdict (buthe_check_RH), so after a compute it holds the last grid h tried, not necessarily BUTHE_H
     uint64_t buthe_M; // prime-power cutoff for the Wf sum = floor(sqrt(#coeffs))
     Lfunc_rh_method rh_method; // which RH verifier Lfunc_compute runs; default LFUNC_RH_BUTHE
     bool computed;             // set true by Lfunc_compute; gates Lfunc_set_rh_method
