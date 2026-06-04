@@ -361,8 +361,12 @@ Lerror_t power_guard(Lfunc *L)
   // and then either rejects (opted out) or extracts-and-assembles (opted in).
   if(L->seen_sqfree_fulldeg)         // rigorous certificate: no repeated factor
     return ERR_SUCCESS;
-  if(L->moment_count == 0)           // no good primes seen; can't judge -> proceed
-    return ERR_SUCCESS;
+  if(L->moment_count == 0)           // no good primes seen; can't judge from moments.
+    // A perfect-power conductor with NO good primes is the degenerate case we cannot
+    // certify primitive (Signal 1 didn't fire either): flag it rather than silently
+    // proceed (which could feed doubled zeros into the pipeline). A genuine primitive
+    // with a squarefree good prime is already handled by the check above.
+    return conductor_is_perfect_power(L->conductor) ? ERR_POWER : ERR_SUCCESS;
   // Signal 2a (heuristic): empirical 2nd moment >= threshold.
   arb_t S, thresh, diff;
   arb_init(S);
