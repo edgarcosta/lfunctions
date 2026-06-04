@@ -53,41 +53,32 @@ int main(void) {
   assert(!arb_is_zero(zeros + 0)); // at least one zero found
 
   // --- white-box: same forced S=0.7, different self_dual => different verdict.
-  // buthe_check_RH recomputes buthe_Ws and buthe_Winf internally (from the zeros
-  // and self_dual), so the ONLY accumulator it reads-but-does-not-recompute is
-  // buthe_Wf. We therefore push S into (0.49, 0.98) by bumping buthe_Wf, sizing
-  // the bump against the S the function actually computes for the chosen
-  // self_dual path (a probe call leaves Ws/Winf populated for that path, so
-  // S = Wf + Winf - Ws is readable from the struct). With S = 0.7 fixed for each
-  // path in turn, the verdict isolates the threshold: 0.49 (self_dual != YES)
-  // rejects, 0.98 (self_dual == YES) accepts. On the pre-Task-5 tree both use
-  // 0.98, so the self_dual=NO assert below returns SUCCESS and FAILS (the
-  // genuine fail-on-base distinguishing the 0.49 tightening from 0.98).
+  // buthe_check_RH now sweeps the descending smoothing grid and certifies at the
+  // HIGHEST grid h with upper(S) < threshold, recomputing Ws and Winf per grid h
+  // (so the only accumulator it reads-but-does-not-recompute is buthe_Wf[i], one
+  // per grid index i). To isolate the threshold we force S(grid[i]) = 0.7 at
+  // EVERY grid h via buthe_S_at, then read the verdict: 0.49 (self_dual != YES)
+  // rejects S=0.7 at every h, 0.98 (self_dual == YES) accepts it at h=8. On the
+  // pre-tightening tree both bars are 0.98, so the self_dual=NO assert below
+  // returns SUCCESS and FAILS (the fail-on-base distinguishing 0.49 from 0.98).
   {
     Lfunc *LL = (Lfunc *)L;
-    arb_t target, S; arb_init(target); arb_init(S);
+    arb_t target, S, delta;
+    arb_init(target); arb_init(S); arb_init(delta);
     arb_set_d(target, 0.7);
-
-    // self_dual = NO: probe to populate Ws/Winf, then bump Wf so S becomes 0.7.
-    LL->self_dual = NO;
-    (void)buthe_check_RH(LL); // recomputes buthe_Ws/buthe_Winf for the NO path
-    arb_add(S, LL->buthe_Wf[0], LL->buthe_Winf, LL->wprec);
-    arb_sub(S, S, LL->buthe_Ws, LL->wprec);          // S the NO path used
-    arb_sub(S, target, S, LL->wprec);                // delta to reach 0.7
-    arb_add(LL->buthe_Wf[0], LL->buthe_Wf[0], S, LL->wprec); // Wf += delta => S -> 0.7
-    assert((buthe_check_RH(LL) & ERR_RH_ERROR) != 0);  // 0.49 bar rejects
-
-    // self_dual = YES: re-probe (the YES path recomputes a different Ws), resize
-    // the bump so S is 0.7 again, then confirm the 0.98 bar accepts.
-    LL->self_dual = YES;
-    (void)buthe_check_RH(LL); // recomputes buthe_Ws/buthe_Winf for the YES path
-    arb_add(S, LL->buthe_Wf[0], LL->buthe_Winf, LL->wprec);
-    arb_sub(S, S, LL->buthe_Ws, LL->wprec);          // S the YES path used
-    arb_sub(S, target, S, LL->wprec);                // delta to reach 0.7
-    arb_add(LL->buthe_Wf[0], LL->buthe_Wf[0], S, LL->wprec);
-    assert((buthe_check_RH(LL) & ERR_RH_ERROR) == 0);  // 0.98 bar accepts
-
-    arb_clear(target); arb_clear(S);
+    int sd_vals[2] = { NO, YES };
+    for (int s = 0; s < 2; s++) {
+      LL->self_dual = sd_vals[s];
+      for (int i = 0; i < BUTHE_NH; i++) {      // bump each Wf[i] so S(grid[i]) = 0.7 for THIS path
+        buthe_S_at(S, LL, i, LL->wprec);
+        arb_sub(delta, target, S, LL->wprec);
+        arb_add(LL->buthe_Wf[i], LL->buthe_Wf[i], delta, LL->wprec);
+      }
+      Lerror_t e = buthe_check_RH(LL);
+      if (LL->self_dual == NO) assert((e & ERR_RH_ERROR) != 0); // 0.49 bar rejects S=0.7 at every h
+      else                     assert((e & ERR_RH_ERROR) == 0); // 0.98 bar accepts S=0.7 at h=8
+    }
+    arb_clear(target); arb_clear(S); arb_clear(delta);
   }
 
   Lfunc_clear(L);

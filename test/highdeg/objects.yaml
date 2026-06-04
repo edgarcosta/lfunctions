@@ -338,7 +338,7 @@ objects:
       epsilon: [-1.0, 0.0]
       first_zero: "1.9640371681288479784191771260430560146"
       first_zero_err: 1.0e-15
-      tolerate_rh_error: true
+      tolerate_rh_error: false
 
   - label: "11.a.sym6"
     kind: sympow

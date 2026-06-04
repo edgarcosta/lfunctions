@@ -365,13 +365,26 @@ extern "C"{
     if(verbose) {printf("Winf = ");arb_printd(res,20);printf("\n");}
   }
 
+  // S = Wf[i] + Winf - Ws at grid point i: sets L->buthe_h = buthe_h_grid[i] and
+  // recomputes the h-dependent Ws and Winf. Exposed so the threshold test can
+  // probe S per grid h.
+  void buthe_S_at(arb_t S, Lfunc *L, int i, int64_t prec) {
+    arb_set_d(L->buthe_h, buthe_h_grid[i]);
+    arb_zero(L->buthe_Ws);
+    if (L->self_dual == YES) buthe_Ws_dual(L->buthe_Ws, L, L->zeros[0], prec);
+    else { buthe_Ws_non_dual(L->buthe_Ws, L, L->zeros[0], 0, prec);
+           buthe_Ws_non_dual(L->buthe_Ws, L, L->zeros[1], 1, prec); }
+    buthe_Winf(L->buthe_Winf, L, prec);
+    arb_add(S, L->buthe_Wf[i], L->buthe_Winf, prec);
+    arb_sub(S, S, L->buthe_Ws, prec);
+  }
+
   Lerror_t buthe_check_RH(Lfunc *L)
   {
     static bool init=false;
-    static arb_t sum,two_zeros,one_zero;
+    static arb_t two_zeros,one_zero;
     if(!init) {
       init=true;
-      arb_init(sum);
       arb_init(two_zeros);
       arb_set_ui(two_zeros,98);
       arb_div_ui(two_zeros,two_zeros,100,100); // 0.98 pair-threshold (self-dual)
@@ -387,44 +400,40 @@ extern "C"{
     int64_t prec=L->wprec;
     if(verbose)
     {printf("Going to use Weil-Barner to confirm list of zeros.\n");fflush(stdout);}
-    arb_zero(L->buthe_Ws);
-    if(L->self_dual==YES)
-      buthe_Ws_dual(L->buthe_Ws,L,L->zeros[0],L->wprec);
-    else // unknown or definately not
-    {
-      buthe_Ws_non_dual(L->buthe_Ws,L,L->zeros[0],0,L->wprec);
-      buthe_Ws_non_dual(L->buthe_Ws,L,L->zeros[1],1,L->wprec);
+
+    // Adaptive sweep over the descending smoothing grid buthe_h_grid[0..BUTHE_NH-1].
+    // S(h) = Wf(h) + Winf(h) - Ws(h); lowering h sharpens the test function and
+    // lowers S for a COMPLETE zero list, while a genuine miss keeps S >= threshold
+    // at every grid h (a missed zero's contribution rises toward 0.5 as h drops).
+    // We certify at the HIGHEST grid h that achieves upper(S) < threshold (that h
+    // has the smallest W_f tail error). The hard over-count test S < 0 is judged
+    // ONLY at i==0 (h=8, smallest W_f error) so the wider low-h error cannot
+    // manufacture a false over-count.
+    arb_t S, Sdiff;
+    arb_init(S); arb_init(Sdiff);
+    Lerror_t verdict = ERR_RH_ERROR; // default: no grid h certified
+    for (int i = 0; i < BUTHE_NH; i++) {
+      buthe_S_at(S, L, i, L->wprec);
+      if(verbose)
+      {
+        printf("h = ");arb_printd(L->buthe_h,20);
+        printf("\nWs = ");arb_printd(L->buthe_Ws,20);
+        printf("\nWinf = ");arb_printd(L->buthe_Winf,20);
+        printf("\nWf = ");arb_printd(L->buthe_Wf[i],20);
+        printf("\nS = ");arb_printd(S,20);printf("\n");
+      }
+      if (i == 0 && arb_is_negative(S)) { // hard over-count at the safest h
+        if(verbose) printf("Error in Weil-Barner check. Winf+Wf-Ws* must allow >=0. RH not confirmed.\n");
+        verdict = ERR_BUT_ERROR; break;
+      }
+      arb_sub(Sdiff, S, threshold, prec);
+      if (arb_is_negative(Sdiff)) { // upper(S) < threshold => certified at this (highest) h
+        verdict = ERR_SUCCESS; break;
+      }
     }
-
-    buthe_Winf(L->buthe_Winf,L,L->wprec);
-    //if(verbose){printf("Winf = ");arb_printd(L_func.buthe_Winf,20);printf("\n");}
-
-
-    // Task 2 keeps the single-h verdict: read only buthe_Wf[0] (grid[0]=h=8).
-    // Task 3 replaces this with the adaptive sweep over buthe_Wf[0..BUTHE_NH-1].
-    arb_add(sum,L->buthe_Wf[0],L->buthe_Winf,prec);
-    arb_sub(sum,sum,L->buthe_Ws,prec);
-    if(verbose)
-    {
-      printf("Ws = ");arb_printd(L->buthe_Ws,20);
-      printf("\nWinf = ");arb_printd(L->buthe_Winf,20);
-      printf("\nWf = ");arb_printd(L->buthe_Wf[0],20);
-      printf("\nS = ");arb_printd(sum,20);printf("\n");
-    }
-    if(arb_is_negative(sum))
-    {
-      if(verbose) printf("Error in Weil-Barner check. Winf+Wf-Ws* must allow >=0. RH not confirmed.\n");
-      return ERR_BUT_ERROR;
-    }
-
-    arb_sub(sum,sum,threshold,prec);
-
-    if(!arb_is_negative(sum))
-    {
-      if(verbose) printf("Looks like we've missed some zero(s).\n");
-      return ERR_RH_ERROR;
-    }
-    return ERR_SUCCESS;
+    if(verbose && (verdict == ERR_RH_ERROR)) printf("Looks like we've missed some zero(s).\n");
+    arb_clear(S); arb_clear(Sdiff);
+    return verdict;
   }
 
 #ifdef __cplusplus

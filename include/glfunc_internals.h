@@ -159,6 +159,7 @@ extern "C"{
   Lerror_t init_buthe(Lfunc *L, int64_t prec);
   void wf(Lfunc *L, uint64_t p, acb_poly_t fp1, acb_poly_t fp, int64_t prec);
   void buthe_Wf_error(Lfunc *L);
+  void buthe_S_at(arb_t S, Lfunc *L, int i, int64_t prec);
   Lerror_t buthe_check_RH(Lfunc *L);
 
   // from turing.c
