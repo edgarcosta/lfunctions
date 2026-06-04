@@ -83,6 +83,26 @@ static void lk_badprime_callback(acb_poly_t poly, uint64_t p, int d, int64_t pre
   }
 }
 
+// callback for the complex (non-self-dual) boundary: build M with a COMPLEX linear
+// coefficient (i times E_p's), so L = M^2 has complex Euler factors but the same 2nd
+// moment and perfect-square conductor as E^2 (detection still finds k=2). The exact
+// integer certificate requires real-integer coefficients, so it must refuse this with
+// ERR_POWER -- extraction supports rational-integer L-functions only (feat: lfunctions-5g6).
+static void lk_complex_callback(acb_poly_t poly, uint64_t p, int d, int64_t prec, void *param)
+{
+  (void)d; (void)param;
+  acb_poly_t mp; acb_poly_init(mp);
+  Ep(mp, p);
+  if (acb_poly_is_zero(mp)) { acb_poly_zero(poly); acb_poly_clear(mp); return; }
+  acb_t c1; acb_init(c1);
+  acb_poly_get_coeff_acb(c1, mp, 1);
+  acb_mul_onei(c1, c1);                 // i * (linear coeff): M is non-self-dual (complex a_p)
+  acb_poly_set_coeff_acb(mp, 1, c1);
+  acb_clear(c1);
+  acb_poly_pow_ui(poly, mp, 2, prec);   // L_p = M_p^2 (complex)
+  acb_poly_clear(mp);
+}
+
 int main(void)
 {
   Lerror_t ec = ERR_SUCCESS;
@@ -337,6 +357,26 @@ int main(void)
   Lfunc_clear(LBad);
 
   printf("extract_power_test: C1 non-square bad factor OK\n");
+
+  // Complex (non-self-dual) boundary: extraction supports rational-integer L-functions
+  // only. A complex L = M^2, built so detection still finds k=2 and the perfect-square
+  // conductor, must be REFUSED by the exact integer certificate (ERR_POWER), not
+  // extracted. Supporting complex Euler factors is feature request lfunctions-5g6.
+  {
+    Lparams_t LpC = { .degree=4, .conductor=37u*37u, .normalisation=0.5,
+                      .mus=(double[]){0,0,1,1}, .target_prec=100, .wprec=0, .gprec=0,
+                      .self_dual=NO, .rank=DK, .cache_dir=".", .extract_powers=YES };
+    Lerror_t eC = ERR_SUCCESS;
+    Lfunc_t LC = Lfunc_init_advanced(&LpC, &eC);
+    assert(!fatal_error(eC));
+    eC |= Lfunc_use_all_lpolys(LC, lk_complex_callback, NULL);
+    eC |= Lfunc_compute(LC);
+    assert(eC & ERR_POWER);            // complex Euler factor -> exact certificate refuses
+    Lfunc_t *fc = NULL; uint64_t *mc = NULL;
+    assert(Lfunc_factors(LC, &fc, &mc) == 0);   // not extracted
+    Lfunc_clear(LC);
+  }
+  printf("extract_power_test: complex non-self-dual boundary OK (ERR_POWER)\n");
 
   return 0;
 }
