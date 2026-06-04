@@ -343,14 +343,22 @@ extern "C"{
   Lerror_t buthe_check_RH(Lfunc *L)
   {
     static bool init=false;
-    static arb_t sum,two_zeros;
+    static arb_t sum,two_zeros,one_zero;
     if(!init) {
       init=true;
       arb_init(sum);
       arb_init(two_zeros);
       arb_set_ui(two_zeros,98);
-      arb_div_ui(two_zeros,two_zeros,100,100);
+      arb_div_ui(two_zeros,two_zeros,100,100); // 0.98 pair-threshold (self-dual)
+      arb_init(one_zero);
+      arb_set_ui(one_zero,49);
+      arb_div_ui(one_zero,one_zero,100,100);   // 0.49 single-zero threshold (self_dual != YES)
     }
+    // A missed conjugate pair contributes > 0.98 (self-dual == YES, paired zeros);
+    // a single missed zero contributes > 0.49. When self_dual is NO or DK,
+    // zeros are not guaranteed paired, so the tighter 0.49 bar is required or a
+    // single miss would false-confirm.
+    arb_srcptr threshold = (L->self_dual == YES) ? two_zeros : one_zero;
     int64_t prec=L->wprec;
     if(verbose)
     {printf("Going to use Weil-Barner to confirm list of zeros.\n");fflush(stdout);}
@@ -383,11 +391,11 @@ extern "C"{
       return ERR_BUT_ERROR;
     }
 
-    arb_sub(sum,sum,two_zeros,prec);
+    arb_sub(sum,sum,threshold,prec);
 
     if(!arb_is_negative(sum))
     {
-      if(verbose) printf("Looks like we've missed a some (pairs of) zeros.\n");
+      if(verbose) printf("Looks like we've missed some zero(s).\n");
       return ERR_RH_ERROR;
     }
     return ERR_SUCCESS;
