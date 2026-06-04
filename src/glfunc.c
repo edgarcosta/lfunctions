@@ -337,19 +337,27 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
   arb_mul(L->two_pi_by_B, L->two_pi_by_B, L->pi, L->wprec);
 
   // fft_N (short Euler-convolution length) must exceed the linear-convolution support
-  // of the G grid [low_i,hi_i] and the coefficient buckets (down to calc_m(M0)), else the
-  // cyclic load n%fft_N (compute.c) silently aliases. M0/sqrt(N) >= 1/100 makes
-  // calc_m(M0) >= floor(log(0.01)/(2*pi/B)) conductor-independent. max(1<<11,...) keeps
-  // every default window bit-for-bit (support <= ~1350 < 2048).
+  // of the G grid [low_i,hi_i] and the coefficient buckets, else the cyclic load
+  // n%fft_N (compute.c) silently aliases. The lowest bucket is for n=1 at
+  // calc_m(1) = floor(log(1/sqrt(N))/(2*pi/B)), which is conductor-DEPENDENT (it
+  // sinks as N grows); conv_support() uses that floor (see glfunc_internals.h).
+  // max(1<<11,...) keeps every default window bit-for-bit (support <= ~1350 < 2048).
   {
     uint64_t support = conv_support(L); // G grid + coeff buckets (see glfunc_internals.h)
     uint64_t floor_n = (uint64_t)1 << 11;
     L->fft_N = next_pow2_u64(support > floor_n ? support : floor_n);
   }
   L->fft_NN = want_fft_NN; // final output length (= 1<<16 for the default window)
-  // fft_N (>= 1<<11) can exceed fft_NN only for a sub-floor (tiny) window whose fft_NN fell
-  // below the 1<<11 floor; those are rejected by the ERR_WINDOW_TOO_SMALL guard (bead
-  // 31c.4). This stays as a defensive backstop.
+  // Defensive backstop only: this branch is UNREACHABLE for any accepted input.
+  // want_fft_NN >= 1<<11 (the sub-floor guard above rejects anything smaller), and
+  // fft_N = next_pow2(max(1<<11, support)). support ~ (hi_i-low_i) + (hi_i-calc_m(1))
+  // grows like B*(1+log N) = 8*max_t*(1+log N), while fft_NN ~ 1024*degree*max_t; for
+  // fft_N to exceed fft_NN we would need 1+log N > ~128*degree, i.e. log N > 255 at
+  // degree 2, far beyond any uint64_t conductor (log N <= ~44). So fft_N <= fft_NN
+  // always. L is only PARTIALLY constructed here (compute_g ran, but the w/ww/res/
+  // zeros/upsampling allocations below have not), so Lfunc_clear would dereference
+  // not-yet-allocated pointers; we keep the graceful fatal return instead. Freeing the
+  // partial Lfunc for such early init failures is tracked by bead lfunctions-1eb.
   if (L->fft_N > L->fft_NN) { ecode[0] |= ERR_WINDOW_TOO_LARGE; return (Lfunc_t)NULL; }
 
   L->A = L->fft_NN * L->one_over_B;
@@ -500,6 +508,9 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
   // replicating the search) keeps the two from diverging. Runs before zero-
   // finding (which happens in Lfunc_compute), so no degraded result is returned.
   if (L->u_no_values > L->fft_NN) {
+    // L is fully constructed here (init_upsampling succeeded, every u_* field and
+    // array is set), so the authoritative teardown applies before we hand back NULL.
+    Lfunc_clear((Lfunc_t)L);
     ecode[0] |= ERR_WINDOW_TOO_SMALL;
     return (Lfunc_t)NULL;
   }
