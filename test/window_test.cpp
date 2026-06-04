@@ -33,6 +33,60 @@ static void cb(acb_poly_t poly, uint64_t p, int, int64_t, void*) {
       acb_poly_set_coeff_si(poly, i, it->second[i]);
 }
 
+// Same ec_37.a1, but supply the ANALYTIC Euler-factor coefficients a_m * p^{-m/2}
+// instead of the algebraic a_m. Combined with normalisation = 0 and analytic mus
+// {0.5,1.5}, this reconstructs the SAME analytic L-function that (algebraic coeffs,
+// normalisation = 0.5, mus {0,1}) produces: the library multiplies coefficient m by
+// p^{-m*normalisation} (coeff.c), so {a_m, norm 0.5} and {a_m*p^{-m/2}, norm 0} feed
+// identical Dirichlet coefficients, and L->mus = mus + norm is {0.5,1.5} either way.
+// Used by the equivalent-(mus,normalisation) window invariant below.
+static void cb_anal(acb_poly_t poly, uint64_t p, int, int64_t prec, void*) {
+  acb_poly_zero(poly);
+  auto it = ef.find((int64_t)p);
+  if (it == ef.end()) return;
+  arb_t lp, sc, tm, half; arb_init(lp); arb_init(sc); arb_init(tm); arb_init(half);
+  arb_log_ui(lp, p, prec);
+  acb_t c; acb_init(c);
+  for (size_t m = 0; m < it->second.size(); ++m) {
+    arb_set_d(half, -0.5 * (double)m);
+    arb_mul(tm, lp, half, prec);             // -(m/2) log p
+    arb_exp(sc, tm, prec);                    // p^{-m/2}
+    arb_mul_si(sc, sc, it->second[m], prec);  // a_m * p^{-m/2}
+    acb_set_arb(c, sc);
+    acb_poly_set_coeff_acb(poly, (slong)m, c);
+  }
+  arb_clear(lp); arb_clear(sc); arb_clear(tm); arb_clear(half); acb_clear(c);
+}
+
+// Like build_37 but with caller-chosen normalisation, mus, self_dual, rank, and
+// Euler-factor callback, so the invariants below can vary exactly one axis at a
+// fixed window. Returns the accumulated ecode (see build_37 for the cache note).
+typedef void (*wt_cbfn)(acb_poly_t, uint64_t, int, int64_t, void*);
+static Lfunc_t build_37_full(double max_t, uint64_t max_fft_NN, double normalisation,
+                             double *mus, int self_dual, int rank, wt_cbfn f,
+                             const char *cache_dir, Lerror_t *ecode) {
+  Lparams_t Lp = {};
+  Lp.degree = 2; Lp.conductor = 37; Lp.normalisation = normalisation; Lp.mus = mus;
+  Lp.target_prec = DEFAULT_TARGET_PREC; Lp.wprec = 0; Lp.gprec = 0;
+  Lp.self_dual = self_dual; Lp.rank = rank; Lp.cache_dir = (char*)cache_dir;
+  Lp.max_t = max_t; Lp.max_fft_NN = max_fft_NN;
+  mkdir(cache_dir, 0777);
+  *ecode = ERR_SUCCESS;
+  Lfunc_t L = Lfunc_init_advanced(&Lp, ecode);
+  if (fatal_error(*ecode)) return L;
+  *ecode |= Lfunc_use_all_lpolys(L, f, NULL);
+  if (fatal_error(*ecode)) return L;
+  *ecode |= Lfunc_compute(L);
+  return L;
+}
+
+// Count the (contiguous, zero-terminated) zeros stored on a side.
+static int wt_count_zeros(Lfunc_t L, uint64_t side) {
+  int n = 0;
+  while (n < (int)MAX_ZEROS && !arb_is_zero(Lfunc_zeros(L, side) + n)) n++;
+  return n;
+}
+
 // Build ec_37.a1 via the advanced API at a given window and cap, in a private
 // cache_dir so runs never poison each other. Returns the accumulated ecode.
 static Lfunc_t build_37(double max_t, uint64_t max_fft_NN, const char *cache_dir, Lerror_t *ecode) {
@@ -406,6 +460,171 @@ int main() {
     Lfunc_clear(Ls);
   }
   printf("shrink ok\n");
+
+  // ---- special_value + Taylor are window-invariant AND match known values ----
+  // The existing enlarge test (task3) only checks ZEROS overlap between default and
+  // enlarged. Lfunc_special_value and Lfunc_Taylor exercise different windowed code:
+  // both upsample off u_values_off using L->A = fft_NN/B, which scales with the window
+  // (default fft_NN=2^16 vs enlarged 2^17 here, with a smaller 1/B). The L-value at a
+  // fixed point and the central Taylor coefficient are mathematical invariants of the
+  // L-function, so they MUST agree across windows -- and must contain the independently
+  // known constants (LMFDB / examples/ec_37.a1.cpp):
+  //   L(1.5) = 0.18396547525832984973...  (algebraic arg 1.5; analytic 1.0)
+  //   L'(1/2)/1! = 0.305999773834052301820483683321676474452637774590772 (BSD).
+  // If the window-dependent A (or anything it feeds) were wrong at the enlarged window,
+  // the value would shift off the golden constant and/or stop overlapping the default.
+  {
+    Lerror_t ecd, ece;
+    Lfunc_t Lsv_def = build_37(0.0, 0, "build/wt_cache_sv_def", &ecd);
+    assert(!fatal_error(ecd));
+    Lfunc_t Lsv_enl = build_37(48.0, (uint64_t)1<<18, "build/wt_cache_sv_enl", &ece);
+    assert(!fatal_error(ece));
+
+    acb_t vdef, venl; acb_init(vdef); acb_init(venl);
+    assert(!fatal_error(Lfunc_special_value(vdef, Lsv_def, 1.5, 0.0)));
+    assert(!fatal_error(Lfunc_special_value(venl, Lsv_enl, 1.5, 0.0)));
+
+    // Each windowed value contains the known L(1.5).
+    acb_t lref; acb_init(lref);
+    arb_set_str(acb_realref(lref), "0.18396547525832984973", 300);
+    arb_zero(acb_imagref(lref));
+    arb_add_error_2exp_si(acb_realref(lref), -50);
+    arb_add_error_2exp_si(acb_imagref(lref), -50);
+    assert(acb_overlaps(vdef, lref));
+    assert(acb_overlaps(venl, lref));
+    // ... and they contain each other (window invariance of the L-value).
+    assert(acb_overlaps(vdef, venl));
+    acb_clear(lref);
+
+    // The two computes are genuinely distinct objects, not the same handle: the
+    // enlarged window's A differs, so its certified radius differs from the
+    // default's (non-vacuous overlap). (default re-radius ~2.9e-39, enlarged ~8e-41.)
+    double rd = mag_get_d(arb_radref(acb_realref(vdef)));
+    double re = mag_get_d(arb_radref(acb_realref(venl)));
+    assert(rd > 0.0 && re > 0.0 && rd != re);
+    acb_clear(vdef); acb_clear(venl);
+
+    // Taylor: central-point invariant, contains BSD, and overlaps across windows.
+    arb_t bsd; arb_init(bsd);
+    arb_set_str(bsd, "0.305999773834052301820483683321676474452637774590771998534541832481", 300);
+    arb_add_error_2exp_si(bsd, -100);
+    assert(arb_overlaps(Lfunc_Taylor(Lsv_def), bsd));
+    assert(arb_overlaps(Lfunc_Taylor(Lsv_enl), bsd));
+    assert(arb_overlaps(Lfunc_Taylor(Lsv_def), Lfunc_Taylor(Lsv_enl)));
+    arb_clear(bsd);
+
+    Lfunc_clear(Lsv_def); Lfunc_clear(Lsv_enl);
+  }
+  printf("special-value-window ok\n");
+
+  // ---- equivalent (mus, normalisation) at a NON-default window => equal output ----
+  // CLAUDE.md: for a weight-2 EC, {mus=[0,1], norm=0.5} and {mus=[0.5,1.5], norm=0}
+  // describe the SAME analytic L-function (provided the Euler factors are given in
+  // the matching normalisation -- see cb_anal). The window geometry must depend only
+  // on the analytic data (L->mus = mus + norm = {0.5,1.5} both ways, and 1/B from H),
+  // never on how the caller split it. So at H=48 the rank, every zero, and the central
+  // Taylor coefficient must coincide. Non-vacuous: the two inputs drive different code
+  // (coeff.c normalises by p^{-m*norm}; the mus split differs) -- supplying the SAME
+  // algebraic coeffs with norm=0 instead yields a DIFFERENT L-function (rank 0 here),
+  // so a regression that mixed the split into the geometry would break the overlap.
+  {
+    static double mus_a[2] = {0.0, 1.0};       // norm 0.5  -> analytic mus {0.5,1.5}
+    static double mus_b[2] = {0.5, 1.5};       // norm 0.0  -> analytic mus {0.5,1.5}
+    Lerror_t eca, ecb;
+    Lfunc_t La = build_37_full(48.0, (uint64_t)1<<18, 0.5, mus_a, DK, DK, cb,
+                               "build/wt_cache_eqv_a", &eca);
+    assert(!fatal_error(eca));
+    Lfunc_t Lb = build_37_full(48.0, (uint64_t)1<<18, 0.0, mus_b, DK, DK, cb_anal,
+                               "build/wt_cache_eqv_b", &ecb);
+    assert(!fatal_error(ecb));
+
+    assert(Lfunc_rank(La) == 1);
+    assert(Lfunc_rank(Lb) == 1);
+    int na = wt_count_zeros(La, 0), nb = wt_count_zeros(Lb, 0);
+    assert(na > 0 && na == nb);                 // same number of zeros found
+    for (int i = 0; i < na; ++i)
+      assert(arb_overlaps(Lfunc_zeros(La,0)+i, Lfunc_zeros(Lb,0)+i));
+    // central Taylor coefficient (analytic central point is 1/2 in both splits)
+    assert(arb_overlaps(Lfunc_Taylor(La), Lfunc_Taylor(Lb)));
+    // |eps| = 1 for both
+    for (Lfunc_t Lx : {La, Lb}) {
+      arb_t m; arb_init(m); acb_abs(m, Lfunc_sign(Lx), 100);
+      arb_sub_ui(m, m, 1, 100); assert(arb_contains_zero(m)); arb_clear(m);
+    }
+    Lfunc_clear(La); Lfunc_clear(Lb);
+  }
+  printf("equiv-normalisation ok\n");
+
+  // ---- self_dual declared YES vs computed (DK), and side 0 vs side 1, at H=48 ----
+  // ec_37.a1 IS self-dual. Declaring self_dual=YES makes compute.c skip find_zeros
+  // for the dual (side 1); leaving it DK computes both sides. The certified side-0
+  // output (rank, zeros, Taylor) must be identical whether or not the dual is also
+  // computed -- the declaration only saves work, it must not change the answer. And
+  // because the object is self-dual, side 1 (built from res[(-nn)%fft_NN] in copy())
+  // must reproduce side 0 exactly. Both are strong cross-checks at a non-default
+  // window. Non-vacuous: side 1 is computed from a different index path than side 0,
+  // and the YES build takes a different control-flow branch.
+  {
+    static double mus[2] = {0,1};
+    Lerror_t edk, eyes;
+    Lfunc_t Ldk = build_37_full(48.0, (uint64_t)1<<18, 0.5, mus, DK, DK, cb,
+                                "build/wt_cache_sd_dk", &edk);
+    assert(!fatal_error(edk));
+    Lfunc_t Lyes = build_37_full(48.0, (uint64_t)1<<18, 0.5, mus, YES, DK, cb,
+                                 "build/wt_cache_sd_yes", &eyes);
+    assert(!fatal_error(eyes));
+
+    // YES vs DK agree on side 0.
+    assert(Lfunc_rank(Lyes) == Lfunc_rank(Ldk));
+    int ndk = wt_count_zeros(Ldk, 0), nyes = wt_count_zeros(Lyes, 0);
+    assert(ndk > 0 && ndk == nyes);
+    for (int i = 0; i < ndk; ++i)
+      assert(arb_overlaps(Lfunc_zeros(Lyes,0)+i, Lfunc_zeros(Ldk,0)+i));
+    assert(arb_overlaps(Lfunc_Taylor(Lyes), Lfunc_Taylor(Ldk)));
+
+    // self_dual=YES skipped the dual: side 1 is empty. DK computed it: side 1 is not.
+    assert(wt_count_zeros(Lyes, 1) == 0);
+    int ndk1 = wt_count_zeros(Ldk, 1);
+    assert(ndk1 == ndk);
+    // side 0 and side 1 of the self-dual object coincide zero-for-zero.
+    for (int i = 0; i < ndk; ++i)
+      assert(arb_overlaps(Lfunc_zeros(Ldk,0)+i, Lfunc_zeros(Ldk,1)+i));
+
+    Lfunc_clear(Ldk); Lfunc_clear(Lyes);
+  }
+  printf("self-dual-window ok\n");
+
+  // ---- supplied rank vs computed rank at H=48 => same zeros / Taylor ----
+  // Telling the library rank=1 up front (its true rank) must not change the certified
+  // output versus letting it determine the rank (DK). The supplied value only short-
+  // circuits do_rank; the zeros and the leading Taylor coefficient must be unchanged.
+  // Non-vacuous: rank feeds the central-derivative bookkeeping (compute.c divides
+  // L_d by i! up to rank), so a regression coupling rank into the wrong place would
+  // shift Lfunc_Taylor off the DK value and off BSD.
+  {
+    static double mus[2] = {0,1};
+    Lerror_t edk, er1;
+    Lfunc_t Ldk = build_37_full(48.0, (uint64_t)1<<18, 0.5, mus, DK, DK, cb,
+                                "build/wt_cache_rk_dk", &edk);
+    assert(!fatal_error(edk));
+    Lfunc_t Lr1 = build_37_full(48.0, (uint64_t)1<<18, 0.5, mus, DK, 1, cb,
+                                "build/wt_cache_rk_1", &er1);
+    assert(!fatal_error(er1));
+
+    assert(Lfunc_rank(Lr1) == 1 && Lfunc_rank(Ldk) == 1);
+    int ndk = wt_count_zeros(Ldk, 0), nr1 = wt_count_zeros(Lr1, 0);
+    assert(ndk > 0 && ndk == nr1);
+    for (int i = 0; i < ndk; ++i)
+      assert(arb_overlaps(Lfunc_zeros(Lr1,0)+i, Lfunc_zeros(Ldk,0)+i));
+    assert(arb_overlaps(Lfunc_Taylor(Lr1), Lfunc_Taylor(Ldk)));
+    arb_t bsd; arb_init(bsd);
+    arb_set_str(bsd, "0.305999773834052301820483683321676474452637774590771998534541832481", 300);
+    arb_add_error_2exp_si(bsd, -100);
+    assert(arb_overlaps(Lfunc_Taylor(Lr1), bsd));
+    arb_clear(bsd);
+    Lfunc_clear(Ldk); Lfunc_clear(Lr1);
+  }
+  printf("supplied-rank-window ok\n");
 
   Lfunc_clear(L);
   return 0;
