@@ -200,6 +200,17 @@ int main() {
     assert(fatal_error(ecm));
     if (Lm) Lfunc_clear(Lm);
   }
+  // (Lower-bound 2b) The beta-preflight branch, distinct from B <= 0.5+mu_max:
+  // tau at H=0.91 gives B=7.28 > 7.0, clearing the B > 0.5+mu_max double guard, but
+  // the ftwiddle beta interval is non-positive, so the side-effect-free beta preflight
+  // must still reject it (ERR_WINDOW_TOO_SMALL). Locks in spec test (e).
+  {
+    Lerror_t ecb;
+    Lfunc_t Lb = build_tau(0.91, "build/wt_cache_tau_b", &ecb);
+    assert(ecb & ERR_WINDOW_TOO_SMALL);
+    assert(fatal_error(ecb));
+    if (Lb) Lfunc_clear(Lb);
+  }
   printf("tau ok\n");
 
   Lfunc_clear(L);
