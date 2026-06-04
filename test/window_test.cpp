@@ -235,6 +235,33 @@ int main() {
   }
   printf("highcond ok\n");
 
+  // ---- df_zero static (pi*A)^d cache must not go stale across windows (bead 1yx) ----
+  // df_zero (src/rank.c) recomputed a_pi_d[i] = (pi*A)^i only when the working
+  // precision INCREASED -- keyed on prec, not on A. A = fft_NN/B varies per window,
+  // so computing an enlarged object (higher precision, larger A) before a default
+  // object of the SAME degree in one process left the default reading the enlarged
+  // object's (pi*A)^d: its Lfunc_Taylor came back scaled by A_enlarge/A_default
+  // (0.408 vs 0.306 here), a certified ball NOT containing the truth, raised with
+  // only a non-fatal warning. The other tests miss it because none computes a
+  // lower-precision window after a higher-precision one. (The companion turing.c
+  // stale-cache half of 1yx -- a spurious, non-fatal ERR_RH_ERROR on the second
+  // object -- is owned by branch fix/turing-static-cache and is tolerated here.)
+  {
+    Lerror_t ece, ecd;
+    Lfunc_t Le2 = build_37(48.0, (uint64_t)1<<18, "build/wt_cache_1yx_big", &ece); // enlarge FIRST
+    assert(!fatal_error(ece));
+    Lfunc_t Ld2 = build_37(0.0, 0, "build/wt_cache_1yx_def", &ecd);                 // default SECOND
+    assert(!fatal_error(ecd));
+    arb_t bsd; arb_init(bsd);
+    arb_set_str(bsd, "0.305999773834052301820483683321676474452637774590771998534541832481", 300);
+    arb_add_error_2exp_si(bsd, -100); // generous: the bug is a ~33% scale error, not ulps
+    assert(arb_overlaps(Lfunc_Taylor(Le2), bsd));  // enlarged object's leading Taylor is correct
+    assert(arb_overlaps(Lfunc_Taylor(Ld2), bsd));  // default-after-enlarge correct (fails on broken df_zero)
+    arb_clear(bsd);
+    Lfunc_clear(Le2); Lfunc_clear(Ld2);
+  }
+  printf("multiwindow-taylor ok\n");
+
   // ---- bead 31c.6: a cache written for one window must not poison another ----
   //
   // The on-disk G-cache filename is keyed only on mus, so two windows with the

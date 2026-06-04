@@ -93,12 +93,8 @@ extern "C"{
     }
     if(prec > init_prec) { // precision has increased
       init_prec=prec;
-      // a_pi_d[i] = (pi A)^i
-      arb_set_ui(a_pi_d[0],1);
-      arb_set(a_pi_d[1],L->u_pi_A);
-      for(uint64_t i=2;i<=MAX_L;i++)
-        arb_mul(a_pi_d[i],a_pi_d[i-1],L->u_pi_A,prec);
-      // d_bang_pi[i] = i!/Pi^i
+      // d_bang_pi[i] = i!/Pi^i depends only on prec (Pi is a universal constant), so
+      // it is safe to cache across objects, keyed on prec.
       arb_set_ui(d_bang_pi[0],1);
       arb_inv(d_bang_pi[1],L->pi,prec); // 1/Pi
       for(uint64_t i=2;i<=MAX_L;i++) {
@@ -107,6 +103,15 @@ extern "C"{
         arb_div(d_bang_pi[i],d_bang_pi[i],L->pi,prec);
       }
     }
+    // a_pi_d[i] = (pi A)^i depends on the output window through L->u_pi_A (A = fft_NN/B
+    // varies per object), so it must NOT be cached across objects. Recompute it every
+    // call: caching it keyed only on prec returned a stale (pi A)^d for a second,
+    // lower-precision object with a different window, silently corrupting the certified
+    // Lfunc_Taylor ball (the bug fired only when prec did not increase). Bead lfunctions-1yx.
+    arb_set_ui(a_pi_d[0],1);
+    arb_set(a_pi_d[1],L->u_pi_A);
+    for(uint64_t i=2;i<=MAX_L;i++)
+      arb_mul(a_pi_d[i],a_pi_d[i-1],L->u_pi_A,prec);
 
     if(d > MAX_L) {
       printf("Can't compute F^(d)(0) for d>%d.\n",MAX_L);
