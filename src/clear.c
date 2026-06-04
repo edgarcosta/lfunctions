@@ -56,7 +56,6 @@ extern "C"{
     arb_cclear(L->pre_ftwiddle_error);
     arb_cclear(L->ftwiddle_error);
     
-    #ifdef BUTHE
     arb_cclear(L->buthe_Wf);
     arb_cclear(L->buthe_Winf);
     arb_cclear(L->buthe_Ws);
@@ -65,7 +64,6 @@ extern "C"{
     arb_cclear(L->buthe_h);
     for(uint64_t i=0;i<(MAX_R-1)*(2*MAX_MUI_2+1);i++)
       arb_cclear(L->buthe_ints[i]);
-    #endif
 
     #ifdef TURING
     arb_cclear(L->imint);

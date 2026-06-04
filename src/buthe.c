@@ -4,7 +4,6 @@
 #ifdef __cplusplus
 extern "C"{
 #endif
-#ifdef BUTHE
 
 
   // We use Buthe's method to verify our list of zeros
@@ -435,6 +434,4 @@ extern "C"{
 
 #ifdef __cplusplus
 }
-#endif
-
 #endif

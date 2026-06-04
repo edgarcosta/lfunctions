@@ -20,12 +20,10 @@ void fprint_errors(FILE *f, Lerror_t ecode) {
     fprintf(f, "Looks like we have no usable data.\n");
   if (ecode & ERR_ZERO_ERROR)
     fprintf(f, "Fatal error looking for zeros.\n");
-#ifdef BUTHE
   if (ecode & ERR_BUT_ERROR)
     fprintf(
         f,
         "Error doing Buthe check. Estimate for Wf+Winf-Ws* must allow >=0.\n");
-#endif
   if (ecode & ERR_UPSAMPLE)
     fprintf(f, "Error computing bounds for upsampling.\n");
   if (ecode & ERR_MU_HALF)
@@ -360,9 +358,7 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
 
   arb_clear(tmp);
 
-#ifdef BUTHE
   init_buthe(L, L->wprec); // setup stuff for Buthe zero check
-#endif
 #ifdef TURING
   arb_init(L->imint);
   arb_init(L->X);

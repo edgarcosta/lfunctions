@@ -15,13 +15,11 @@
 #define verbose (false) // compile-time toggle for all diagnostic printf
 #define BAD_64 (1LL<<62) // sentinel: an arb value did not pin to a unique integer
 
-#ifdef BUTHE
 // how many integrals have I precomputed for Buthe's method?
 #define MAX_MUI (100)
 #define MAX_MUI_2 (200) // = 2*MAX_MUI; a Buthe table row holds 2*MAX_MUI_2+1 entries
 #define MAX_MU ((double) MAX_MUI) // largest mu Buthe can handle (MAX_MUI as a double)
 #define MAX_MU_2 ((double) MAX_MUI_2) // MAX_MUI_2 as a double
-#endif
 
 #define MAX_L (10) // maximum differential allowed in upsampling
 
@@ -86,7 +84,6 @@ extern "C"{
     arb_t pre_ftwiddle_error; // conductor-free bound on the truncated Dirichlet-series tail
     arb_t ftwiddle_error; // truncation bound = pre_ftwiddle_error*sqrt(N); added per sample
 
-#ifdef BUTHE
     arb_t buthe_Wf; // prime/Euler-sum term of Buthe's inequality
     arb_t buthe_Winf; // archimedean (gamma) term of Buthe's inequality (uses buthe_ints)
     arb_t buthe_Ws; // sum-over-computed-zeros term of Buthe's inequality
@@ -95,7 +92,6 @@ extern "C"{
     arb_t buthe_h; // Buthe test-function step h = BUTHE_H
     arb_t buthe_ints[(MAX_R-1)*(2*MAX_MUI_2+1)]; // precomputed gamma-integral table [deg-2][2*mu]
     uint64_t buthe_M; // prime-power cutoff for the Wf sum = floor(sqrt(#coeffs))
-#endif
 
 #ifdef TURING
     arb_t X; // Turing zero-counting verification height (see eq 4.10)
@@ -164,13 +160,11 @@ extern "C"{
   // bound on [T,infty).  res is a verified ball containing the true value.
   void buthe_winf_integral(arb_t res, const arb_t b, const arb_t h, double mu, slong prec);
 
-#ifdef BUTHE
   // from buthe.c
   void init_buthe(Lfunc *L, int64_t prec);
   void wf(Lfunc *L, uint64_t p, acb_poly_t fp1, acb_poly_t fp, int64_t prec);
   void buthe_Wf_error(Lfunc *L);
   Lerror_t buthe_check_RH(Lfunc *L);
-#endif
 
 #ifdef TURING
   // from turing.c

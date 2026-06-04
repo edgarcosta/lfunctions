@@ -9,7 +9,6 @@
 #define YES (1) // tri-state "yes" (for self_dual / rank)
 #define NO (0) // tri-state "no" (for self_dual / rank)
 
-//#define BUTHE // if defined, verify RH via Buthe's method (off by default)
 #define TURING // if defined, verify RH via Booker/Turing's method (default)
 
 #define MAX_DEGREE (9) // if increasing, need more integrals in buthe.c
@@ -24,9 +23,7 @@
 // fatalities
 #define ERR_NO_DATA (1) // the first two Lambda(t) values contained zero. Totally fatal
 #define ERR_ZERO_ERROR (2) // some unexpected error isolating zeros
-#ifdef BUTHE
 #define ERR_BUT_ERROR (4) // Wf+Winf-Ws* must be negative (we cant find too many zeros)
-#endif
 #define ERR_OOM (8) // out of memory error
 #define ERR_UPSAMPLE (16) // something bad happened trying to upsample
 #define ERR_MU_HALF (32) // mus should be 1/2 integers

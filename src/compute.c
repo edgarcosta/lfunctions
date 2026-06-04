@@ -308,10 +308,8 @@ Lerror_t Lfunc_compute(Lfunc_t Lf)
 
   int64_t prec=L->wprec;
 
-  #ifdef BUTHE
   buthe_Wf_error(L); // add the error for the missing tail
   if(verbose){printf("Buthe Wf = ");arb_printd(L->buthe_Wf,20);printf("\n");fflush(stdout);}
-  #endif
 
   // when we get here, the normalised L->M dirichlet coefficients are in L->ans[0]..[M-1]
   // use the first M0 of them
@@ -400,9 +398,7 @@ Lerror_t Lfunc_compute(Lfunc_t Lf)
     if(fatal_error(ecode))
       return ecode;
   }
-#ifdef BUTHE
-  ecode|=buthe_check_RH(L);
-#endif
+  // Plan 3: runtime method dispatch goes here; Turing active for now
 
 #ifdef TURING
   ecode|=turing_check_RH(L,prec);

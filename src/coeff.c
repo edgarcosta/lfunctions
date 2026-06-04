@@ -74,28 +74,20 @@ uint64_t Lfunc_nmax(Lfunc_t Lf)
 
   for(size_t i = 0; i < L->M; ++i)
     acb_set_ui(L->ans[i],1);
-#ifdef BUTHE
   arb_zero(L->buthe_Wf);
   L->buthe_M=sqrt((double) L->M);
-#endif
   L->nmax_called=true;
 
   arb_clear(tmp);arb_clear(tmp1);
   return L->M;
 }
 
-#ifdef BUTHE
 void use_inv_lpoly(Lfunc *L, uint64_t p, acb_poly_t c, acb_poly_t f, uint64_t prec)
-  #else
-void use_inv_lpoly(Lfunc *L, uint64_t p, acb_poly_t c, uint64_t prec)
-#endif  
 {
   acb_t tmp;
   acb_init(tmp);
   //if(p==2) {printf("p=%" PRIu64 " 1/poly=",p);acb_poly_printd(c,20);printf("\npoly=");acb_poly_printd(f,20);printf("\n");}
-  #ifdef BUTHE
   wf(L, p, c, f, prec); // do the Buthe bit, see buthe.c
-  #endif
   // use inverted poly to populate Dirichlet coefficients
   uint64_t pnn=p*p, pn=p,pow=1;
   while(pn <= L->M) {
@@ -151,11 +143,7 @@ void use_lpoly(Lfunc *L, uint64_t p, const acb_poly_t f)
   //if(p<=11){printf("Inverted poly\n");
   //acb_poly_printd(inv_poly,20);printf("\n------------------\n");
   //}
-  #ifdef BUTHE
   use_inv_lpoly(L,p,inv_poly,n_poly,prec);
-#else
-  use_inv_lpoly(L,p,inv_poly,prec);
-#endif
   arb_clear(logp);
   acb_clear(tmp);
   arb_clear(tmp1);
@@ -197,10 +185,8 @@ Lerror_t Lfunc_use_all_lpolys(Lfunc_t Lf, void (*lpoly_callback) (acb_poly_t lpo
     lpoly_callback(lp,p,L->degree,L->wprec,param);
     if(acb_poly_is_zero(lp)) // ran out of Euler polys
     {
-      #ifdef BUTHE
       if(p<L->buthe_M)
         L->buthe_M=p-1; // this is likely to mean we compute garbage
-      #endif
       L->M=p-1; // we might get away with this
       ecode|=ERR_INSUFF_EULER;
       break;
@@ -224,10 +210,8 @@ bool Lfunc_reduce_nmax(Lfunc_t LL, uint64_t nmax)
   if(nmax>=M) // I won't let you increase it
     return false;
   L->M=nmax;
-  #ifdef BUTHE
   if(L->buthe_M>nmax) // we could be in serious trouble here
     L->buthe_M=nmax;
-  #endif
   return true;
 }
 
