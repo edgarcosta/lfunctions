@@ -119,9 +119,23 @@ int main(int argc, char **argv) {
     if (form_sympow && toks.size() == 1) {
       // base a_p only: form the Sym^k good-prime factor here, exact fmpz -> acb
       fmpz_set_str(z, toks[0].c_str(), 10);
-      if (!fmpz_fits_si(z)) {  // a_p is Hasse-bounded; a huge value means corrupt input
-        fprintf(stderr, "sympow base a_p out of slong range at p=%lu\n", (unsigned long) p);
-        return 2;
+      // A base a_p must satisfy the Hasse bound a_p^2 <= 4p (checked in fmpz to
+      // avoid overflow). A value outside it is not a trace (e.g. a mis-padded bad
+      // factor whose leading coefficient landed on a one-token line), so fail
+      // loudly instead of silently forming a wrong Sym^k factor. This also subsumes
+      // the slong-range check: any Hasse-valid a_p fits a slong.
+      {
+        fmpz_t aa, fourp; fmpz_init(aa); fmpz_init(fourp);
+        fmpz_mul(aa, z, z);                                  // a_p^2
+        fmpz_set_ui(fourp, p); fmpz_mul_ui(fourp, fourp, 4); // 4p
+        const bool hasse_ok = (fmpz_cmp(aa, fourp) <= 0);
+        fmpz_clear(aa); fmpz_clear(fourp);
+        if (!hasse_ok) {
+          fprintf(stderr, "sympow base a_p=%s violates the Hasse bound at p=%lu (corrupt input)\n",
+                  toks[0].c_str(), (unsigned long) p);
+          acb_poly_clear(poly); fmpz_clear(z); acb_clear(c); Lfunc_clear(L);
+          return 2;
+        }
       }
       fmpz_poly_t f; fmpz_poly_init(f);
       sym_power_lpoly(f, fmpz_get_si(z), p, sym_k);
