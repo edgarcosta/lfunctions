@@ -72,7 +72,7 @@ int main(int argc, char **argv) {
   // Lp.mus, so the local vector suffices, and cache_dir outlives the Lfunc.
   Lerror_t ec = 0;
   char cache_dir[] = ".";
-  Lparams_t Lp;
+  Lparams_t Lp = {}; // zero-init so the window fields (max_t/max_fft_NN) default to 0
   Lp.degree = degree;
   Lp.conductor = conductor;
   Lp.normalisation = norm;
