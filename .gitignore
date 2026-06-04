@@ -1,10 +1,15 @@
-# Makefile
-Makefile
+# Generated root Makefile (./configure writes it from Makefile.in); anchored to
+# the repo root so it does not also ignore the hand-written doc/Makefile.
+/Makefile
 
 
 # Hidden files
 .?*
 !.github
+!.readthedocs.yaml
+
+# Sphinx documentation build output (doc/.venv is already covered by .?* above)
+doc/_build/
 
 # g files
 g_[0-9]*

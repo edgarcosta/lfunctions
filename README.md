@@ -6,6 +6,36 @@ For details of the methods we refer to:
  - *Computing motivic L-functions*, (under preparation) by Jonathan W. Bober, Andrew R. Booker, Edgar Costa, Min Lee, David J. Platt, and Andrew V. Sutherland.
 
 
+## Documentation
+
+The API reference and guides are built with [Sphinx](https://www.sphinx-doc.org/)
+from the sources under `doc/`. The per-function reference is generated from the
+comments in `include/glfunc.h` (via Doxygen and Breathe), so the header stays the
+single source of truth. The docs build is self-contained under `doc/` and is
+independent of the library build.
+
+Build the HTML locally, from the repository root:
+
+```sh
+make -C doc html
+```
+
+This writes the site to `doc/_build/html/index.html`. It needs `sphinx-build`
+(with the `myst-parser` and `breathe` packages) and the `doxygen` binary. A
+convenient setup is a virtual environment under `doc/`:
+
+```sh
+python3 -m venv doc/.venv
+doc/.venv/bin/pip install -r doc/requirements.txt
+sudo apt-get install doxygen        # or: brew install doxygen
+make -C doc html
+```
+
+`make -C doc html` (equivalently `cd doc && make html`) runs Doxygen over
+`include/glfunc.h` and then Sphinx. `doc/Makefile` is a standard Sphinx
+makefile, so its other targets work too (`make -C doc clean`, `make -C doc help`).
+
+
 ## Dependencies
 
 The primary dependencies are:

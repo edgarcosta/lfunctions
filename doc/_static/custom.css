@@ -1,0 +1,7 @@
+/* Custom styles for the liblfun documentation (furo theme).
+ *
+ * Intentionally minimal: this file exists so doc/_static/ is tracked (the
+ * repository .gitignore drops hidden files such as .gitkeep) and so there is an
+ * obvious place to add documentation-specific CSS later. Add rules below; the
+ * file is wired in via html_css_files in conf.py.
+ */
