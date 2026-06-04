@@ -168,6 +168,7 @@ extern "C"{
   
   // from compute.c
   void lfunc_compute(Lfunc *L);
+  Lerror_t rh_methods_disagree(bool turing_too_many, bool buthe_overcount);
 
   //from upsample.c
   double upsample_error(long double M, long double H, long double h, long double A, double *mus, uint64_t r, uint64_t N, long double T, long double imz, uint64_t l);

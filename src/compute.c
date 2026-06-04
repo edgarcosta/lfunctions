@@ -276,6 +276,17 @@ void final_ifft(Lfunc *L)
   }
 } /* final_ifft */
 
+// BOTH-mode contradiction rule (exposed for testing). DISAGREE iff exactly one
+// verifier reports a HARD over-count (Turing: hi < zeros_found; Buthe: S<0). One
+// side over-counting while the other confirms or reports too-few is a genuine
+// directional contradiction. Both over-counting is agreement (Buthe's fatal
+// ERR_BUT_ERROR already surfaces); both failing-to-certify is no contradiction.
+// (Post the #26 bracket fix a deg>=3 Turing miscount is too-few, so the common
+// Buthe-rescues-Turing case keeps turing_too_many false and is quiet.)
+Lerror_t rh_methods_disagree(bool turing_too_many, bool buthe_overcount) {
+  return (turing_too_many != buthe_overcount) ? ERR_RH_METHODS_DISAGREE : ERR_SUCCESS;
+}
+
 // this is called by the user to compute all the bits of the Lfunc we expect them to want
 // including Lambda(t) for t =0,1/A,2/A,....
 // the zeros up to height 64/degree
@@ -403,9 +414,10 @@ Lerror_t Lfunc_compute(Lfunc_t Lf)
   // Runtime RH-verifier dispatch. Default is Buthe (LFUNC_RH_BUTHE, set in
   // Lfunc_init_advanced); callers opt into Turing or BOTH via
   // Lfunc_set_rh_method. BOTH runs both verifiers: Buthe's verdict is
-  // returned, but ERR_RH_METHODS_DISAGREE is also raised if one verifier
-  // confirms completeness while the other reports a hard over-count (a
-  // genuine inconsistency, not merely a failure to certify).
+  // returned, but ERR_RH_METHODS_DISAGREE is also raised iff exactly one
+  // verifier hard-over-counts (Turing too-many XOR Buthe S<0): a genuine
+  // directional inconsistency, not merely a failure to certify (see
+  // rh_methods_disagree).
   switch (L->rh_method) {
   case LFUNC_RH_TURING:
     ecode |= turing_check_RH(L, prec);
@@ -415,15 +427,9 @@ Lerror_t Lfunc_compute(Lfunc_t Lf)
     Lerror_t turing_e = turing_check_RH_classify(L, prec, &turing_too_many);
     Lerror_t buthe_e = buthe_check_RH(L);
     ecode |= buthe_e; // BOTH returns Buthe's verdict
-    // Genuine contradiction = one verifier CONFIRMS completeness while the
-    // other reports a HARD over-count. A mere failure to certify (Turing
-    // "too few", or Buthe S>=threshold => ERR_RH_ERROR) is NOT a contradiction.
-    bool buthe_confirms = !(buthe_e & (ERR_RH_ERROR | ERR_BUT_ERROR));
-    bool turing_confirms = !(turing_e & ERR_RH_ERROR);
-    bool buthe_overcount = (buthe_e & ERR_BUT_ERROR) != 0; // Wf+Winf-Ws* < 0
-    if ((buthe_confirms && turing_too_many) ||
-        (turing_confirms && buthe_overcount))
-      ecode |= ERR_RH_METHODS_DISAGREE;
+    (void)turing_e; // verdict is Buthe's; Turing's role is the contradiction guard
+    bool buthe_overcount = (buthe_e & ERR_BUT_ERROR) != 0; // Buthe S = Wf+Winf-Ws* < 0
+    ecode |= rh_methods_disagree(turing_too_many, buthe_overcount);
     break;
   }
   case LFUNC_RH_BUTHE:
