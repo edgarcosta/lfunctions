@@ -42,12 +42,17 @@ Optional object-level fields:
 
 ## B. driver input file — emitted by `gen.py`, read by `test/highdeg_check.cpp`
 ```
-<degree> <conductor> <normalisation> <self_dual:0|1>
+<degree> <conductor> <normalisation> <self_dual:0|1> [sympow]
 <mu_0> <mu_1> ... <mu_{degree-1}>
 EXPECT <rank> <eps_re> <eps_im> <z1> <z1_err> <taylor> <taylor_err> <tolerate_rh:0|1>
 <p> <c0> <c1> ... <c_degree>      # local L-poly coeffs ASCENDING, decimal strings (bignum!)
 ...                                # one line per prime p <= Lfunc_nmax (good + bad), any order
 ```
+The optional `sympow` marker on line 1 means the GOOD-prime lines carry only the base curve's
+`a_p` (a single value: `<p> <a_p>`) and the driver forms the degree-(k+1) Sym^k factor itself via
+`sym_power_lpoly` (k = degree-1). Bad primes stay explicit (padded to degree+1 coeffs), so under
+`sympow` a line with exactly one coefficient is a base `a_p` and any longer line is an explicit
+factor. Without the marker every line is an explicit factor (ec / genus2 / cmf).
 
 ## C. driver assertions (`highdeg_check.cpp`) — exit nonzero on ANY failure
 1. `Lfunc_rank(L) == rank`
@@ -60,8 +65,11 @@ Set `((Lfunc*)L)->self_dual = YES` when self_dual==1 (glfunc_internals.h). Coeff
 
 ## D. good-factor backends (in `gen.py`)
 - ec / sympow: run `lpdata <prefix> "<curve>" <nmax> 1` (flag 1=good-only; no jobs arg — a jobs arg shards the output filename), parse `p,t` lines
-  (t = linear coeff of EC L-poly = -a_p). For sympow apply Sym^k (Lucas V_m: V0=2,V1=a,Vm=a*V-p*V;
-  factor = prod_{j=0..floor((k-1)/2)} (1 - p^j*V_{k-2j}*T + p^k*T^2), times (1 - p^{k/2}*T) if k even).
+  (t = linear coeff of EC L-poly = -a_p). ec packages a_p into its degree-2 factor `[1,-a_p,p]`;
+  sympow emits the base a_p unchanged and `highdeg_check.cpp` forms the Sym^k factor in C via
+  `sym_power_lpoly` (the single Sym^k implementation, shared with examples/ec_sym.cpp; Lucas V_m:
+  V0=2,V1=a,Vm=a*V-p*V; factor = prod_{j=0..floor((k-1)/2)} (1 - p^j*V_{k-2j}*T + p^k*T^2), times
+  (1 - p^{k/2}*T) if k even).
 - genus2: `--backend pari` (LOCAL/validated): Pari `hyperellcharpoly([f_modp,h_modp])`, take `Vecrev`,
   reverse to get ascending L-poly. `--backend smalljac`: genus-2 lpdata build.
 - cmf (classical modular form): Pari `mfcoefs` over the relative Hecke field K/Q(chi); the local

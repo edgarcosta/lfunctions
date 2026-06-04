@@ -5,8 +5,7 @@
 #include <flint/fmpz_vec.h>
 #include "sym_power.h"
 
-// See include/sym_power.h for the math.  Mirrors lucas_sympoly in
-// test/highdeg/gen.py with exact fmpz arithmetic.
+// See include/sym_power.h for the math (exact fmpz arithmetic).
 void sym_power_lpoly(fmpz_poly_t out, slong a_p, ulong p, int k)
 {
   assert(k >= 1);

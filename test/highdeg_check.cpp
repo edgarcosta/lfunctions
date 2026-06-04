@@ -20,8 +20,10 @@
 #include <string>
 #include <vector>
 #include <flint/fmpz.h>
+#include <flint/fmpz_poly.h>
 #include <flint/acb_poly.h>
 #include "glfunc.h"
+#include "sym_power.h"
 
 static int g_fail = 0;
 static void check(bool ok, const char *name, const std::string &detail) {
@@ -46,6 +48,13 @@ int main(int argc, char **argv) {
   std::stringstream s1(line);
   uint64_t degree = 0, conductor = 0; double norm = 0; int self_dual = 1;
   s1 >> degree >> conductor >> norm >> self_dual;
+  // Optional 5th token "sympow": the good-prime lines then carry only the base
+  // curve's a_p, and this driver forms the degree-(k+1) Sym^k factor itself via
+  // sym_power_lpoly (k = degree - 1). When the token is absent the extraction
+  // leaves xform empty, so form_sympow is false and every factor is explicit.
+  std::string xform; s1 >> xform;
+  const bool form_sympow = (xform == "sympow");
+  const int sym_k = (int) degree - 1;
   if (degree == 0 || degree > MAX_DEGREE || conductor == 0) {
     fprintf(stderr, "malformed input (degree=%lu conductor=%lu) — generator likely failed\n",
             degree, conductor);
@@ -104,9 +113,34 @@ int main(int argc, char **argv) {
     std::stringstream ss(line);
     uint64_t p; ss >> p;
     if (p > nmax) continue;
+    std::vector<std::string> toks; std::string tok;
+    while (ss >> tok) toks.push_back(tok);
     acb_poly_zero(poly);
-    std::string tok; uint64_t i = 0;
-    while (ss >> tok) { fmpz_set_str(z, tok.c_str(), 10); acb_set_fmpz(c, z); acb_poly_set_coeff_acb(poly, i++, c); }
+    if (form_sympow && toks.size() == 1) {
+      // base a_p only: form the Sym^k good-prime factor here, exact fmpz -> acb
+      fmpz_set_str(z, toks[0].c_str(), 10);
+      if (!fmpz_fits_si(z)) {  // a_p is Hasse-bounded; a huge value means corrupt input
+        fprintf(stderr, "sympow base a_p out of slong range at p=%lu\n", (unsigned long) p);
+        return 2;
+      }
+      fmpz_poly_t f; fmpz_poly_init(f);
+      sym_power_lpoly(f, fmpz_get_si(z), p, sym_k);
+      const slong d = fmpz_poly_degree(f);
+      for (slong j = 0; j <= d; j++) {
+        fmpz_poly_get_coeff_fmpz(z, f, j);
+        acb_set_fmpz(c, z);
+        acb_poly_set_coeff_acb(poly, j, c);
+      }
+      fmpz_poly_clear(f);
+    } else {
+      // explicit local-factor coefficients (ascending): good ec/genus2/cmf primes
+      // and all bad primes, including sympow's
+      for (uint64_t i = 0; i < toks.size(); i++) {
+        fmpz_set_str(z, toks[i].c_str(), 10);
+        acb_set_fmpz(c, z);
+        acb_poly_set_coeff_acb(poly, i, c);
+      }
+    }
     Lfunc_use_lpoly(L, p, poly);
     count++;
   }

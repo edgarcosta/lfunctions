@@ -5,11 +5,9 @@
  *
  * Asserts that the helper's Sym^k good-prime Euler factor equals golden
  * coefficient vectors for k = 1..8 at the good primes {2, 13, 97} of the curve
- * 11.a1 = [0,-1,1,-10,-20].  Each golden is DOUBLY sourced: it equals BOTH
- *   - test/highdeg/gen.py:lucas_sympoly (the high-degree fixture generator), and
- *   - Pari lfunsympow(E,k) -> Vecrev(1/lfuneuler(L,p)) (ascending coeffs of the
- *     local L-factor),
- * checked equal by docs/superpowers/gen_goldens.py before being pasted here.
+ * 11.a1 = [0,-1,1,-10,-20].  Each golden equals Pari lfunsympow(E,k) ->
+ * Vecrev(1/lfuneuler(L,p)), the ascending coeffs of the local L-factor (an
+ * independent check of the helper), confirmed when generated.
  *
  * Coefficients overflow int64 (e.g. k=8, p=97 has a 72-digit leading
  * coefficient = 97^36), so they are stored as decimal strings and compared as

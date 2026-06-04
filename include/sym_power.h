@@ -28,9 +28,10 @@ extern "C" {
    * factors are not a function of a_p (e.g. Sym^4 of 27.a at p=3 is 1 - p^2*T,
    * not derivable from a_3 = 0) and are the caller's responsibility.
    *
-   * Mirrors lucas_sympoly in test/highdeg/gen.py (the high-degree fixture
-   * generator); verified equal to it and to Pari lfunsympow/lfuneuler for
-   * k = 1..8 (see test/sympow_lpoly_test.c). */
+   * This is the single Sym^k factor implementation: it is consumed by
+   * examples/ec_sym.cpp and by the high-degree regression driver
+   * (test/highdeg_check.cpp), and is verified against Pari lfunsympow/lfuneuler
+   * for k = 1..8 (see test/sympow_lpoly_test.c). */
   void sym_power_lpoly(fmpz_poly_t out, slong a_p, ulong p, int k);
 
 #ifdef __cplusplus
