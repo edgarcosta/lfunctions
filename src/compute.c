@@ -400,12 +400,25 @@ Lerror_t Lfunc_compute(Lfunc_t Lf)
     if(fatal_error(ecode))
       return ecode;
   }
-  // Plan 3: runtime method dispatch goes here; Turing active for now
+  // Runtime RH-verifier dispatch (Plan 3). Default is Buthe (LFUNC_RH_BUTHE,
+  // set in Lfunc_init_advanced); callers opt into Turing or BOTH via
+  // Lfunc_set_rh_method. BOTH runs both and returns Buthe's verdict; the
+  // genuine-contradiction flag ERR_RH_METHODS_DISAGREE is wired up in a later
+  // task, so for now BOTH simply keeps Buthe's result.
+  switch (L->rh_method) {
+  case LFUNC_RH_TURING:
+    ecode |= turing_check_RH(L, prec);
+    break;
+  case LFUNC_RH_BOTH:
+    (void)turing_check_RH(L, prec); // cross-check; verdict discarded for now
+    ecode |= buthe_check_RH(L);
+    break;
+  case LFUNC_RH_BUTHE:
+  default:
+    ecode |= buthe_check_RH(L);
+    break;
+  }
 
-#ifdef TURING
-  ecode|=turing_check_RH(L,prec);
-#endif
-  
 #endif
 
   return ecode;
