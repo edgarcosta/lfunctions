@@ -74,7 +74,8 @@ uint64_t Lfunc_nmax(Lfunc_t Lf)
 
   for(size_t i = 0; i < L->M; ++i)
     acb_set_ui(L->ans[i],1);
-  arb_zero(L->buthe_Wf);
+  for(int i=0;i<BUTHE_NH;i++)
+    arb_zero(L->buthe_Wf[i]);
   L->buthe_M=sqrt((double) L->M);
   L->nmax_called=true;
 

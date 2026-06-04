@@ -71,20 +71,20 @@ int main(void) {
     // self_dual = NO: probe to populate Ws/Winf, then bump Wf so S becomes 0.7.
     LL->self_dual = NO;
     (void)buthe_check_RH(LL); // recomputes buthe_Ws/buthe_Winf for the NO path
-    arb_add(S, LL->buthe_Wf, LL->buthe_Winf, LL->wprec);
+    arb_add(S, LL->buthe_Wf[0], LL->buthe_Winf, LL->wprec);
     arb_sub(S, S, LL->buthe_Ws, LL->wprec);          // S the NO path used
     arb_sub(S, target, S, LL->wprec);                // delta to reach 0.7
-    arb_add(LL->buthe_Wf, LL->buthe_Wf, S, LL->wprec); // Wf += delta => S -> 0.7
+    arb_add(LL->buthe_Wf[0], LL->buthe_Wf[0], S, LL->wprec); // Wf += delta => S -> 0.7
     assert((buthe_check_RH(LL) & ERR_RH_ERROR) != 0);  // 0.49 bar rejects
 
     // self_dual = YES: re-probe (the YES path recomputes a different Ws), resize
     // the bump so S is 0.7 again, then confirm the 0.98 bar accepts.
     LL->self_dual = YES;
     (void)buthe_check_RH(LL); // recomputes buthe_Ws/buthe_Winf for the YES path
-    arb_add(S, LL->buthe_Wf, LL->buthe_Winf, LL->wprec);
+    arb_add(S, LL->buthe_Wf[0], LL->buthe_Winf, LL->wprec);
     arb_sub(S, S, LL->buthe_Ws, LL->wprec);          // S the YES path used
     arb_sub(S, target, S, LL->wprec);                // delta to reach 0.7
-    arb_add(LL->buthe_Wf, LL->buthe_Wf, S, LL->wprec);
+    arb_add(LL->buthe_Wf[0], LL->buthe_Wf[0], S, LL->wprec);
     assert((buthe_check_RH(LL) & ERR_RH_ERROR) == 0);  // 0.98 bar accepts
 
     arb_clear(target); arb_clear(S);

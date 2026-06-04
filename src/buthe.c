@@ -18,9 +18,17 @@ extern "C"{
   // so we keep only this scalar here.
 #define BUTHE_H (8)
 
+  // Descending grid of Buthe smoothing parameters h. Lower h lowers the
+  // completeness statistic S for high-degree/high-conductor L (sweep: deg 6-9),
+  // at the cost of a larger W_f tail error (so it self-limits for small-M, low-
+  // degree objects). grid[0]=8 is the historical default (deg 2-5 certify there);
+  // h<2*pi*b/5 holds for all grid h at every degree 2-9 (checked in init_buthe).
+  static const double buthe_h_grid[BUTHE_NH] = {8.0, 6.0, 5.0, 4.0, 3.0};
+
   // setup Buthe zero check stuff
   Lerror_t init_buthe(Lfunc *L, int64_t prec) {
-    arb_init(L->buthe_Wf);
+    for(int i=0;i<BUTHE_NH;i++)
+      arb_init(L->buthe_Wf[i]);
     arb_init(L->buthe_Winf);
     arb_init(L->buthe_Ws);
     arb_init(L->buthe_b); // will confirm RH in [0,b]
@@ -74,30 +82,40 @@ extern "C"{
     if(arb_is_zero(bm)) // nothing to do
       return;
 
-    arb_t s,tmp,tmp1,tmp2,logp,logpm;
+    arb_t s,tmp,tmp1,tmp2,logp,logpm,num,hcur;
     arb_init(s);
     arb_init(tmp);
     arb_init(tmp1);
     arb_init(tmp2);
     arb_init(logp);
     arb_init(logpm);
+    arb_init(num);
+    arb_init(hcur);
 
 
     arb_log_ui(logpm,pm,prec);
 
-    arb_mul(tmp1,logpm,L->buthe_h,prec);
-    arb_mul_2exp_si(tmp1,tmp1,-1);
-    arb_cosh(tmp2,tmp1,prec); // cosh(hm/2 log p)
-    arb_mul(tmp1,tmp2,L->pi,prec);
-    arb_mul_ui(tmp2,tmp1,m,prec); // pi m cosh(.)
+    // h-independent numerator num = 2 bm sin(b m log p) / (sqrt(p^m) pi m).
+    // Each grid h then contributes num / cosh(h m log p / 2) to buthe_Wf[i];
+    // grid[0]=8 reproduces the historical single-h term.
     arb_sqrt_ui(tmp,pm,prec);
-    arb_mul(tmp1,tmp,tmp2,prec); // sqrt(p^m) pi m cosh(.)
+    arb_mul(tmp1,tmp,L->pi,prec);
+    arb_mul_ui(tmp1,tmp1,m,prec); // sqrt(p^m) pi m
     arb_mul(tmp,L->buthe_b,logpm,prec);
     arb_sin(s,tmp,prec);
     arb_mul(tmp,s,bm,prec); // b(p^m) sin(.)
-    arb_div(tmp2,tmp,tmp1,prec);
-    arb_mul_2exp_si(tmp2,tmp2,1);
-    arb_add(L->buthe_Wf,L->buthe_Wf,tmp2,prec);
+    arb_div(num,tmp,tmp1,prec);
+    arb_mul_2exp_si(num,num,1); // 2 bm sin(.) / (sqrt(p^m) pi m)
+
+    for(int i=0;i<BUTHE_NH;i++)
+    {
+      arb_set_d(hcur,buthe_h_grid[i]); // grid h are exact integers, so set_d is exact
+      arb_mul(tmp1,logpm,hcur,prec);
+      arb_mul_2exp_si(tmp1,tmp1,-1);
+      arb_cosh(tmp2,tmp1,prec); // cosh(h m/2 log p)
+      arb_div(tmp1,num,tmp2,prec);
+      arb_add(L->buthe_Wf[i],L->buthe_Wf[i],tmp1,prec);
+    }
 
     arb_clear(s);
     arb_clear(tmp);
@@ -105,6 +123,8 @@ extern "C"{
     arb_clear(tmp2);
     arb_clear(logp);
     arb_clear(logpm);
+    arb_clear(num);
+    arb_clear(hcur);
 
     return;
   }
@@ -149,38 +169,46 @@ extern "C"{
   {
     int64_t prec=L->wprec;
     uint64_t r=L->degree;
-    arb_t tmp,tmp1,tmp2;
+    arb_t logM,tmp,tmp1,tmp2,hcur;
+    arb_init(logM);
     arb_init(tmp);
     arb_init(tmp1);
     arb_init(tmp2);
+    arb_init(hcur);
     if(verbose)
-      {
-	printf("In buthe_Wf_error with M=%lu\n",L->buthe_M);
-	printf("   and h = ");arb_printd(L->buthe_h,20);printf("\n");
-      }
-    
-    arb_log_ui(tmp,L->buthe_M,prec);
-    arb_sub_ui(tmp1,L->buthe_h,2,prec); // h-2 = 6
-    if(verbose) {printf("h-2 = ");arb_printd(tmp1,10);printf("\n");}
-    arb_mul_2exp_si(tmp1,tmp1,-1); // (h-2)/2 = 3
-    arb_mul(tmp2,tmp,tmp1,prec); // (h-2)/2 log M
-    arb_neg(tmp2,tmp2); // (2-h)/2 log M
-    arb_exp(tmp,tmp2,prec); // M^((2-h)/2)
-    if(verbose)
-      {
-	printf("M^((2-h)/2)=");
-	arb_printd(tmp,20);
-	printf("\n");
-      }
-    arb_div(tmp2,tmp,tmp1,prec); // 2M^()/(h-2)
-    arb_mul_2exp_si(tmp2,tmp2,2); // 8 M^()/(h-2)
-    arb_mul_ui(tmp,tmp2,r,prec); // 8 r M^()/(h-2)
-    arb_div(tmp1,tmp,L->pi,prec); // /pi
-    if(verbose){printf("error in Buthe Wf <= ");arb_printd(tmp1,20);printf("\n");}
-    arb_add_error(L->buthe_Wf,tmp1);
+      printf("In buthe_Wf_error with M=%lu\n",L->buthe_M);
+
+    arb_log_ui(logM,L->buthe_M,prec); // h-independent: computed once
+
+    // tail bound 8 r M^((2-h)/2) / ((h-2) pi) per grid h, added to buthe_Wf[i].
+    for(int i=0;i<BUTHE_NH;i++)
+    {
+      arb_set_d(hcur,buthe_h_grid[i]); // grid h exact integers, so set_d is exact
+      if(verbose) {printf("   and h = ");arb_printd(hcur,20);printf("\n");}
+      arb_sub_ui(tmp1,hcur,2,prec); // h-2 = 6
+      if(verbose) {printf("h-2 = ");arb_printd(tmp1,10);printf("\n");}
+      arb_mul_2exp_si(tmp1,tmp1,-1); // (h-2)/2 = 3
+      arb_mul(tmp2,logM,tmp1,prec); // (h-2)/2 log M
+      arb_neg(tmp2,tmp2); // (2-h)/2 log M
+      arb_exp(tmp,tmp2,prec); // M^((2-h)/2)
+      if(verbose)
+        {
+          printf("M^((2-h)/2)=");
+          arb_printd(tmp,20);
+          printf("\n");
+        }
+      arb_div(tmp2,tmp,tmp1,prec); // 2M^()/(h-2)
+      arb_mul_2exp_si(tmp2,tmp2,2); // 8 M^()/(h-2)
+      arb_mul_ui(tmp,tmp2,r,prec); // 8 r M^()/(h-2)
+      arb_div(tmp1,tmp,L->pi,prec); // /pi
+      if(verbose){printf("error in Buthe Wf <= ");arb_printd(tmp1,20);printf("\n");}
+      arb_add_error(L->buthe_Wf[i],tmp1);
+    }
+    arb_clear(logM);
     arb_clear(tmp);
     arb_clear(tmp1);
     arb_clear(tmp2);
+    arb_clear(hcur);
 
   }
 
@@ -372,14 +400,15 @@ extern "C"{
     //if(verbose){printf("Winf = ");arb_printd(L_func.buthe_Winf,20);printf("\n");}
 
 
-    //printf("Random negation of Wf happening.\n");arb_neg(L->buthe_Wf,L->buthe_Wf);
-    arb_add(sum,L->buthe_Wf,L->buthe_Winf,prec);
+    // Task 2 keeps the single-h verdict: read only buthe_Wf[0] (grid[0]=h=8).
+    // Task 3 replaces this with the adaptive sweep over buthe_Wf[0..BUTHE_NH-1].
+    arb_add(sum,L->buthe_Wf[0],L->buthe_Winf,prec);
     arb_sub(sum,sum,L->buthe_Ws,prec);
     if(verbose)
     {
       printf("Ws = ");arb_printd(L->buthe_Ws,20);
       printf("\nWinf = ");arb_printd(L->buthe_Winf,20);
-      printf("\nWf = ");arb_printd(L->buthe_Wf,20);
+      printf("\nWf = ");arb_printd(L->buthe_Wf[0],20);
       printf("\nS = ");arb_printd(sum,20);printf("\n");
     }
     if(arb_is_negative(sum))

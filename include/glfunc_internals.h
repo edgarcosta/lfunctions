@@ -17,6 +17,8 @@
 
 #define MAX_L (10) // maximum differential allowed in upsampling
 
+#define BUTHE_NH 5  // Buthe smoothing-parameter grid size (h stepped high->low)
+
 
 #define COMPUTE_ZEROS // compile-time switch: enable the zero-finding phase
 #define COMPUTE_RANK // compile-time switch: enable the rank-determination phase
@@ -78,7 +80,7 @@ extern "C"{
     arb_t pre_ftwiddle_error; // conductor-free bound on the truncated Dirichlet-series tail
     arb_t ftwiddle_error; // truncation bound = pre_ftwiddle_error*sqrt(N); added per sample
 
-    arb_t buthe_Wf; // prime/Euler-sum term of Buthe's inequality
+    arb_t buthe_Wf[BUTHE_NH]; // prime/Euler-sum term of Buthe's inequality, one accumulator per grid h
     arb_t buthe_Winf; // archimedean (gamma) term of Buthe's inequality (computed on the fly via buthe_winf_integral)
     arb_t buthe_Ws; // sum-over-computed-zeros term of Buthe's inequality
     arb_t buthe_b; // height up to which RH is confirmed, b = B/OUTPUT_RATIO

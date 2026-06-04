@@ -25,8 +25,9 @@ static Lfunc *mk(double B, uint64_t degree) {
   arb_init(L->B);  arb_set_d(L->B, B);
   return L;
 }
-static void release(Lfunc *L) {     // clear mk's fields + the 6 init_buthe inits
-  arb_clear(L->buthe_Wf); arb_clear(L->buthe_Winf); arb_clear(L->buthe_Ws);
+static void release(Lfunc *L) {     // clear mk's fields + the init_buthe inits
+  for (int i = 0; i < BUTHE_NH; i++) arb_clear(L->buthe_Wf[i]);
+  arb_clear(L->buthe_Winf); arb_clear(L->buthe_Ws);
   arb_clear(L->buthe_b);  arb_clear(L->buthe_C);    arb_clear(L->buthe_h);
   arb_clear(L->pi); arb_clear(L->B); free(L);
 }

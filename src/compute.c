@@ -311,7 +311,7 @@ Lerror_t Lfunc_compute(Lfunc_t Lf)
   int64_t prec=L->wprec;
 
   buthe_Wf_error(L); // add the error for the missing tail
-  if(verbose){printf("Buthe Wf = ");arb_printd(L->buthe_Wf,20);printf("\n");fflush(stdout);}
+  if(verbose){printf("Buthe Wf = ");arb_printd(L->buthe_Wf[0],20);printf("\n");fflush(stdout);}
 
   // when we get here, the normalised L->M dirichlet coefficients are in L->ans[0]..[M-1]
   // use the first M0 of them

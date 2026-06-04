@@ -56,7 +56,8 @@ extern "C"{
     arb_cclear(L->pre_ftwiddle_error);
     arb_cclear(L->ftwiddle_error);
     
-    arb_cclear(L->buthe_Wf);
+    for(int i=0;i<BUTHE_NH;i++)
+      arb_cclear(L->buthe_Wf[i]);
     arb_cclear(L->buthe_Winf);
     arb_cclear(L->buthe_Ws);
     arb_cclear(L->buthe_b);
