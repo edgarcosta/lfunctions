@@ -39,7 +39,7 @@
 #define ERR_G_EXTENT ((uint64_t) 4096) // fatal: G grid does not extend low enough (conductor too large for the fixed grid floor, or a cached grid was reused)
 #define ERR_WINDOW_TOO_LARGE ((uint64_t) 8192)  // requested window needs fft_NN > max_fft_NN
 #define ERR_WINDOW_TOO_SMALL ((uint64_t) 16384) // requested window below the valid floor
-#define ERR_ZERO_OVERFLOW ((uint64_t) 32768) // fatal: found more than MAX_ZEROS zeros on a side (storage exhausted); enlarge MAX_ZEROS or shrink the output window
+#define ERR_ZERO_OVERFLOW ((uint64_t) 32768) // fatal: zero storage exhausted after finding MAX_ZEROS zeros on a side
 
 // warnings
 #define ERR_SOME_DATA ((uint64_t) 1<<32) // We had some sensible data, but not to end of Turing Zone

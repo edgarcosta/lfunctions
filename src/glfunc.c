@@ -93,8 +93,8 @@ void fprint_errors(FILE *f, Lerror_t ecode) {
     fprintf(f, "Requested output window too small for a valid error analysis.\n");
   if (ecode & ERR_ZERO_OVERFLOW)
     fprintf(f,
-            "Found more than MAX_ZEROS (%d) zeros on one side; the zero set was "
-            "truncated. Increase MAX_ZEROS or reduce the output window (max_t).\n",
+            "Found MAX_ZEROS (%d) zeros on one side; zero storage is exhausted. "
+            "Increase MAX_ZEROS or reduce the output window (max_t).\n",
             MAX_ZEROS);
   if (ecode & ERR_BAD_DEGREE)
     fprintf(f, "The degree of the L-function must be between 1 and %d\n",
