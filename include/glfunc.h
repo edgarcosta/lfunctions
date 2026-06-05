@@ -48,6 +48,7 @@
 #define ERR_SUPPLY_CONFLICT ((uint64_t) 1<<13) // fatal: incompatible/duplicate supply (raw a_n mixed with factors, or raw a_n supplied twice)
 #define ERR_A1_NOT_ONE ((uint64_t) 1<<14) // fatal: supplied a_1 is not 1 (raw a_n front-ends)
 #define ERR_COEFF_BOUND ((uint64_t) 1<<15) // fatal: a supplied raw a_n exceeds the degree's Euler-product bound (|a_n| > C*n^alpha)
+#define ERR_BAD_NORM ((uint64_t) 1<<16) // fatal: invalid normalisation_of_input selector for raw a_n front-ends
 
 // warnings
 #define ERR_SOME_DATA ((uint64_t) 1<<32) // We had some sensible data, but not to end of Turing Zone
@@ -154,7 +155,9 @@ extern "C"{
   // Supply the Dirichlet coefficients a_n directly, indexed n = 1..len with
   // a[0] = a_1 (which must be 1). normalisation_of_input is ALGEBRAIC_NORM (the
   // library applies the n^{-normalisation} shift) or ANALYTIC_NORM (a_n already
-  // analytic; no shift). The library uses min(len, Lfunc_nmax(L)) of them; len <
+  // analytic; no shift); any other selector is fatal ERR_BAD_NORM. len must be
+  // positive, so a_1 is actually supplied. The library uses min(len,
+  // Lfunc_nmax(L)) of them; len <
   // nmax reduces nmax and warns (ERR_INSUFF_EULER), surplus is ignored. Each
   // supplied a_n is checked against the degree's Euler-product Ramanujan bound
   // (|a_n| <= C*n^alpha, alpha = 1); a coefficient exceeding it is fatal

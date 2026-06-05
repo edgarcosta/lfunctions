@@ -21,6 +21,7 @@
 #include <flint/fmpz_poly.h>
 #include <flint/fmpz_vec.h>
 #include "glfunc.h"
+#include "glfunc_internals.h"
 
 // --- the object: L(s,chi5)*L(s,chi7) ----------------------------------------
 // quadratic character mod 5: chi5(n) = (n/5); mod 7: chi7(n) = (n/7).
@@ -304,6 +305,37 @@ static void test_guard_a1_acb(void) {
   Lfunc_clear(L);
 }
 
+// raw a_n arrays must actually supply a_1.
+static void test_guard_zero_len_raw(void) {
+  double mus[] = {0, 1};
+  {
+    Lerror_t ec = ERR_SUCCESS;
+    Lfunc_t L = Lfunc_init(2, 35, 0.0, mus, &ec); assert(!fatal_error(ec));
+    Lerror_t e = Lfunc_use_dirichlet_coeffs_fmpz(L, NULL, 0, ALGEBRAIC_NORM);
+    assert((e & ERR_A1_NOT_ONE) && fatal_error(e));
+    Lfunc_clear(L);
+  }
+  {
+    Lerror_t ec = ERR_SUCCESS;
+    Lfunc_t L = Lfunc_init(2, 35, 0.0, mus, &ec); assert(!fatal_error(ec));
+    Lerror_t e = Lfunc_use_dirichlet_coeffs_acb(L, NULL, 0, ALGEBRAIC_NORM);
+    assert((e & ERR_A1_NOT_ONE) && fatal_error(e));
+    Lfunc_clear(L);
+  }
+}
+
+// normalisation_of_input has no silent default.
+static void test_guard_bad_norm(void) {
+  double mus[] = {0, 1}; Lerror_t ec = ERR_SUCCESS;
+  Lfunc_t L = Lfunc_init(2, 35, 0.0, mus, &ec); assert(!fatal_error(ec));
+  uint64_t nmax = Lfunc_nmax(L);
+  fmpz *a = make_an_fmpz(nmax);
+  Lerror_t e = Lfunc_use_dirichlet_coeffs_fmpz(L, a, nmax, 999);
+  assert((e & ERR_BAD_NORM) && fatal_error(e));
+  _fmpz_vec_clear(a, nmax);
+  Lfunc_clear(L);
+}
+
 // raw a_n incompatible with factors / a second raw supply.
 static void test_guard_conflicts(void) {
   double mus[] = {0, 1};
@@ -392,6 +424,23 @@ static void test_guard_violated_bound(void) {
   Lerror_t e = Lfunc_use_dirichlet_coeffs_fmpz(L, a, nmax, ALGEBRAIC_NORM);
   assert((e & ERR_COEFF_BOUND) && fatal_error(e));
   _fmpz_vec_clear(a, nmax);
+  Lfunc_clear(L);
+}
+
+// A short supply must also clamp M0, otherwise compute would still consume the
+// direct-sum coefficients n < M0 beyond the reduced M.
+static void test_short_supply_clamps_M0(void) {
+  double mus[] = {0, 1}; Lerror_t ec = ERR_SUCCESS;
+  Lfunc_t L = Lfunc_init(2, 1000000, 0.0, mus, &ec); assert(!fatal_error(ec));
+  (void)Lfunc_nmax(L);
+  Lfunc *LL = (Lfunc *)L;
+  assert(LL->M0 > 2);
+  fmpz *a = _fmpz_vec_init(1);
+  fmpz_one(a);
+  Lerror_t e = Lfunc_use_dirichlet_coeffs_fmpz(L, a, 1, ALGEBRAIC_NORM);
+  assert((e & ERR_INSUFF_EULER) && !fatal_error(e));
+  assert(LL->M == 1 && LL->M0 == 2);
+  _fmpz_vec_clear(a, 1);
   Lfunc_clear(L);
 }
 
@@ -494,8 +543,11 @@ int main(void) {
   test_normalisation_flag();
   test_guard_a1_fmpz();
   test_guard_a1_acb();
+  test_guard_zero_len_raw();
+  test_guard_bad_norm();
   test_guard_conflicts();
   test_guard_violated_bound();
+  test_short_supply_clamps_M0();
   test_insufficient_supply();
   test_rh_unavailable();
   printf("batch_supply_test: all tests passed\n");

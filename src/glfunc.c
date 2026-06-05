@@ -45,6 +45,9 @@ void fprint_errors(FILE *f, Lerror_t ecode) {
     fprintf(f, "A supplied Dirichlet coefficient exceeds the degree's "
                "Euler-product bound |a_n| <= C*n^alpha (check "
                "normalisation_of_input).\n");
+  if (ecode & ERR_BAD_NORM)
+    fprintf(f, "Invalid normalisation_of_input selector; use ALGEBRAIC_NORM "
+               "or ANALYTIC_NORM.\n");
   // warnings
   if (ecode & ERR_INSUFF_EULER)
     fprintf(f,

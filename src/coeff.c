@@ -179,15 +179,19 @@ void Lfunc_use_lpoly(Lfunc_t Lf, uint64_t p, const acb_poly_t poly)
 }
 
 // Reduce the working coefficient count to new_M: we either ran out of data at,
-// or were told to stop at, index/prime new_M+1. Also keep buthe_M no larger than
-// new_M. insufficient==true flags an unexpected shortfall (ERR_INSUFF_EULER); an
-// explicit, trusted Lfunc_reduce_nmax passes false (a deliberate reduction is not
-// an error). Returns the warning bit to OR into the caller's accumulator. This is
-// the single funnel for both the callback zero-poly short-circuit and the array
-// length-shortfall paths, so the M/buthe_M clamp lives in exactly one place.
+// or were told to stop at, index/prime new_M+1. Also keep M0's direct block
+// inside the reduced coefficient range, and keep buthe_M no larger than new_M.
+// insufficient==true flags an unexpected shortfall (ERR_INSUFF_EULER); an
+// explicit, trusted
+// Lfunc_reduce_nmax passes false (a deliberate reduction is not an error).
+// Returns the warning bit to OR into the caller's accumulator. This is the
+// single funnel for both the callback zero-poly short-circuit and the array
+// length-shortfall paths, so the M/M0/buthe_M clamp lives in exactly one place.
 static Lerror_t shrink_M(Lfunc *L, uint64_t new_M, bool insufficient)
 {
   L->M=new_M;
+  if(new_M<UINT64_MAX && L->M0>new_M+1)
+    L->M0=new_M+1; // direct block uses coefficients n < M0, so cap it at M
 #ifdef BUTHE
   if(L->buthe_M>new_M)
     L->buthe_M=new_M;
@@ -321,17 +325,23 @@ static void apply_input_norm(acb_t z, uint64_t n, int norm_of_input, Lfunc *L)
 }
 
 // Common fatal entry guards for the raw-a_n front-ends: (1) overwrite mode
-// conflicts with any factor supply or a second raw supply; (2) a_1 must be 1.
-// Also records the code in supply_ecode so Lfunc_compute bails even if the
-// caller ignores the return value.
-static Lerror_t raw_guard(Lfunc *L, bool a1_is_one)
+// conflicts with any factor supply or a second raw supply; (2) the norm selector
+// must be explicit and valid; (3) a_1 must be supplied and equal to 1. Also
+// records the code in supply_ecode so Lfunc_compute bails even if the caller
+// ignores the return value.
+static Lerror_t raw_guard(Lfunc *L, uint64_t len, int norm_of_input, bool a1_is_one)
 {
   if(L->factor_supplied || L->raw_supplied)
   {
     L->supply_ecode|=ERR_SUPPLY_CONFLICT;
     return ERR_SUPPLY_CONFLICT;
   }
-  if(!a1_is_one)
+  if(norm_of_input!=ALGEBRAIC_NORM && norm_of_input!=ANALYTIC_NORM)
+  {
+    L->supply_ecode|=ERR_BAD_NORM;
+    return ERR_BAD_NORM;
+  }
+  if(len==0 || !a1_is_one)
   {
     L->supply_ecode|=ERR_A1_NOT_ONE;
     return ERR_A1_NOT_ONE;
@@ -373,7 +383,7 @@ static Lerror_t check_coeff_bound(Lfunc *L, const acb_t an, uint64_t n)
 // 1) is the caller's, passed in as a1_is_one.
 static Lerror_t use_dirichlet_coeffs(Lfunc *L, const fmpz *az, acb_srcptr aa, uint64_t len, int norm_of_input, bool a1_is_one)
 {
-  Lerror_t guard=raw_guard(L,a1_is_one);
+  Lerror_t guard=raw_guard(L,len,norm_of_input,a1_is_one);
   if(guard)
     return guard;
   if(!L->nmax_called)
@@ -403,7 +413,7 @@ static Lerror_t use_dirichlet_coeffs(Lfunc *L, const fmpz *az, acb_srcptr aa, ui
 Lerror_t Lfunc_use_dirichlet_coeffs_fmpz(Lfunc_t Lf, const fmpz *a, uint64_t len, int norm_of_input)
 {
   Lfunc *L=(Lfunc *)Lf;
-  bool a1_is_one = (len==0) || fmpz_is_one(a+0);
+  bool a1_is_one = len>0 && fmpz_is_one(a+0);
   return use_dirichlet_coeffs(L,a,NULL,len,norm_of_input,a1_is_one);
 }
 
@@ -411,7 +421,7 @@ Lerror_t Lfunc_use_dirichlet_coeffs_acb(Lfunc_t Lf, acb_srcptr a, uint64_t len, 
 {
   Lfunc *L=(Lfunc *)Lf;
   // a_1's ball must contain 1 (certified contract: the ball encloses the truth)
-  bool a1_is_one = (len==0) ||
+  bool a1_is_one = len>0 &&
     (arb_contains_si(acb_realref(a+0),1) && arb_contains_zero(acb_imagref(a+0)));
   return use_dirichlet_coeffs(L,NULL,a,len,norm_of_input,a1_is_one);
 }
