@@ -196,8 +196,14 @@ Lerror_t arb_upsampling_error(
   arb_div(delta,delta,pi,prec);
   arb_mul_2exp_si(delta,delta,-2);
   arb_sub_ui(tmp,delta,1,prec);
-  if(!arb_is_negative(tmp))
+  if(!arb_is_negative(tmp)) {
+    arb_clear(tmp);
+    arb_clear(tmp1);
+    arb_clear(tmp2);
+    arb_clear(tmp3);
+    arb_clear(delta);
     return ecode|ERR_SPEC_VALUE;
+  }
 
   arb_t E0,E1,E2;
   arb_init(E0);
@@ -301,20 +307,16 @@ Lerror_t init_upsampling(Lfunc *L)
 
   // we allow for sampling a less than every point
   L->u_stride=1; // but actually sample at every point!
-  arb_init(L->u_pi_A);
-  arb_init(L->u_A);
   arb_mul_ui(L->u_A,L->arb_A,L->u_stride,prec);
-  arb_init(L->u_one_over_A);
   arb_inv(L->u_one_over_A,L->u_A,prec);
   if(verbose){printf("A for upsampling set to ");arb_printd(L->u_A,10);printf("\n");}
   arb_mul(L->u_pi_A,L->pi,L->u_A,prec);
 
-  double T=512.0/(double)L->degree/(double)OUTPUT_RATIO;
+  double T=L->max_t;
   double A=L->A*L->u_stride;
   double h=sqrt(1.0/A)*1.001;
   double H=ceil(A*A*h*h/2.0);
   double M=H/A;
-  arb_init(L->upsampling_error);
   arb_t tmp,zero;
   arb_init(tmp);arb_init(zero);
   while(true)
@@ -339,11 +341,9 @@ Lerror_t init_upsampling(Lfunc *L)
   if(verbose){printf("Upsampling error set to ");arb_printd(L->upsampling_error,10);printf("\n");}
 
 
-  arb_init(L->u_H);
   arb_set_d(L->u_H, h);
   L->u_N=H;
   if(verbose){printf("Upsampling H set to ");arb_printd(L->u_H,20);printf("\n");}
-  arb_init(L->u_pi_by_H2); // -pi/H^2
   arb_inv(L->u_pi_by_H2,L->u_H,prec); // 1/H
   arb_mul(L->u_pi_by_H2,L->u_pi_by_H2,L->u_pi_by_H2,prec); // 1/H^2
   arb_mul(L->u_pi_by_H2,L->u_pi_by_H2,L->pi,prec);
@@ -360,6 +360,13 @@ Lerror_t init_upsampling(Lfunc *L)
   L->u_no_values=L->fft_NN/OUTPUT_RATIO+L->fft_NN/TURING_RATIO+L->u_N*4*L->u_stride+1;
   L->u_values[0]=(arb_t *)malloc(sizeof(arb_t)*L->u_no_values);
   L->u_values[1]=(arb_t *)malloc(sizeof(arb_t)*L->u_no_values);
+  if(!L->u_values[0] || !L->u_values[1]) {
+    free(L->u_values[0]);
+    free(L->u_values[1]);
+    L->u_values[0] = NULL;
+    L->u_values[1] = NULL;
+    return ERR_OOM;
+  }
   L->u_no_values_off=L->u_no_values-L->u_N*L->u_stride*2;
   L->u_values_off[0]=L->u_values[0]+L->u_N*L->u_stride*2;
   L->u_values_off[1]=L->u_values[1]+L->u_N*L->u_stride*2;

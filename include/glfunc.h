@@ -15,7 +15,7 @@
 #define MAX_DEGREE (9) // if increasing, need more integrals in buthe.c
 // and probably need to take a good look at g.c
 #define MAX_R MAX_DEGREE // alias for MAX_DEGREE (max degree r); sizes the Buthe tables
-#define MAX_ZEROS (256) // hard cap on the number of zeros found/stored per side
+#define MAX_ZEROS (2048) // hard cap on the number of zeros found/stored per side
 #define DEFAULT_TARGET_PREC (100) // default target precision in bits when none is given
 // error codes
 // those in lower 32 bits are fatal
@@ -37,6 +37,9 @@
 #define ERR_BAD_DEGREE ((uint64_t) 1024) //fatal error when the degree is too low or too high
 #define ERR_SPEC_NZ ((uint64_t) 2048) // special value routine requires Im s >= 0.
 #define ERR_G_EXTENT ((uint64_t) 4096) // fatal: G grid does not extend low enough (conductor too large for the fixed grid floor, or a cached grid was reused)
+#define ERR_WINDOW_TOO_LARGE ((uint64_t) 8192)  // requested window needs fft_NN > max_fft_NN
+#define ERR_WINDOW_TOO_SMALL ((uint64_t) 16384) // requested window below the valid floor
+#define ERR_ZERO_OVERFLOW ((uint64_t) 32768) // fatal: zero storage exhausted after finding MAX_ZEROS zeros on a side
 
 // warnings
 #define ERR_SOME_DATA ((uint64_t) 1<<32) // We had some sensible data, but not to end of Turing Zone
@@ -69,6 +72,9 @@ extern "C"{
     int self_dual; // -1 = DK, 0 = No, 1 = Yes
     int rank; // -1 = DK
     char *cache_dir;
+    double max_t;        // output-window half-height H; exactly 0 => default 64/degree;
+                         // a negative or non-finite value is rejected (ERR_WINDOW_TOO_SMALL)
+    uint64_t max_fft_NN; // cap on output transform length; 0 => default 1<<16
   } Lparams_t;
 
   typedef struct{
@@ -104,9 +110,17 @@ extern "C"{
    *        mus = [6, 7] and normalisation = 0
    */
   Lfunc_t Lfunc_init(uint64_t degree, uint64_t conductor, double normalisation, const double *mus, Lerror_t *ecode);
+  // Fill Lparams with the defaults used by Lfunc_init:
+  // target_prec=DEFAULT_TARGET_PREC, wprec/gprec=0 (derived), self_dual=DK,
+  // rank=DK, cache_dir=".", max_t=0 (64/degree), max_fft_NN=0 (1<<16).
+  // Call this before setting the object-specific fields for Lfunc_init_advanced.
+  void Lparams_init(Lparams_t *Lparams);
+
   // do the same but with more control. Lparams.conductor fixes the coefficient
   // range M implicitly, as in Lfunc_init (see Lfunc_nmax); no Lparams field sets
   // the prime/coefficient count directly.
+  // Prefer Lparams_init() over raw zero-initialisation: the tri-state fields use
+  // DK (-1) as their default, while 0 is the meaningful value NO / rank 0.
   Lfunc_t Lfunc_init_advanced(Lparams_t *Lparams, Lerror_t *ecode);
 
   // Largest prime p (equivalently largest index M) for which an Euler factor /

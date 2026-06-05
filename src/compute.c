@@ -109,16 +109,26 @@ Lerror_t finalise_comp(Lfunc *L)
 {
   double two_pi_by_B=L->one_over_B*2*M_PI;
   L->offset=calc_m(1,two_pi_by_B,L->dc);
-  if(L->offset<L->low_i)
+  // finish_convolves' direct path starts at n=-1, so it reads the G grid down to
+  // Gs[offset-1]; the floor must reach offset-1, not just offset, to close a one-cell
+  // out-of-bounds read at offset==low_i. offset is conductor-dependent; the grid floor
+  // (fixed at umin=-32 ln2) is degree-dependent only. Reachable only at astronomically
+  // large conductor, but the cost of being exact here is one subtraction.
+  if(L->offset-1<L->low_i)
   {
-    // The grid floor (fixed at umin=-32 ln2, so degree-dependent only) does not
-    // reach the conductor-dependent offset we need.  Report it as a recoverable
-    // fatal error rather than exit()ing out from under the caller.
+    // Report the short grid as a recoverable fatal error rather than exit()ing out
+    // from under the caller.
     if(verbose)
       fprintf(stderr,"G values need to go down to %" PRId64 ". We only have down to %" PRId64 ".\n",
-          L->offset,L->low_i);
+          L->offset-1,L->low_i);
     return ERR_G_EXTENT;
   }
+  // Backstop: the length-fft_N cyclic convolution aliases if the grid+coeff support exceeds
+  // fft_N. Init sized fft_N from conv_support(), so this fires only if a (stale) cache
+  // supplied a larger grid than the current fft_N. Reuses ERR_G_EXTENT (a G-grid extent
+  // problem) rather than a dedicated code; near-unreachable given GCACHE header validation.
+  if (conv_support(L) > L->fft_N)
+    return ERR_G_EXTENT;
   return ERR_SUCCESS;
 } /* finalise_comp */
 
@@ -278,7 +288,7 @@ void final_ifft(Lfunc *L)
 
 // this is called by the user to compute all the bits of the Lfunc we expect them to want
 // including Lambda(t) for t =0,1/A,2/A,....
-// the zeros up to height 64/degree
+// the zeros up to the configured window height H (default 64/degree)
 // the (apparent) rank
 // sign and sqrt_sign
 // Lambda^(rank)(1/2)

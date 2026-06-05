@@ -54,7 +54,7 @@ extern "C"{
     arb_t alpha;       // alpha = 1 under Ramanujan (set in g.c)
     //arb_t k0; // no longer used
     //arb_t k2;
-    double one_over_B; // 1/B = degree/512; the G-kernel u-grid step is 2*pi/B
+    double one_over_B; // 1/B = degree/512 for the default window (= 1/(OUTPUT_RATIO*max_t) in general); the G-kernel u-grid step is 2*pi/B
     arb_t B; // scaling parameter B = 1/one_over_B; sets the t-spacing of Lambda samples
     arb_t two_pi_by_B; // 2*pi/B: u-spacing between consecutive G/Lambda sample indices
     arb_t pi; // the constant pi at working precision wprec
@@ -65,10 +65,13 @@ extern "C"{
 
     arb_t **Gs;        // Gs[k][i-low_i] = k-th Taylor coeff G^(k)(u_i)/k! at u_i=i*(2*pi/B); built in g.c
 
+    double max_t; // resolved output-window half-height H (analytic t units)
+    uint64_t max_fft_NN; // resolved cap on fft_NN
+
     // computation related
     uint64_t fft_N; // length of the short DFT for the Euler-product convolutions (2^11)
-    uint64_t fft_NN; // length of the final output iFFT (2^16)
-    double A; // output sampling rate = fft_NN/B; output sample i is Lambda at t = i/A
+    uint64_t fft_NN; // length of the final output iFFT (2^16 for the default window; scales with the window)
+    double A; // output sampling rate = fft_NN/B (runtime value); output sample i is Lambda at t = i/A
     arb_t arb_A; // A as a rigorous real ball (for the error analysis)
     arf_t arf_A; // A as an arf_t; only used to form arf_one_over_A
     arb_t one_over_A; // 1/A as a ball; the t-grid spacing (sample i has imag part i/A)
@@ -77,6 +80,7 @@ extern "C"{
     acb_t *w; // twiddle factors for length fft_N
     acb_t *ww; // ditto for fft_NN
     arb_t *zeros[2]; // zero ordinates t on the critical line; [0]=L, [1]=dual L
+    uint64_t zero_cap; // active per-side zero cap, <= MAX_ZEROS; default MAX_ZEROS
     double eta; // contour-tilt knob in delta=(1-eta)*pi/2; =0, only feeds delta
     arb_t delta; // contour offset (1-eta)*pi/2 = pi/2; only feeds (unused) exp_delta
     arb_t exp_delta; // exp(-delta) = exp(-pi/2); unused
@@ -136,8 +140,25 @@ extern "C"{
     arb_t L_d; // L^(rank)(1/2)/rank!
   } Lfunc;
 
+  // Upper bound on the linear-convolution support (the G grid [low_i,hi_i] together with the
+  // coefficient buckets) that the length-fft_N cyclic convolution must hold without aliasing.
+  // The SMALLEST coefficient is n=1, mapped to bucket calc_m(1) = round(log(1/sqrt(N))/(2pi/B));
+  // finish_convolves writes res[] down to it. For sqrt(N) > 100 that is below
+  // floor(log(0.01)/(2pi/B)) (the old M0/sqrt(N) >= 1/100 bound), which therefore UNDERCOUNTED
+  // and silently aliased enlarged windows at conductor > ~1e4. floor() gives a safe
+  // (<= calc_m(1)) conductor-dependent lower index. Shared by the fft_N sizing (glfunc.c)
+  // and the runtime alias backstop (compute.c) so they cannot diverge.
+  static inline uint64_t conv_support(const Lfunc *L) {
+    double two_pi_by_B = L->one_over_B * 2.0 * M_PI;
+    int64_t cm1 = (int64_t)floor(log(1.0 / sqrt((double)L->conductor)) / two_pi_by_B);
+    return (uint64_t)(L->hi_i - L->low_i + 1) + (uint64_t)(L->hi_i - cm1 + 1);
+  }
+
   // from glfunc_g.c
   Lerror_t compute_g(Lfunc *);
+
+  // from glfunc.c
+  void Lfunc_set_zero_cap_for_tests(Lfunc_t L, uint64_t cap);
 
   // from acb_fft.c
   void acb_initfft(acb_t *w, uint64_t n, uint64_t prec);
@@ -149,6 +170,7 @@ extern "C"{
 
   // from error.c
   void abs_gamma(arb_t res, acb_t s, Lfunc *L, int64_t prec);
+  bool ftwiddle_beta_positive(const Lfunc *L, int64_t prec);
   void init_ftwiddle_error(Lfunc *L, int64_t prec);
   void complete_ftwiddle_error(Lfunc *L, int64_t prec);
   Lerror_t do_pre_iFFT_errors(Lfunc *L);

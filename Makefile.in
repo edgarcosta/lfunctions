@@ -87,30 +87,34 @@ print-%:
 .PHONY: clean check check-highdeg highdeg-gen highdeg-data configure
 
 # Regression suite. Exit code is the oracle (assertions are on by default).
-# Stale/colliding g_<mu> caches poison results, so scrub them before the suite
-# and after each binary (different L-functions can share a g_<mu> filename).
+# Stale/colliding g_* caches poison results, so scrub them before the suite
+# and after each binary.
 #
 # Every test/ and examples/ binary runs under `make check` automatically --
 # drop in a new source file and it joins the suite, no edit here required.
 # CHECK_EXCLUDE is the deny-list: binaries that require command-line arguments
 # or input files (they assert on argc / print a usage message and exit nonzero
-# without args) and so cannot run unattended. Only add an entry here if a
-# binary needs arguments. (artin runs an embedded self-test when given none.)
+# without args) and so cannot run unattended, plus heavy opt-in tests that are
+# too slow/large for the default suite. Only add an entry here if a binary needs
+# arguments or is an intentionally opt-in heavy run. (artin runs an embedded
+# self-test when given none; zero_overflow_test is a several-minute, multi-GB
+# MAX_ZEROS-exhaustion regression run directly via its .exe.)
 CHECK_EXCLUDE = \
 	examples/bound \
 	examples/rational \
-	test/highdeg_check
+	test/highdeg_check \
+	test/zero_overflow_test
 
 CHECK_BINS = $(filter-out $(addprefix build/, $(addsuffix .exe, $(CHECK_EXCLUDE))), $(TESTS) $(EXECUTABLES))
 
 check: all
-	@rm -f g_[0-9]*
+	@rm -f g_*
 	@fail=0; \
 	for t in $(CHECK_BINS); do \
 	  printf 'RUN  %s\n' "$$t"; \
 	  if ./$$t >$$t.log 2>&1; then printf 'PASS %s\n' "$$t"; rm -f $$t.log; \
 	  else rc=$$?; printf 'FAIL %s (rc=%s)\n' "$$t" "$$rc"; cat $$t.log; rm -f $$t.log; fail=1; fi; \
-	  rm -f g_[0-9]*; \
+	  rm -f g_*; \
 	done; \
 	if [ $$fail -ne 0 ]; then echo 'CHECK FAILED'; exit 1; fi; \
 	echo 'CHECK PASSED'
@@ -133,7 +137,7 @@ LABEL ?=
 # fixtures with `make highdeg-data`. Set FIXTURES= (empty) to force on-the-fly generation.
 FIXTURES ?= test/highdeg/fixtures
 check-highdeg: all
-	@rm -f g_[0-9]*
+	@rm -f g_*
 	@fail=0; xpass=0; ran=0; \
 	for entry in $$(python3 -c "import yaml;print(' '.join(o['label']+':'+('1' if o.get('xfail') else '0') for o in yaml.safe_load(open('$(HIGHDEG_OBJECTS)'))['objects']))"); do \
 	  label=$${entry%%:*}; xf=$${entry##*:}; \
@@ -153,8 +157,8 @@ check-highdeg: all
 	    if [ $$ok = 1 ]; then printf 'PASS %s\n' "$$label"; \
 	    else printf 'FAIL %s\n' "$$label"; cat $$logf; fail=1; fi; \
 	  fi; \
-	  if [ -n "$(LABEL)" ]; then printf 'kept %s  (re-run: ./build/test/highdeg_check.exe %s)\n' "$$inf" "$$inf"; rm -f g_[0-9]*; \
-	  else rm -f $$inf $$logf g_[0-9]*; fi; \
+	  if [ -n "$(LABEL)" ]; then printf 'kept %s  (re-run: ./build/test/highdeg_check.exe %s)\n' "$$inf" "$$inf"; rm -f g_*; \
+	  else rm -f $$inf $$logf g_*; fi; \
 	done; \
 	if [ -n "$(LABEL)" ] && [ $$ran = 0 ]; then echo "no object labelled '$(LABEL)' in $(HIGHDEG_OBJECTS)"; exit 2; fi; \
 	if [ $$fail -ne 0 ]; then echo 'CHECK-HIGHDEG FAILED'; exit 1; fi; \
@@ -164,7 +168,7 @@ check-highdeg: all
 # Lets a collaborator iterate on a single object: edit the .in, run it under gdb, etc.
 highdeg-gen: all
 	@if [ -z "$(LABEL)" ]; then echo 'usage: make highdeg-gen LABEL=<label>'; exit 2; fi
-	@rm -f g_[0-9]*
+	@rm -f g_*
 	@inf=build/test/highdeg_$(LABEL).in; \
 	if BACKEND=$(BACKEND) LPDATA=$(LPDATA) python3 test/highdeg/gen.py "$(LABEL)" \
 	      --driver build/test/highdeg_check.exe --objects $(HIGHDEG_OBJECTS) > $$inf; then \

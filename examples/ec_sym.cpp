@@ -185,15 +185,12 @@ static Lerror_t check_sym_power(int k, uint64_t conductor, double normalisation,
   char cache_dir[] = ".";
 
   Lparams_t Lp;
+  Lparams_init(&Lp);
   Lp.degree = (uint64_t) (k + 1);
   Lp.conductor = conductor;
   Lp.normalisation = normalisation;
   Lp.mus = mus;                 // Lfunc_init_advanced copies this
-  Lp.target_prec = DEFAULT_TARGET_PREC;
-  Lp.wprec = 0;
-  Lp.gprec = 0;
   Lp.self_dual = YES;           // Sym^k of a self-dual EC L-function is self-dual
-  Lp.rank = DK;
   Lp.cache_dir = cache_dir;
 
   Lfunc_t L = Lfunc_init_advanced(&Lp, &ecode);

@@ -67,21 +67,18 @@ int main(int argc, char **argv) {
   for (auto &m : mus) s2 >> m;
 
   // Public advanced init so self-duality is declared up front instead of poking
-  // the opaque handle. Mirrors Lfunc_init's defaults (target_prec=DEFAULT and
-  // gprec=0 keep the G-cache active, see src/g.c); Lfunc_init_advanced copies
-  // Lp.mus, so the local vector suffices, and cache_dir outlives the Lfunc.
+  // the opaque handle. Lparams_init mirrors Lfunc_init's defaults (target_prec=
+  // DEFAULT and gprec=0 keep the G-cache active, see src/g.c); Lfunc_init_advanced
+  // copies Lp.mus, so the local vector suffices, and cache_dir outlives the Lfunc.
   Lerror_t ec = 0;
   char cache_dir[] = ".";
   Lparams_t Lp;
+  Lparams_init(&Lp);
   Lp.degree = degree;
   Lp.conductor = conductor;
   Lp.normalisation = norm;
   Lp.mus = mus.data();
-  Lp.target_prec = DEFAULT_TARGET_PREC;
-  Lp.wprec = 0;
-  Lp.gprec = 0;
   Lp.self_dual = self_dual ? YES : DK;
-  Lp.rank = DK;
   Lp.cache_dir = cache_dir;
   Lfunc_t L = Lfunc_init_advanced(&Lp, &ec);
   if (fatal_error(ec)) { fprint_errors(stderr, ec); return 1; }

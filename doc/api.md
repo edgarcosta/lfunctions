@@ -101,10 +101,17 @@ typedef struct {
   int      self_dual;     // DK / YES / NO
   int      rank;          // DK, or a known rank
   char    *cache_dir;     // directory for the cached G data
+  double   max_t;         // output-window half-height H
+  uint64_t max_fft_NN;    // cap on output transform length
 } Lparams_t;
 ```
 
-| Field | Meaning | Default when left as 0 / `DK` |
+Initialise this struct with {c:func}`Lparams_init`, then overwrite the
+object-specific fields (`degree`, `conductor`, `normalisation`, `mus`, and any
+non-default knobs). Do not rely on raw zero-initialisation: the tri-state fields
+use `DK == -1` as the default, while `0` is the meaningful value `NO` / rank 0.
+
+| Field | Meaning | Default from `Lparams_init` |
 | --- | --- | --- |
 | {c:member}`target_prec <Lparams_t.target_prec>` | precision the results are refined to | {c:macro}`DEFAULT_TARGET_PREC` (100 bits) |
 | {c:member}`wprec <Lparams_t.wprec>` | internal working precision | derived from `target_prec` |
@@ -112,6 +119,8 @@ typedef struct {
 | {c:member}`self_dual <Lparams_t.self_dual>` | whether the L-function equals its dual | `DK`: the library decides |
 | {c:member}`rank <Lparams_t.rank>` | analytic rank, if already known | `DK`: the library determines it |
 | {c:member}`cache_dir <Lparams_t.cache_dir>` | where to read/write cached G data | current directory; see [The G-data cache](#g-data-cache) |
+| {c:member}`max_t <Lparams_t.max_t>` | output-window half-height H | `0`: `64 / degree` |
+| {c:member}`max_fft_NN <Lparams_t.max_fft_NN>` | cap on output transform length | `0`: `1 << 16` |
 
 The tri-state fields use the macros {c:macro}`DK` (-1, "don't know"),
 {c:macro}`YES` (1), and {c:macro}`NO` (0). Setting `self_dual = YES` when you
@@ -123,7 +132,7 @@ supplied, you get the {c:macro}`ERR_CONFLICT_RANK` warning.
 Leaving a numeric knob at 0 asks the library to choose it. There is no need to
 set `target_prec`, `wprec`, or `gprec` unless you have a specific reason;
 {c:func}`Lfunc_init` is exactly `Lfunc_init_advanced` with those left to their
-defaults, `self_dual = DK`, `rank = DK`, and no cache directory.
+defaults, `self_dual = DK`, `rank = DK`, and `cache_dir = "."`.
 
 ### 2. Supply the Euler factors
 
@@ -337,7 +346,7 @@ borrowed `arb_t` balls. `side = 0` gives the zeros of `L`; `side = 1` gives
 those of the dual L-function (for a self-dual L-function the two agree). When
 the rank is 0 or 1 and the RH check succeeded (no {c:macro}`ERR_RH_ERROR`
 warning), the list is complete up to the height reached; otherwise some zeros
-may be missing. At most {c:macro}`MAX_ZEROS` (256) zeros are stored per side.
+may be missing. At most {c:macro}`MAX_ZEROS` (2048) zeros are stored per side.
 If the zeros could not be refined to the target precision you get the
 {c:macro}`ERR_ZERO_PREC` warning.
 
@@ -456,11 +465,11 @@ a matching message branch in `fprint_errors` (in `src/glfunc.c`).
   - largest supported degree; raising it requires extending the Buthe integral
     tables in `src/buthe.c` and reviewing `src/g.c`
 * - {c:macro}`MAX_ZEROS`
-  - 256
+  - 2048
   - hard cap on the number of zeros found and stored per side
 * - {c:macro}`DEFAULT_TARGET_PREC`
   - 100
-  - default target precision, in bits, when {c:member}`target_prec <Lparams_t.target_prec>` is left at 0
+  - default target precision, in bits, as set by {c:func}`Lparams_init`
 ```
 
 ({c:macro}`MAX_R` is an alias for {c:macro}`MAX_DEGREE` that sizes the Buthe
@@ -471,22 +480,22 @@ tables.)
 ## The G-data cache and `cache_dir`
 
 The gamma-factor product (the "G data") depends only on the degree, the gamma
-shifts, and the precision, not on the Euler factors. Computing it is expensive,
-so the library caches it to disk, keyed by the analytic normalisation, in a file
-named `g_<normalisation>` (for example `g_0.5`). On a subsequent run with a
-matching gamma factor the cache is read back instead of recomputed.
+shifts, the output-window geometry, and the precision, not on the Euler factors.
+Computing it is expensive, so the library caches it to disk using a
+self-identifying `g_*` filename that includes the cache format version, degree,
+effective G precision, window `1/B`, and analytic gamma shifts. On a subsequent
+run with a matching gamma factor the cache is read back instead of recomputed.
 
 {c:member}`cache_dir <Lparams_t.cache_dir>` (settable through
 {c:func}`Lfunc_init_advanced`) chooses the directory for these files; left
 unset, the current working directory is used.
 
 ```{warning}
-A stale or mismatched `g_<normalisation>` file in the cache directory can poison
-a run. For a hermetic computation, point {c:member}`cache_dir
-<Lparams_t.cache_dir>` at a clean directory, or remove any `g_*` files from the
-working directory first. A cache that cannot be read raises the fatal
-{c:macro}`ERR_G_INFILE`; a grid that does not extend far enough (which a stale
-cache can also cause) raises {c:macro}`ERR_G_EXTENT`.
+A cache whose self-describing header validates is reused; a stale filename from
+an older format or mismatched request is recomputed. For a hermetic computation,
+point {c:member}`cache_dir <Lparams_t.cache_dir>` at a clean directory, or remove
+any `g_*` files from the working directory first. A cache with a valid-looking
+header but corrupt/truncated body raises the fatal {c:macro}`ERR_G_INFILE`.
 ```
 
 ## A worked end-to-end example

@@ -59,9 +59,10 @@ static Lerror_t run(long av[5], uint64_t cond, long bad, long apbad, int sym,
   for (int i = 0; i < 5; i++) g_ainvs[i] = av[i];
   g_bad = bad; g_apbad = apbad; g_sym = sym;
   Lerror_t ec = 0; char cd[] = ".";
-  Lparams_t Lp = {0};
+  Lparams_t Lp;
+  Lparams_init(&Lp);
   Lp.degree = deg; Lp.conductor = cond; Lp.normalisation = norm; Lp.mus = mus;
-  Lp.target_prec = DEFAULT_TARGET_PREC; Lp.self_dual = YES; Lp.rank = DK; Lp.cache_dir = cd;
+  Lp.self_dual = YES; Lp.cache_dir = cd;
   Lfunc_t L = Lfunc_init_advanced(&Lp, &ec);
   ec |= Lfunc_use_all_lpolys(L, cb, NULL);
   ec |= Lfunc_compute(L);

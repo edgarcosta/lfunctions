@@ -27,7 +27,12 @@ extern "C"{
 // EXTRA_BITS or the gprec formula needs no bump, since the stored gprec is
 // checked for sufficiency (a too-low cached gprec is rejected automatically).
 #define GCACHE_MAGIC "GCACHE"
-#define GCACHE_VERSION 1
+// Version 2 added one_over_B (the window's 1/B) to the header so a cache written
+// for one output window cannot be reused for another: the body is B-dependent
+// (low_i/hi_i/max_K and the Gs u-grid all scale with B) and read_gfile even
+// overwrites L->one_over_B from the file, so without this check a different-B
+// cache was silently reused with the wrong geometry.
+#define GCACHE_VERSION 2
 
 // Outcome of validating a cached file against the current request.  GCACHE_STALE
 // (foreign / old version / different L-function / insufficient precision) means
@@ -35,6 +40,21 @@ extern "C"{
 // the body then failed to parse) is a genuinely broken file and stays fatal.
 typedef enum { GCACHE_OK, GCACHE_STALE, GCACHE_CORRUPT } gcache_status;
 
+// A mid-write failure in computeall (header flushed, body short or absent) would
+// leave a valid-header/short-body file that read_gfile later flags GCACHE_CORRUPT
+// -> fatal ERR_G_INFILE, permanently poisoning that cache name.  Before any such
+// error return, close the file and unlink the partial path so the next run simply
+// misses and recomputes.  fp is the handle computeall was writing on and cache_path
+// is the exact path it was opened on; both may be NULL (no cache being written, e.g.
+// op == false), in which case this is a no-op.  computeall nulls nothing of the
+// caller's, so the caller must not fclose again on the error path (it keys its close
+// on a clean return) -- this never double-closes.
+  static void gcache_writer_abort(FILE *fp, const char *cache_path) {
+    if(fp)
+      fclose(fp);
+    if(cache_path)
+      remove(cache_path);
+  }
 
   static void printarf(FILE *fp,const arf_t x) {
     static int init;
@@ -375,8 +395,18 @@ computeres:
       arb_trim(res[j],res[j]);
   }
 
+  // Hard certification cap on the taylor_terms recurrence. For a valid window the
+  // asymptotic per-step multiplier 4/(r*B) is < 1 (guaranteed by the init-time
+  // B > 4/degree preflight) and the term count is modest (tens to low hundreds).
+  // If the threshold is not reached within this many terms the configured window
+  // is degenerate; taylor_terms returns -1 and the caller raises a fatal
+  // ERR_WINDOW_TOO_SMALL instead of looping forever. The cap is astronomically
+  // larger than any legitimate window needs, so it never fires on valid input.
+#define TAYLOR_TERMS_CAP (1000000L)
+
   // compute k >= r such that |eps^k*G^{(k)}(u)/k!| < thresh for all u
   // replace thresh by an interval containing eps^k*G^{(k)}(u)/k!
+  // returns -1 (instead of looping forever) if the cap above is exceeded
   static long taylor_terms(arb_t thresh,long twomu[],long r,
       arb_srcptr eps,long prec) {
     long j,k;
@@ -433,6 +463,8 @@ computeres:
     arb_div(x,x,t,prec);
 
     for (k=r;!arb_lt(x,thresh);) {
+      if (k >= TAYLOR_TERMS_CAP)
+        return -1; // recurrence did not contract: degenerate window
       k++;
       arb_one(t);
       for (j=0;j<r;j++) {
@@ -499,7 +531,7 @@ computeres:
 
   // compute G data into L
   // if(op) then also write the data to fp (in the cache dierctory)
-  static void computeall(Lfunc *L, double umin,double Binv,long prec, bool op, FILE *fp) 
+  static Lerror_t computeall(Lfunc *L, double umin,double Binv,long prec, bool op, FILE *fp, const char *cache_path)
   {
     long i, j, k, prec2, imin, imax;
     double delta;
@@ -525,36 +557,52 @@ computeres:
     for (imax=imin;error_bound(twomu,L->degree,imax*delta)<prec;imax++);
 
     coeff_bound(m,L->degree,53);
-    arb_init(L->C);
     arb_set_arf(L->C,m);
-    arb_init(L->alpha);
     arb_set_ui(L->alpha,1);
 
     if(op) {
       // Self-describing header (see GCACHE_MAGIC): version, degree, the gprec
-      // this grid was computed at, and the sorted analytic mus as exact halved
-      // integers.  read_gfile reads and verifies this before the body.
+      // this grid was computed at, the sorted analytic mus as exact halved
+      // integers, and the window's one_over_B.  read_gfile reads and verifies
+      // this before the body.  one_over_B is written with %a (hex float) so it
+      // round-trips the binary64 value bit-for-bit; read_gheader compares it to
+      // the request's one_over_B with ==, so any lossy format (e.g. %.9f) would
+      // reject a freshly written cache every run.
       fprintf(fp, "%s %d %lu %ld", GCACHE_MAGIC, GCACHE_VERSION,
               (unsigned long)L->degree, prec);
       for(i = 0; i < (long)L->degree; i++)
         fprintf(fp, " %ld", twomu[i]);
-      fprintf(fp, "\n");
+      fprintf(fp, " %a\n", Binv);
       printarf(fp,m);
       fprintf(fp," 1\n");
     }
     prec2 = prec + (long)(exp(2*imax*delta/L->degree)*M_PI*L->degree/M_LN2) + 100;
     arb_const_pi(u,prec2); arb_set_d(eps,Binv); arb_mul(eps,eps,u,prec2);
     k = taylor_terms(thresh,twomu,L->degree,eps,prec);
+    if(k < 0) {
+      // taylor_terms hit its certification cap: the configured window is too
+      // small for the recurrence to contract. Fail loudly before allocating
+      // anything off k (the init-time B > 4/degree preflight normally rejects
+      // such windows first, so this is a belt-and-suspenders safety net). The
+      // header has already been written (and would flush on fclose), so discard
+      // the partial file before returning so it cannot poison the cache name.
+      arb_clear(u); arb_clear(eps); arb_clear(thresh); arf_clear(m);
+      gcache_writer_abort(fp, cache_path);
+      return ERR_WINDOW_TOO_SMALL;
+    }
     L->max_K=k;
     L->one_over_B=Binv;
     if(verbose) printf("1/B set to %f\n",Binv);
     L->low_i=imin;
     L->hi_i=imax;
 
-    arb_init(L->eq59);
     arb_set(L->eq59,thresh);
     if(op) {
-      fprintf(fp,"%.9f %ld %ld\n", Binv, imin, imax);
+      // %a (hex float) so this body copy of one_over_B round-trips bit-for-bit;
+      // it must agree exactly with the header value the read path already
+      // validated, so read_gfile cannot silently change L->one_over_B to a
+      // rounded value after the header check passed.
+      fprintf(fp,"%a %ld %ld\n", Binv, imin, imax);
       arb_get_abs_ubound_arf(m,thresh,prec);
       fprintf(fp,"%ld ",k);
       printarf(fp,m);
@@ -562,27 +610,38 @@ computeres:
       fflush(fp);
     }
 
-    L->Gs=(arb_t **)malloc(sizeof(arb_t *)*k);
+    L->Gs=(arb_t **)calloc(k,sizeof(arb_t *));
     if(!L->Gs)
     {
-      fprintf(stderr,"Fatal error allocating memory in computeall. Exiting.\n");
-      exit(0);
+      // Graceful fatal return (no exit() on this branch); discard the partial
+      // cache file so it cannot poison the cache name on a later run.
+      arb_clear(u); arb_clear(eps); arb_clear(thresh); arf_clear(m);
+      gcache_writer_abort(fp, cache_path);
+      return ERR_OOM;
     }
     for(i=0;i<k;i++)
     {
       L->Gs[i]=(arb_t *)malloc(sizeof(arb_t)*(imax-imin+1));
       if(!L->Gs[i])
       {
-        fprintf(stderr,"Fatal error allocating memory in computeall. Exiting.\n");
-        exit(0);
+        // Leave already-initialised rows for Lfunc_clear; just discard the
+        // partial cache file and report a graceful fatal error.
+        arb_clear(u); arb_clear(eps); arb_clear(thresh); arf_clear(m);
+        gcache_writer_abort(fp, cache_path);
+        return ERR_OOM;
       }
-    }
-    for(i=0;i<k;i++)
       for(j=0;j<=imax-imin;j++)
         arb_init(L->Gs[i][j]);
+    }
 
 
     g = calloc(k,sizeof(g[0]));
+    if(!g) {
+      arb_clear(u); arb_clear(eps);
+      arb_clear(thresh); arf_clear(m);
+      gcache_writer_abort(fp, cache_path);
+      return ERR_OOM;
+    }
     for (i=0;i<k;i++)
       arb_init(g[i]);
     int64_t ii;
@@ -605,6 +664,7 @@ computeres:
     arb_clear(u); arb_clear(eps);
     arb_clear(thresh); arf_clear(m);
 
+    return ERR_SUCCESS;
   }
 
   bool read_arb(arb_ptr res, FILE *infile)
@@ -673,10 +733,14 @@ computeres:
   // Read and validate the GCACHE header (see GCACHE_MAGIC).  Returns false --
   // so the caller recomputes (overwriting the file) rather than returning wrong
   // numbers -- when the file is foreign or from an older format (magic/version
-  // mismatch), describes a different L-function (degree or mus mismatch), or
-  // was computed at too low a precision for the current request
-  // (cached gprec < req_gprec; recall hi_i and max_K grow with gprec).  This
-  // runs before read_gfile allocates anything, so a rejected file leaks nothing.
+  // mismatch), describes a different L-function (degree or mus mismatch), was
+  // computed for a different output window (one_over_B mismatch), or was computed
+  // at too low a precision for the current request (cached gprec < req_gprec;
+  // recall hi_i and max_K grow with gprec).  This runs before read_gfile
+  // allocates anything, so a rejected file leaks nothing.  L->one_over_B holds
+  // the REQUEST's window here (set in Lfunc_init_advanced before compute_g, not
+  // yet overwritten by the body), so it is the authoritative value to validate
+  // against.
   static bool read_gheader(FILE *infile, const Lfunc *L, int64_t req_gprec)
   {
     char magic[16];
@@ -698,6 +762,17 @@ computeres:
       if(twomu != (long)round(L->mus[i] * 2.0)) // identity: exact halved mu
         return false;
     }
+    // Window: the body is B-dependent (low_i/hi_i/max_K and the Gs u-grid scale
+    // with B) and read_gfile overwrites L->one_over_B from it, so a cache written
+    // for a different window must be rejected here.  The header value was written
+    // with %a, so this %la reparse is bit-exact and the == compare against the
+    // request's one_over_B neither rejects a freshly written matching cache nor
+    // accepts a near-equal foreign window.
+    double cached_one_over_B;
+    if(fscanf(infile, "%la", &cached_one_over_B) != 1)
+      return false;
+    if(cached_one_over_B != L->one_over_B) // exact: distinct windows differ in bits
+      return false;
     if(cached_gprec < req_gprec) // sufficiency: cached grid is precise enough
       return false;
     return true;
@@ -718,14 +793,16 @@ computeres:
     //double dalpha;
     // C = coeff_bound(degree, 53) is canonical in the degree, which the header
     // has just verified, so the value read below is safe to trust.
-    arb_init(L->C);
-    arb_init(L->alpha);
     if(fscanf(infile,"%" PRId64 " %" PRId64 " %" PRId64 "\n",&m,&e,&alpha)!=3)
       return GCACHE_CORRUPT;
     arb_set_si(L->C,m);
     arb_mul_2exp_si(L->C,L->C,e);
     arb_set_si(L->alpha,alpha);
-    if(fscanf(infile,"%lf %" PRId64 " %" PRId64 "\n",&L->one_over_B,&L->low_i,&L->hi_i)!=3)
+    // %la matches the %a the body was written with, so the value reparses
+    // bit-for-bit.  read_gheader already validated this exact one_over_B against
+    // the request, so this overwrite restores the identical bits, never a rounded
+    // (or foreign-window) value.
+    if(fscanf(infile,"%la %" PRId64 " %" PRId64 "\n",&L->one_over_B,&L->low_i,&L->hi_i)!=3)
       return GCACHE_CORRUPT;
     if(fscanf(infile,"%" PRIu64 "",&L->max_K)!=1)
       return GCACHE_CORRUPT;
@@ -736,7 +813,6 @@ computeres:
     fmpz_init(b);
     mpz_init(x);
     mpz_init(ee);
-    arb_init(L->eq59);
     if(!mpz_inp_str(x,infile,10))
       return GCACHE_CORRUPT;
     if(!mpz_inp_str(ee,infile,10))
@@ -749,7 +825,7 @@ computeres:
     mpz_clear(x);
     mpz_clear(ee);
 
-    L->Gs=(arb_t **)malloc(sizeof(arb_t *)*L->max_K);
+    L->Gs=(arb_t **)calloc(L->max_K,sizeof(arb_t *));
     if(!L->Gs)
       return GCACHE_CORRUPT;
     for(uint64_t k=0;k<L->max_K;k++)
@@ -770,6 +846,9 @@ computeres:
     Lerror_t ecode=ERR_SUCCESS;
     bool op = false; // true if we are going to write a cache file
     FILE *ofile = NULL; // file to write to
+    char fname[1337]; // cache path; set when op becomes true (function scope so
+                      // computeall can unlink the partial file on a mid-write error)
+    const char *cache_path = NULL; // == fname once a writer is open, else NULL
 
     // "Default mode" means the caller left gprec at 0; we then both derive the
     // working gprec ourselves and may consult the on-disk cache.  Capture that
@@ -795,20 +874,24 @@ computeres:
       printf("g precision set to %" PRId64 " bits\n", L->gprec);
 
     if(use_cache) {
-      char fname[1337];
       char fname1[1024] = "";
       size_t off = 0;
-      // Build the cache filename, bailing out if any snprintf hits an encoding
-      // error (returns < 0) or would truncate. snprintf reports the would-be
-      // length, so capture it in an int (off is size_t: adding a negative return
-      // directly would wrap) and advance only once a write fully fit. A truncated
-      // name would drop trailing mus / path chars and let distinct L-functions
-      // collide on one cache file, so on any failure we skip the cache
-      // (best-effort) and compute the G data fresh rather than read or write the
-      // wrong data. These checks bound both writes for any mus and cache_dir --
-      // nothing here relies on a cap on the number or magnitude of the mus.
+      // Build a self-identifying cache filename, bailing out if any snprintf hits
+      // an encoding error (returns < 0) or would truncate. The header is still
+      // validated on read, but the filename now carries the fields that define
+      // the G data in normal use: cache format version, degree, effective gprec,
+      // window one_over_B, and the sorted analytic mus.
       bool name_fits = true;
+      int n0 = snprintf(fname1, sizeof(fname1), "v%d_r%lu_p%" PRId64 "_b%a",
+                        GCACHE_VERSION, (unsigned long)L->degree,
+                        L->gprec, L->one_over_B);
+      if(n0 < 0 || (size_t) n0 >= sizeof(fname1))
+        name_fits = false;
+      else
+        off = (size_t) n0;
       for(uint64_t r=0; r<L->degree; r++) {
+        if(!name_fits)
+          break;
         int n = snprintf(fname1+off, sizeof(fname1)-off, "_%.1f", L->mus[r]);
         if(n < 0 || (size_t) n >= sizeof(fname1)-off) {
           name_fits = false;
@@ -817,7 +900,7 @@ computeres:
         off += (size_t) n;
       }
       if(name_fits) {
-        int n = snprintf(fname, sizeof(fname), "%s/g%s", L->cache_dir, fname1);
+        int n = snprintf(fname, sizeof(fname), "%s/g_%s", L->cache_dir, fname1);
         name_fits = (n >= 0) && ((size_t) n < sizeof(fname));
       }
       if(name_fits) {
@@ -841,12 +924,18 @@ computeres:
           op = false;
         } else {
           op = true; // file open ok so we can output
+          cache_path = fname; // so computeall can unlink it on a mid-write error
         }
       }
     }
 
-    computeall(L, -32*M_LN2, (double)L->degree/512, L->gprec, op, ofile);
-    if(op)
+    // computeall closes AND unlinks the cache file itself on any mid-write error
+    // (so a partial header never poisons the cache name). On a clean run it leaves
+    // the file open for us to close here. Closing only on a clean return avoids a
+    // double fclose of an already-closed handle.
+    Lerror_t gcode = computeall(L, -32*M_LN2, L->one_over_B, L->gprec, op, ofile, cache_path);
+    ecode |= gcode;
+    if(op && !fatal_error(gcode))
       fclose(ofile);
     return ecode;
   }
