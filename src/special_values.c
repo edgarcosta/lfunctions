@@ -188,21 +188,16 @@ extern "C"{
   // estimate W(1/2+iz) by upsampling off Lu->u_values_off
   Lerror_t s_upsample_stride_dash(acb_ptr res, acb_ptr z, double t0, Lfunc *L, int64_t prec, arb_t pi_by_H2, arb_t err, int64_t N, uint64_t stride)
   {
-    static arb_t A,pi; // the A for upsampling = usual A / stride
-    static acb_t diff,this_diff,term,sin_diff,cos_diff;
-    static bool init=false;
-    if(!init)
-    {
-      init=true;
-      arb_init(A);
-      acb_init(diff);
-      acb_init(this_diff);
-      acb_init(term);
-      acb_init(sin_diff);
-      acb_init(cos_diff);
-      arb_init(pi);
-      arb_const_pi(pi,prec);
-    }
+    Lerror_t ecode=ERR_SUCCESS;
+    arb_t A,pi; // the A for upsampling = usual A / stride
+    acb_t diff,term,sin_diff,cos_diff;
+    arb_init(A);
+    arb_init(pi);
+    arb_const_pi(pi,prec);
+    acb_init(diff);
+    acb_init(term);
+    acb_init(sin_diff);
+    acb_init(cos_diff);
 
     // sum runs for |k-t_0*A|<N
     int64_t k0=-(N-t0*L->A/stride-1);
@@ -220,9 +215,12 @@ extern "C"{
     int64_t n=k0*stride;
     for(int64_t k=k0;k<=k1;k++)
       {
-	Lerror_t ecode=s_do_point_dash(term,L,n,z,diff,sin_diff,cos_diff,L->arb_A,prec,pi_by_H2);
-	if(fatal_error(ecode))
-	  return ecode;
+	Lerror_t step_ecode=s_do_point_dash(term,L,n,z,diff,sin_diff,cos_diff,L->arb_A,prec,pi_by_H2);
+	if(fatal_error(step_ecode))
+	  {
+	    ecode=step_ecode;
+	    goto cleanup;
+	  }
 	acb_add(res,res,term,prec);
 	acb_neg(sin_diff,sin_diff);
 	acb_neg(cos_diff,cos_diff);
@@ -233,28 +231,29 @@ extern "C"{
     arb_add_error(acb_realref(res),err);
     arb_add_error(acb_imagref(res),err);
 
-    return ERR_SUCCESS;
+cleanup:
+    arb_clear(A);
+    arb_clear(pi);
+    acb_clear(diff);
+    acb_clear(term);
+    acb_clear(sin_diff);
+    acb_clear(cos_diff);
+    return ecode;
   }
 
   
   // estimate W(1/2+iz) by upsampling off Lu->u_values_off
   Lerror_t s_upsample_stride(acb_ptr res, acb_ptr z, double t0, Lfunc *L, int64_t prec, arb_t pi_by_H2, arb_t err, int64_t N, uint64_t stride)
   {
-    static arb_t A,pi; // the A for upsampling = usual A / stride
-    static acb_t diff,this_diff,term,sin_diff,neg_sin_diff;
-    static bool init=false;
-    if(!init)
-    {
-      init=true;
-      arb_init(A);
-      acb_init(diff);
-      acb_init(this_diff);
-      acb_init(term);
-      acb_init(sin_diff);
-      acb_init(neg_sin_diff);
-      arb_init(pi);
-      arb_const_pi(pi,prec);
-    }
+    Lerror_t ecode=ERR_SUCCESS;
+    arb_t A,pi; // the A for upsampling = usual A / stride
+    acb_t diff,term,sin_diff;
+    arb_init(A);
+    arb_init(pi);
+    arb_const_pi(pi,prec);
+    acb_init(diff);
+    acb_init(term);
+    acb_init(sin_diff);
 
     // sum runs for |k-t_0*A|<N
     int64_t k0=-(N-t0*L->A/stride-1);
@@ -269,15 +268,18 @@ extern "C"{
     int64_t n=k0*stride;
     for(int64_t k=k0;k<=k1;k++)
       {
-	Lerror_t ecode=s_do_point(term,L,n,z,diff,sin_diff,L->arb_A,prec,pi_by_H2);
+	Lerror_t step_ecode=s_do_point(term,L,n,z,diff,sin_diff,L->arb_A,prec,pi_by_H2);
 	if(verbose&&(k==0))
 	  {
 	    printf("W(0)sinc(stuff)  returned ");
 	    acb_printd(term,20);
 	    printf("\n");
 	  }
-	if(fatal_error(ecode))
-	  return ecode;
+	if(fatal_error(step_ecode))
+	  {
+	    ecode=step_ecode;
+	    goto cleanup;
+	  }
 	acb_add(res,res,term,prec);
 	acb_neg(sin_diff,sin_diff);
 	n+=stride;
@@ -286,7 +288,13 @@ extern "C"{
     arb_add_error(acb_realref(res),err);
     arb_add_error(acb_imagref(res),err);
 
-    return ERR_SUCCESS;
+cleanup:
+    arb_clear(A);
+    arb_clear(pi);
+    acb_clear(diff);
+    acb_clear(term);
+    acb_clear(sin_diff);
+    return ecode;
       
   }
 

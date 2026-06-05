@@ -301,17 +301,15 @@ extern "C"{
   // add digamma(1/4+mu/2)
   void buthe_lgam1(arb_t res, double mu, int64_t prec)
   {
-    static bool init=false;
-    static arb_t s,tmp;
-    if(!init)
-    {
-      arb_init(s);
-      arb_init(tmp);
-    }
+    arb_t s,tmp;
+    arb_init(s);
+    arb_init(tmp);
     arb_set_d(s,1.0/4.0+(double)mu/2.0); // all normalised to (1-s)
     arb_digamma(tmp,s,prec);
     //if(verbose) {printf("lgam1(%f) returning ",mu);arb_printd(tmp,20);printf("\n");}
     arb_add(res,res,tmp,prec);
+    arb_clear(s);
+    arb_clear(tmp);
   }
 
   // add log N - r log pi

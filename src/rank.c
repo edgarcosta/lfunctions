@@ -5,58 +5,13 @@
 extern "C"{
 #endif
 
-  /*
-  // see ARB
-  uint64_t guess_rank(Lfunc *L, uint64_t side, uint64_t prec) 
-  {
-  static bool init=false;
-  static arb_t t;
-  double ratio;
-
-  if (!init) 
-  {
-  init=true;
-  arb_init(t);
-  }
-  arb_div(t,L->u_values_off[side][2],L->u_values_off[side][1],prec);
-  ratio = arf_get_d(arb_midref(t),ARF_RND_NEAR);
-  if(verbose)
-  {
-  printf("Ratio = %10.8e\n",ratio);
-  printf("eps^2 = ");arb_printd(acb_realref(L->epsilon_sqr),20);printf("\n");
-  }
-
-  if(L->self_dual==NO)
-  {
-  if (ratio <= 1) return 0;
-  return (int)floor(log(ratio)/log(2.0)+0.5);
-  } 
-
-  if (arb_is_negative(acb_realref(L->epsilon_sqr)))
-  {
-  if (ratio <= 2) return 1;
-  return 1+2*(int)floor(log(ratio/2)/log(4.0)+0.5);
-  } 
-  else 
-  {
-  if (ratio <= 1) return 0;
-  return 2*(int)floor(log(ratio)/log(4.0)+0.5);
-  }
-  }
-  */
-
   // exp(Pi(r*n/(4*A)-n^2/(A^2*H^2)))
   void exp_term(arb_t res, int64_t n, Lfunc *L, int64_t prec)
   {
-    static bool init=false;
-    static arb_t tmp1, tmp2, tmp3;
-    if(!init)
-    {
-      init=true;
-      arb_init(tmp1);
-      arb_init(tmp2);
-      arb_init(tmp3);
-    }
+    arb_t tmp1, tmp2, tmp3;
+    arb_init(tmp1);
+    arb_init(tmp2);
+    arb_init(tmp3);
     arb_mul_si(tmp1,L->u_one_over_A,n,prec); // n/A
     arb_mul(tmp2,tmp1,tmp1,prec); // n^2/A^2
     arb_mul(tmp3,tmp2,L->u_pi_by_H2,prec); // -Pi n^2/(A^2H^2)
@@ -65,6 +20,9 @@ extern "C"{
     arb_mul_2exp_si(tmp1,tmp1,-2); // Pi r n/(4A)
     arb_add(tmp2,tmp1,tmp3,prec);
     arb_exp(res,tmp2,prec);
+    arb_clear(tmp1);
+    arb_clear(tmp2);
+    arb_clear(tmp3);
   }
 
 
@@ -75,44 +33,7 @@ extern "C"{
    *  (pi A)^d \sum |k| <= H W(k/A) sinc^(d)(-pi k)
   */
   bool df_zero(arb_t res, uint64_t d, Lfunc *L, int64_t prec) {
-    static int64_t init_prec=0;
-    static bool init=false;
-    static arb_t a_pi_d[MAX_L+1], d_bang_pi[MAX_L+1], tmp, tmp1, tmp2, an, term;
     bool neg_me;
-    if(!init) {
-      init=true;
-      arb_init(tmp);
-      arb_init(tmp1);
-      arb_init(tmp2);
-      arb_init(term);
-      arb_init(an);
-      for(uint64_t i=0;i<=MAX_L;i++) {
-        arb_init(a_pi_d[i]);
-        arb_init(d_bang_pi[i]);
-      }
-    }
-    if(prec > init_prec) { // precision has increased
-      init_prec=prec;
-      // d_bang_pi[i] = i!/Pi^i depends only on prec (Pi is a universal constant), so
-      // it is safe to cache across objects, keyed on prec.
-      arb_set_ui(d_bang_pi[0],1);
-      arb_inv(d_bang_pi[1],L->pi,prec); // 1/Pi
-      for(uint64_t i=2;i<=MAX_L;i++) {
-        // i!/Pi^i = (i-1)!/Pi^(i-1) * i / Pi
-        arb_mul_ui(d_bang_pi[i], d_bang_pi[i-1], i,prec);
-        arb_div(d_bang_pi[i],d_bang_pi[i],L->pi,prec);
-      }
-    }
-    // a_pi_d[i] = (pi A)^i depends on the output window through L->u_pi_A (A = fft_NN/B
-    // varies per object), so it must NOT be cached across objects. Recompute it every
-    // call: caching it keyed only on prec returned a stale (pi A)^d for a second,
-    // lower-precision object with a different window, silently corrupting the certified
-    // Lfunc_Taylor ball (the bug fired only when prec did not increase). Bead lfunctions-1yx.
-    arb_set_ui(a_pi_d[0],1);
-    arb_set(a_pi_d[1],L->u_pi_A);
-    for(uint64_t i=2;i<=MAX_L;i++)
-      arb_mul(a_pi_d[i],a_pi_d[i-1],L->u_pi_A,prec);
-
     if(d > MAX_L) {
       printf("Can't compute F^(d)(0) for d>%d.\n",MAX_L);
       return false;
@@ -121,6 +42,35 @@ extern "C"{
       arb_set(res,L->u_values_off[0][0]);
       return true;
     }
+
+    arb_t a_pi_d[MAX_L+1], d_bang_pi[MAX_L+1], tmp, tmp1, tmp2, an, term;
+    arb_init(tmp);
+    arb_init(tmp1);
+    arb_init(tmp2);
+    arb_init(term);
+    arb_init(an);
+    for(uint64_t i=0;i<=MAX_L;i++) {
+      arb_init(a_pi_d[i]);
+      arb_init(d_bang_pi[i]);
+    }
+
+    // d_bang_pi[i] = i!/Pi^i. This is universal, but computing it per call
+    // avoids a cross-object static cache keyed on precision.
+    arb_set_ui(d_bang_pi[0],1);
+    arb_inv(d_bang_pi[1],L->pi,prec); // 1/Pi
+    for(uint64_t i=2;i<=MAX_L;i++) {
+      // i!/Pi^i = (i-1)!/Pi^(i-1) * i / Pi
+      arb_mul_ui(d_bang_pi[i], d_bang_pi[i-1], i,prec);
+      arb_div(d_bang_pi[i],d_bang_pi[i],L->pi,prec);
+    }
+    // a_pi_d[i] = (pi A)^i depends on the output window through L->u_pi_A
+    // (A = fft_NN/B varies per object), so it must not be cached across
+    // objects. Bead lfunctions-1yx.
+    arb_set_ui(a_pi_d[0],1);
+    arb_set(a_pi_d[1],L->u_pi_A);
+    for(uint64_t i=2;i<=MAX_L;i++)
+      arb_mul(a_pi_d[i],a_pi_d[i-1],L->u_pi_A,prec);
+
     // do the n=0 term. We know L(1/2)=0
     arb_zero(res);
     for(int64_t n = 1; n <= (int64_t)L->u_N; ++n) {
@@ -221,6 +171,15 @@ extern "C"{
       printf("W^(%" PRIu64 ")(0) ~ ", d);
       arb_printd(res, 20);
       printf("\n");
+    }
+    arb_clear(tmp);
+    arb_clear(tmp1);
+    arb_clear(tmp2);
+    arb_clear(term);
+    arb_clear(an);
+    for(uint64_t i=0;i<=MAX_L;i++) {
+      arb_clear(a_pi_d[i]);
+      arb_clear(d_bang_pi[i]);
     }
     return true;
   }
