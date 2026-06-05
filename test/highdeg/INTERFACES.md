@@ -117,7 +117,7 @@ objects:
       taylor_err: 1.0e-12            #   include for ec/genus2 (LMFDB-golden, matches Lfunc_Taylor);
                                      #   OMIT for sympow (Pari/library leading-coeff normalisation
                                      #   differs) -> driver skips assertion 4 when taylor absent.
-      tolerate_rh_error: false       # MUST be true for degree>=3 (see bead lfunctions-0zo)
+      tolerate_rh_error: false       # false when the degree certifies; the Buthe default certifies degrees 2-9, so keep true only for genuine misses (e.g. 196.a, L = L(E)^2 with doubled zeros)
 ```
 `gen.py` DERIVES degree/normalisation/mus/self_dual from kind+sym (do NOT store them):
 - ec     : degree 2, norm 0.5, mus [0,1], self_dual 1
