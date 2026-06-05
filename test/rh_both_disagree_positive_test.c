@@ -1,9 +1,9 @@
 // BOTH-mode genuine-contradiction coverage: the positive ERR_RH_METHODS_DISAGREE
 // path that rh_both_disagree_test.c (a negative guard) never exercises. (1) the
 // decision rule rh_methods_disagree over all four (too_many, overcount) combos;
-// (2) integration: drive the REAL buthe_check_RH into a hard over-count (S<0 via
-// a large negative buthe_Wf bump) and confirm it pairs with a confirming Turing
-// side to yield DISAGREE. Asserts on flags only. Exit 0 = pass.
+// (2) integration: drive the REAL buthe_check_RH into a lower-h hard over-count
+// and confirm it pairs with a confirming Turing side to yield DISAGREE. Asserts
+// on flags only. Exit 0 = pass.
 #include <assert.h>
 #include <inttypes.h>
 #include <stdio.h>
@@ -27,6 +27,16 @@ static void cb(acb_poly_t poly, uint64_t p, int d, int64_t prec, void *pm) {
   acb_poly_set_coeff_si(poly,0,1); acb_poly_set_coeff_si(poly,1,-a); acb_poly_set_coeff_si(poly,2,P);
 }
 
+static void force_S(Lfunc *LL, int grid_i, long value) {
+  arb_t target, S, delta;
+  arb_init(target); arb_init(S); arb_init(delta);
+  arb_set_si(target, value);
+  buthe_S_at(S, LL, grid_i, LL->wprec);
+  arb_sub(delta, target, S, LL->wprec);
+  arb_add(LL->buthe_Wf[grid_i], LL->buthe_Wf[grid_i], delta, LL->wprec);
+  arb_clear(target); arb_clear(S); arb_clear(delta);
+}
+
 int main(void) {
   // (1) decision rule: exactly one hard over-count => DISAGREE.
   assert(rh_methods_disagree(false, false) == ERR_SUCCESS);
@@ -45,9 +55,10 @@ int main(void) {
   if (fatal_error(ec)) { fprint_errors(stderr, ec); Lfunc_clear(L); return 2; }
 
   Lfunc *LL = (Lfunc *)L;
-  // force S<0 via a large negative Wf bump on the certifying grid point (h=8); the
-  // real verifier then reports the hard over-count ERR_BUT_ERROR.
-  arb_sub_ui(LL->buthe_Wf[0], LL->buthe_Wf[0], 1000, LL->wprec);
+  // Force h=8 to be non-certifying but non-negative, then force h=6 negative.
+  // A negative rigorous S at any grid h is a hard over-count, not a certificate.
+  force_S(LL, 0, 2);
+  force_S(LL, 1, -1);
   Lerror_t be = buthe_check_RH(LL);
   assert((be & ERR_BUT_ERROR) != 0);
   assert(rh_methods_disagree(false, (be & ERR_BUT_ERROR) != 0) == ERR_RH_METHODS_DISAGREE);

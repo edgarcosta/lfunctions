@@ -412,9 +412,9 @@ extern "C"{
     // lowers S for a COMPLETE zero list, while a genuine miss keeps S >= threshold
     // at every grid h (a missed zero's contribution rises toward 0.5 as h drops).
     // We certify at the HIGHEST grid h that achieves upper(S) < threshold (that h
-    // has the smallest W_f tail error). The hard over-count test S < 0 is judged
-    // ONLY at i==0 (h=8, smallest W_f error) so the wider low-h error cannot
-    // manufacture a false over-count.
+    // has the smallest W_f tail error). Since S is the contribution of missing
+    // zeros under the theorem hypotheses, a rigorous upper(S) < 0 is a hard
+    // over-count at any grid h used by the verifier.
     arb_t S, Sdiff;
     arb_init(S); arb_init(Sdiff);
     Lerror_t verdict = ERR_RH_ERROR; // default: no grid h certified
@@ -428,7 +428,7 @@ extern "C"{
         printf("\nWf = ");arb_printd(L->buthe_Wf[i],20);
         printf("\nS = ");arb_printd(S,20);printf("\n");
       }
-      if (i == 0 && arb_is_negative(S)) { // hard over-count at the safest h
+      if (arb_is_negative(S)) { // hard over-count at this h
         if(verbose) printf("Error in Weil-Barner check. Winf+Wf-Ws* must allow >=0. RH not confirmed.\n");
         verdict = ERR_BUT_ERROR; break;
       }
