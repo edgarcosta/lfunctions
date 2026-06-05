@@ -125,6 +125,9 @@ extern "C"{
   // otherwise.
   // Under the default Buthe verifier a hard over-count is fatal (ERR_BUT_ERROR);
   // a mere failure to certify completeness is the warning ERR_RH_ERROR.
+  // Caveat: Buthe's general inequality includes an extra pole contribution.
+  // The current implementation assumes entire L-functions; do not use it for
+  // zeta/principal-pole objects unless that contribution is added.
   // (The legacy Turing default only raised the latter.)
   Lerror_t Lfunc_set_rh_method(Lfunc_t L, Lfunc_rh_method method);
 

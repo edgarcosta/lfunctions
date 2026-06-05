@@ -10,6 +10,11 @@ extern "C"{
   // we set h=8
   // and use the zeros up to height 96/r to check the list to height buthe_b=64/r
   // This is probably huge overkill
+  //
+  // Caveat: Buthe's general inequality has an extra pole contribution. This
+  // implementation assumes the library's current scope of entire L-functions;
+  // do not use it for objects with zeta/principal poles unless that term is
+  // added to S.
 
 
   // Buthe smoothing parameter h.  Was emitted by gp/buthe_ints.gp into
@@ -73,10 +78,11 @@ extern "C"{
   // whilst processing the Euler Factors. see use_inv_lpoly in coeff.c
   //
   // compute a term for wf
-  // bm is real part of the algebraic coefficient for p^m in -L'/L(s)=sum_{n>1} Lambda(n) b(n)n^{-s}
-  // subtract 2 Re(log(p)bm f(mlog p)/sqrt(p^m) from Wf
-  // Re f(mlog(p))=sin(b mlog(p))/(Pi m log(p) cosh(h mlog(p)/2))
-  // so we want 2 bm sin(b m log(p))/(Pi m cosh(h m log(p)/2))
+  // bm is Re([T^m] T P'(T)/P(T)), where the local factor is 1/P(T).
+  // Thus bm is the negative of the usual coefficient A_m in
+  // -L'/L(s)=sum_{p,m} log(p) A_m p^{-ms}. Buthe's W_f has a leading
+  // minus sign, so the contribution for the symmetric interval [-b,b] is
+  // +2 bm sin(b m log(p))/(pi m sqrt(p^m) cosh(h m log(p)/2)).
   void wf1(Lfunc *L, uint64_t m, uint64_t pm, arb_t bm, int64_t prec)
   {
     if(arb_is_zero(bm)) // nothing to do
