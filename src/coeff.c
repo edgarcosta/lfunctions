@@ -240,15 +240,17 @@ Lerror_t Lfunc_use_all_lpolys(Lfunc_t Lf, void (*lpoly_callback) (acb_poly_t lpo
   return ecode;
 }
 
-// Supply Euler factors as an array, one per consecutive prime (f[0] at p=2).
-// We sieve the primes ourselves (exactly as Lfunc_use_all_lpolys) and hand the
-// k-th factor to the shared use_lpoly for the k-th prime, so normalisation,
-// inversion and the multiplicative sieve are not duplicated. Running out of
-// factors before nmax reduces M and warns, just like the callback zero-poly
-// short-circuit; surplus factors (len > pi(nmax)) are ignored.
-Lerror_t Lfunc_use_lpolys_acb(Lfunc_t Lf, const acb_poly_struct *f, uint64_t len)
+// Shared body of the Euler-factor array front-ends: exactly one of fa (acb_poly
+// array) and fz (fmpz_poly array) is non-NULL. We sieve the primes ourselves
+// (exactly as Lfunc_use_all_lpolys) and hand the k-th factor to the shared
+// use_lpoly for the k-th prime, so normalisation, inversion and the
+// multiplicative sieve are not duplicated. An fmpz factor is converted into a
+// single reused scratch acb_poly at working precision before use_lpoly, so
+// Buthe's wf() still sees real per-prime forward and inverse factors. Running
+// out of factors before nmax reduces M and warns, just like the callback
+// zero-poly short-circuit; surplus factors (len > pi(nmax)) are ignored.
+static Lerror_t use_lpolys_array(Lfunc *L, const acb_poly_struct *fa, const fmpz_poly_struct *fz, uint64_t len)
 {
-  Lfunc *L=(Lfunc *)Lf;
   if(L->raw_supplied) // raw a_n overwrote ans; multiplying factors in is incoherent
   {
     L->supply_ecode|=ERR_SUPPLY_CONFLICT;
@@ -257,48 +259,11 @@ Lerror_t Lfunc_use_lpolys_acb(Lfunc_t Lf, const acb_poly_struct *f, uint64_t len
   L->factor_supplied=true;
   if(!L->nmax_called)
   {
-    L->M=Lfunc_nmax(Lf);
-    L->nmax_called=true;
-  }
-  primesieve_iterator it;
-  primesieve_init(&it);
-  uint64_t p=0, k=0;
-  Lerror_t ecode=ERR_SUCCESS;
-  while((p=primesieve_next_prime(&it)) <= L->M)
-  {
-    if(k>=len) // ran out of supplied factors before nmax
-    {
-      ecode|=shrink_M(L,p-1,true);
-      break;
-    }
-    use_lpoly(L,p,f+k);
-    k++;
-  }
-  primesieve_free_iterator(&it);
-  return ecode;
-}
-
-// As Lfunc_use_lpolys_acb, but the factors are exact integer polynomials. Each
-// is converted to a reused scratch acb_poly (exact for coefficients that fit in
-// the working precision, which Ramanujan-bounded local factors always do) and
-// passed to the identical use_lpoly path, so Buthe's wf() still sees real
-// per-prime forward and inverse factors.
-Lerror_t Lfunc_use_lpolys_fmpz(Lfunc_t Lf, const fmpz_poly_struct *f, uint64_t len)
-{
-  Lfunc *L=(Lfunc *)Lf;
-  if(L->raw_supplied)
-  {
-    L->supply_ecode|=ERR_SUPPLY_CONFLICT;
-    return ERR_SUPPLY_CONFLICT;
-  }
-  L->factor_supplied=true;
-  if(!L->nmax_called)
-  {
-    L->M=Lfunc_nmax(Lf);
+    L->M=Lfunc_nmax((Lfunc_t)L);
     L->nmax_called=true;
   }
   acb_poly_t g;
-  acb_poly_init(g);
+  acb_poly_init(g); // scratch for the fmpz->acb conversion (unused on the acb path)
   primesieve_iterator it;
   primesieve_init(&it);
   uint64_t p=0, k=0;
@@ -310,13 +275,28 @@ Lerror_t Lfunc_use_lpolys_fmpz(Lfunc_t Lf, const fmpz_poly_struct *f, uint64_t l
       ecode|=shrink_M(L,p-1,true);
       break;
     }
-    acb_poly_set_fmpz_poly(g,f+k,L->wprec);
-    use_lpoly(L,p,g);
+    if(fa)
+      use_lpoly(L,p,fa+k);
+    else
+    {
+      acb_poly_set_fmpz_poly(g,fz+k,L->wprec); // converted at working precision
+      use_lpoly(L,p,g);
+    }
     k++;
   }
   primesieve_free_iterator(&it);
   acb_poly_clear(g);
   return ecode;
+}
+
+Lerror_t Lfunc_use_lpolys_acb(Lfunc_t Lf, const acb_poly_struct *f, uint64_t len)
+{
+  return use_lpolys_array((Lfunc *)Lf, f, NULL, len);
+}
+
+Lerror_t Lfunc_use_lpolys_fmpz(Lfunc_t Lf, const fmpz_poly_struct *f, uint64_t len)
+{
+  return use_lpolys_array((Lfunc *)Lf, NULL, f, len);
 }
 
 // Move one supplied coefficient at index n (1-based) into the analytic
@@ -364,8 +344,9 @@ static Lerror_t raw_guard(Lfunc *L, bool a1_is_one)
 // bound the factor paths satisfy and M_error uses for the tail). Fatal
 // ERR_COEFF_BOUND if |a_n| certainly exceeds it (arb_gt, so only a definite
 // violation fires); catches a wrong normalisation_of_input or packed garbage.
-static Lerror_t check_coeff_bound(Lfunc *L, const acb_t an, uint64_t n, int64_t prec)
+static Lerror_t check_coeff_bound(Lfunc *L, const acb_t an, uint64_t n)
 {
+  int64_t prec=L->wprec;
   arb_t absn,bound,t;
   arb_init(absn);
   arb_init(bound);
@@ -382,31 +363,35 @@ static Lerror_t check_coeff_bound(Lfunc *L, const acb_t an, uint64_t n, int64_t 
   return e;
 }
 
-// Supply the Dirichlet coefficients a_n directly (a[0]=a_1). These *overwrite*
+// Shared body of the raw Dirichlet-coefficient front-ends: exactly one of az
+// (fmpz array) and aa (acb array) is non-NULL. The supplied a_n *overwrite*
 // L->ans (the all-ones init), so they cannot be combined with any Euler-factor
 // route. There are no per-prime factors, so RH verification is later skipped
-// (no_lpolys). A short array reduces M and warns; surplus is ignored.
-Lerror_t Lfunc_use_dirichlet_coeffs_fmpz(Lfunc_t Lf, const fmpz *a, uint64_t len, int norm_of_input)
+// (gated on raw_supplied). The fmpz form writes each coefficient exactly; the
+// acb form trusts the supplied ball. A short array reduces M and warns; surplus
+// is ignored. The a_1 == 1 test (fmpz exact equality vs the acb ball containing
+// 1) is the caller's, passed in as a1_is_one.
+static Lerror_t use_dirichlet_coeffs(Lfunc *L, const fmpz *az, acb_srcptr aa, uint64_t len, int norm_of_input, bool a1_is_one)
 {
-  Lfunc *L=(Lfunc *)Lf;
-  bool a1_is_one = (len==0) || fmpz_is_one(a+0);
   Lerror_t guard=raw_guard(L,a1_is_one);
   if(guard)
     return guard;
   if(!L->nmax_called)
   {
-    L->M=Lfunc_nmax(Lf);
+    L->M=Lfunc_nmax((Lfunc_t)L);
     L->nmax_called=true;
   }
   L->raw_supplied=true;
-  L->no_lpolys=true;
   uint64_t use = (len<L->M) ? len : L->M;
   Lerror_t ecode=ERR_SUCCESS;
   for(uint64_t n=1;n<=use;n++)
   {
-    acb_set_fmpz(L->ans[n-1],a+(n-1)); // exact
+    if(az)
+      acb_set_fmpz(L->ans[n-1],az+(n-1)); // exact
+    else
+      acb_set(L->ans[n-1],aa+(n-1)); // trust the supplied ball
     apply_input_norm(L->ans[n-1],n,norm_of_input,L);
-    ecode|=check_coeff_bound(L,L->ans[n-1],n,L->wprec);
+    ecode|=check_coeff_bound(L,L->ans[n-1],n);
   }
   if(ecode)
     L->supply_ecode|=ecode; // surface a bound violation at compute time too
@@ -415,35 +400,20 @@ Lerror_t Lfunc_use_dirichlet_coeffs_fmpz(Lfunc_t Lf, const fmpz *a, uint64_t len
   return ecode;
 }
 
+Lerror_t Lfunc_use_dirichlet_coeffs_fmpz(Lfunc_t Lf, const fmpz *a, uint64_t len, int norm_of_input)
+{
+  Lfunc *L=(Lfunc *)Lf;
+  bool a1_is_one = (len==0) || fmpz_is_one(a+0);
+  return use_dirichlet_coeffs(L,a,NULL,len,norm_of_input,a1_is_one);
+}
+
 Lerror_t Lfunc_use_dirichlet_coeffs_acb(Lfunc_t Lf, acb_srcptr a, uint64_t len, int norm_of_input)
 {
   Lfunc *L=(Lfunc *)Lf;
   // a_1's ball must contain 1 (certified contract: the ball encloses the truth)
   bool a1_is_one = (len==0) ||
     (arb_contains_si(acb_realref(a+0),1) && arb_contains_zero(acb_imagref(a+0)));
-  Lerror_t guard=raw_guard(L,a1_is_one);
-  if(guard)
-    return guard;
-  if(!L->nmax_called)
-  {
-    L->M=Lfunc_nmax(Lf);
-    L->nmax_called=true;
-  }
-  L->raw_supplied=true;
-  L->no_lpolys=true;
-  uint64_t use = (len<L->M) ? len : L->M;
-  Lerror_t ecode=ERR_SUCCESS;
-  for(uint64_t n=1;n<=use;n++)
-  {
-    acb_set(L->ans[n-1],a+(n-1)); // trust the supplied ball
-    apply_input_norm(L->ans[n-1],n,norm_of_input,L);
-    ecode|=check_coeff_bound(L,L->ans[n-1],n,L->wprec);
-  }
-  if(ecode)
-    L->supply_ecode|=ecode;
-  if(len<L->M)
-    ecode|=shrink_M(L,len,true);
-  return ecode;
+  return use_dirichlet_coeffs(L,NULL,a,len,norm_of_input,a1_is_one);
 }
 
 bool Lfunc_reduce_nmax(Lfunc_t LL, uint64_t nmax)

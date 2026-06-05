@@ -387,7 +387,6 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
   L->nmax_called = false; // noone has called nmax yet
 
   // batch-supply state: no supply call has happened yet
-  L->no_lpolys = false;
   L->factor_supplied = false;
   L->raw_supplied = false;
   L->supply_ecode = ERR_SUCCESS;

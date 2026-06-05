@@ -115,10 +115,9 @@ extern "C"{
     bool nmax_called; // true if user/system has called Lfunc_nmax
 
     // batch-supply bookkeeping (see coeff.c front-ends)
-    bool no_lpolys;       // true if raw a_n were supplied: no per-prime factors, so RH (Buthe/Turing) is skipped
     bool factor_supplied; // true once any factor route (push/callback/factor array) ran: blocks a later raw a_n supply
-    bool raw_supplied;    // true once a raw a_n array was supplied: blocks any further supply call
-    Lerror_t supply_ecode; // supply-time errors recorded out of a void context (e.g. Lfunc_use_lpoly after raw a_n); OR'd in by Lfunc_compute
+    bool raw_supplied;    // true once a raw a_n array was supplied: no per-prime factors (so RH is skipped), and blocks any further supply call
+    Lerror_t supply_ecode; // fatal supply-time errors recorded out of a void context (e.g. Lfunc_use_lpoly after raw a_n); Lfunc_compute early-returns it before computing
 
     int64_t offset; // FFT bin index of a_1 = calc_m(1); used only for a bounds check
 

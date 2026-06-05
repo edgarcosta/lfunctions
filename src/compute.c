@@ -358,7 +358,9 @@ Lerror_t Lfunc_compute(Lfunc_t Lf)
     //if( (m + 1) % 100 == 0){printf("sum_{n <= %ld |an/sqrt(n)|=",m+1);arb_printd(L->sum_ans,10);printf("\n");fflush(stdout);}
   }
   if(verbose){printf("sum_{n <= %"  PRIu64 " |an/sqrt(n)|=",L->M);arb_printd(L->sum_ans,10);printf("\n");fflush(stdout);}
-  Lerror_t ecode=L->supply_ecode|finalise_comp(L);
+  // supply_ecode carries only fatal bits and was already consumed by the
+  // early-return guard at the top of this function, so it is 0 here.
+  Lerror_t ecode=finalise_comp(L);
   if(fatal_error(ecode))
     return ecode;
   do_convolves(L);
@@ -404,14 +406,14 @@ Lerror_t Lfunc_compute(Lfunc_t Lf)
       return ecode;
   }
 #ifdef BUTHE
-  if(L->no_lpolys)
+  if(L->raw_supplied)
     ecode|=ERR_RH_UNAVAILABLE; // raw a_n: no per-prime factors for Buthe's wf()
   else
     ecode|=buthe_check_RH(L);
 #endif
 
 #ifdef TURING
-  if(L->no_lpolys)
+  if(L->raw_supplied)
     ecode|=ERR_RH_UNAVAILABLE; // raw a_n: RH not verified (see Lfunc_zeros/Lfunc_rank docs)
   else
     ecode|=turing_check_RH(L,prec);

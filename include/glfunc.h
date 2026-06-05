@@ -157,12 +157,14 @@ extern "C"{
   // analytic; no shift). The library uses min(len, Lfunc_nmax(L)) of them; len <
   // nmax reduces nmax and warns (ERR_INSUFF_EULER), surplus is ignored. Each
   // supplied a_n is checked against the degree's Euler-product Ramanujan bound
-  // (|a_n| <= C n); a coefficient exceeding it is fatal ERR_COEFF_BOUND (catching
+  // (|a_n| <= C*n^alpha, alpha = 1); a coefficient exceeding it is fatal
+  // ERR_COEFF_BOUND (catching
   // e.g. a wrong normalisation_of_input). Overwrites the coefficient array, so it
   // cannot be combined with any Euler-factor supply nor called twice
   // (ERR_SUPPLY_CONFLICT), and it disables the RH check (ERR_RH_UNAVAILABLE) since
-  // there are no per-prime factors. fmpz coefficients are exact; the acb form
-  // trusts the supplied balls (a_1's ball must contain 1).
+  // there are no per-prime factors. fmpz coefficients are exact; the acb form is
+  // the ball-valued route for certified callers and trusts the supplied balls
+  // (a_1's ball must contain 1).
   Lerror_t Lfunc_use_dirichlet_coeffs_fmpz(Lfunc_t L, const fmpz *a, uint64_t len, int normalisation_of_input);
   Lerror_t Lfunc_use_dirichlet_coeffs_acb(Lfunc_t L, acb_srcptr a, uint64_t len, int normalisation_of_input);
 
@@ -173,8 +175,10 @@ extern "C"{
   // normalisation, exactly like Lfunc_use_lpoly, which these route through. A
   // short array (len < pi(nmax)) reduces nmax and warns (ERR_INSUFF_EULER);
   // surplus is ignored. These compose freely with the callback / push / each
-  // other (all multiply into the coefficient array). The fmpz_poly form converts
-  // exactly to acb_poly first. For non-consecutive primes, use Lfunc_use_lpoly.
+  // other (all multiply into the coefficient array). The fmpz_poly form is
+  // converted to acb_poly at working precision first; the acb_poly form is the
+  // ball-valued route for certified callers. For non-consecutive primes, use
+  // Lfunc_use_lpoly.
   Lerror_t Lfunc_use_lpolys_acb(Lfunc_t L, const acb_poly_struct *f, uint64_t len);
   Lerror_t Lfunc_use_lpolys_fmpz(Lfunc_t L, const fmpz_poly_struct *f, uint64_t len);
 
