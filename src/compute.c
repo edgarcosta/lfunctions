@@ -285,9 +285,14 @@ static Lerror_t extract_and_assemble(Lfunc *L, uint64_t k)
   // ---- M's parameters: degree/k, cond^(1/k), mus every k-th ----
   Lparams_t Mp;
   Mp.degree = L->degree / k;
-  ulong rem; Mp.conductor = (uint64_t) n_rootrem(&rem, (ulong)L->conductor, (ulong)k);
+  uint64_t cbase; conductor_kth_root(L->conductor, k, &cbase); // exact: certified in prepare
+  Mp.conductor = cbase;
   Mp.normalisation = L->normalisation;    // M shares L's algebraic->analytic shift
   double *mmus = (double *) malloc(sizeof(double)*Mp.degree);
+  if (!mmus) {
+    printf("Attempt to allocate memory for M's mus failed. Exiting.\n");
+    exit(0);
+  }
   for (uint64_t i = 0; i < Mp.degree; i++)
     mmus[i] = L->mus[i*k] - L->normalisation; // M's algebraic mus (L->mus is analytic)
   Mp.mus = mmus;
@@ -307,22 +312,21 @@ static Lerror_t extract_and_assemble(Lfunc *L, uint64_t k)
 
   // ---- supply M_p = retained_f^(1/k) for primes up to nmax(M) ----
   // EVERY supplied factor (good AND bad) was certified an exact integer k-th power by
-  // power_extract_prepare, so re-extracting the exact integer root here is sound (a
-  // false L = M^k would have already been rejected with ERR_POWER). We feed M the EXACT
-  // fmpz_poly root, not a ball k-th root, so M sees the same point factors L did.
+  // power_extract_prepare, which kept the exact integer roots in L->cert_roots (one per
+  // retained factor, same order). We feed M those EXACT fmpz_poly roots -- no re-extraction
+  // -- so M sees the same point factors L did. (cert_roots is exact integers, so the acb
+  // conversion at M->wprec is exact, identical to a fresh extraction.)
   uint64_t Mmax = Lfunc_nmax(Mt);
   acb_poly_t Mp_poly; acb_poly_init(Mp_poly);
-  fmpz_poly_t Mp_z; fmpz_poly_init(Mp_z);
   for (uint64_t i = 0; i < L->n_retained; i++) {
     uint64_t p = L->retained_p[i];
     if (p > Mmax) continue;               // retention is in SUPPLY order, not prime
                                           // order (callers may append bad factors
                                           // last), so skip-and-continue, never break.
-    poly_exact_kth_root(Mp_z, &L->retained_f[i], k, M->wprec); // certified above
-    acb_poly_set_fmpz_poly(Mp_poly, Mp_z, M->wprec);
+    acb_poly_set_fmpz_poly(Mp_poly, &L->cert_roots[i], M->wprec); // certified in prepare
     Lfunc_use_lpoly(Mt, p, Mp_poly);
   }
-  fmpz_poly_clear(Mp_z); acb_poly_clear(Mp_poly);
+  acb_poly_clear(Mp_poly);
 
   ec |= Lfunc_compute(Mt);
   if (fatal_error(ec)) { Lfunc_clear(Mt); return ec; }
@@ -350,7 +354,15 @@ static Lerror_t extract_and_assemble(Lfunc *L, uint64_t k)
 
   // ---- attach the factor (owned by L; cleared in clear.c) ----
   L->factors = (Lfunc_t *) malloc(sizeof(Lfunc_t));
+  if (!L->factors) {
+    printf("Attempt to allocate memory for factors failed. Exiting.\n");
+    exit(0);
+  }
   L->factor_mults = (uint64_t *) malloc(sizeof(uint64_t));
+  if (!L->factor_mults) {
+    printf("Attempt to allocate memory for factor multiplicities failed. Exiting.\n");
+    exit(0);
+  }
   L->factors[0] = Mt; L->factor_mults[0] = k; L->n_factors = 1;
   return ec;                                          // may carry warnings
 }

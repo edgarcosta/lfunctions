@@ -260,6 +260,17 @@ static bool conductor_is_perfect_power(uint64_t N)
   return n_is_perfect_power(&root, (ulong) N) != 0;
 }
 
+// Exact k-th root of the conductor: returns true iff `cond` is a perfect k-th power
+// (cond = base^k for some integer base), setting *base to that root. This is the
+// "is it THIS power" question (k fixed), distinct from conductor_is_perfect_power's
+// "is it ANY power". Used by both power_extract_prepare and extract_and_assemble.
+bool conductor_kth_root(uint64_t cond, uint64_t k, uint64_t *base)
+{
+  ulong rem, b = n_rootrem(&rem, (ulong)cond, (ulong)k);
+  *base = (uint64_t)b;
+  return rem == 0;
+}
+
 // Rigorously decide whether the EXACT integer Euler factor Lp is a perfect k-th
 // power of an integer polynomial. If so, set Mp to that integer root and return
 // true; else return false. EXACT: rounds the ball k-th root to integers and checks
@@ -301,8 +312,61 @@ bool poly_exact_kth_root(fmpz_poly_t Mp, const acb_poly_t Lp, uint64_t k, int64_
   return ok;
 }
 
+// Free and reset the certified-root store (the partial work of a rejected candidate k,
+// or any leftover from a prior call). After this the store is empty and owns nothing.
+static void cert_roots_reset(Lfunc *L)
+{
+  if (L->cert_roots) {
+    for (uint64_t i = 0; i < L->n_cert_roots; i++)
+      fmpz_poly_clear(&L->cert_roots[i]);
+    free(L->cert_roots);
+    L->cert_roots = NULL;
+  }
+  L->n_cert_roots = 0;
+}
+
+// Run the full rigorous certificate for a fixed candidate k: EVERY retained factor
+// (good AND bad) must be an exact integer k-th power (certified over fmpz_poly), each
+// sorted block of k mus must be equal, and at least one full-degree (good) factor must
+// be present. On success, the exact integer roots are kept in L->cert_roots (one per
+// retained factor, same order) for reuse when feeding M, and true is returned. On any
+// failure the partially-built store is freed and false is returned.
+static bool power_certify_k(Lfunc *L, uint64_t k)
+{
+  // The archimedean data must be k copies: each sorted block of k mus must be equal
+  // (mus are sorted in Lfunc_init_advanced). A mismatch means L's gamma factors disagree
+  // with a pure power, so we must not extract (spec section 10). Cheap; check first.
+  for (uint64_t i = 0; i + k <= L->degree; i += k)
+    for (uint64_t j = 1; j < k; j++)
+      if (L->mus[i] != L->mus[i + j])
+        return false;
+  // rigorous per-prime gate: a single uncertified factor would make L = M^k false, so the
+  // k-th root fed to M would be unsound; reject. Keep each certified root for reuse.
+  cert_roots_reset(L);
+  if (L->n_retained) {
+    L->cert_roots = (fmpz_poly_struct *) malloc(sizeof(fmpz_poly_struct)*L->n_retained);
+    if (!L->cert_roots) {
+      printf("Attempt to allocate memory for certified k-th roots failed. Exiting.\n");
+      exit(0);
+    }
+  }
+  bool seen_full = false;
+  for (uint64_t i = 0; i < L->n_retained; i++) {
+    if (acb_poly_degree(&L->retained_f[i]) == (slong)L->degree) seen_full = true;
+    fmpz_poly_init(&L->cert_roots[i]);
+    L->n_cert_roots = i + 1;
+    if (!poly_exact_kth_root(&L->cert_roots[i], &L->retained_f[i], k, L->wprec)) {
+      cert_roots_reset(L);
+      return false;
+    }
+  }
+  if (!seen_full) { cert_roots_reset(L); return false; }
+  return true;
+}
+
 // Fix and rigorously certify k for a pure power L = M^k. Returns ERR_SUCCESS with
-// *k_out set when certified, ERR_POWER otherwise.
+// *k_out set when certified, ERR_POWER otherwise. On success the certified integer
+// roots are cached in L->cert_roots for reuse by extract_and_assemble.
 Lerror_t power_extract_prepare(Lfunc *L, uint64_t *k_out)
 {
   if (L->moment_count == 0) return ERR_POWER;
@@ -312,35 +376,30 @@ Lerror_t power_extract_prepare(Lfunc *L, uint64_t *k_out)
   arb_sqrt(S, S, L->wprec);
   double kf = arf_get_d(arb_midref(S), ARF_RND_NEAR);
   arb_clear(S);
-  uint64_t k = (uint64_t) (kf + 0.5);
+  uint64_t k0 = (uint64_t) (kf + 0.5);
   // A mis-read 2nd moment yields a safe false ERR_POWER: the rigorous gate certifies,
   // it cannot rescue a wrong candidate k.
-  if (k < 2) return ERR_POWER;
-  // necessary exact tell: conductor must be a perfect k-th power
-  ulong rem, base = n_rootrem(&rem, (ulong)L->conductor, (ulong)k);
-  (void)base;
-  if (rem != 0) return ERR_POWER;
-  // rigorous gate: EVERY retained factor (good AND bad) must be an exact integer k-th
-  // power, certified over fmpz_poly. A single uncertified bad factor would make L = M^k
-  // false, so the k-th root fed to M would be unsound; reject. Still require at least
-  // one full-degree (good) factor as a sanity floor on the degree-k structure.
-  fmpz_poly_t Mp; fmpz_poly_init(Mp);
-  bool seen_full = false;
-  for (uint64_t i = 0; i < L->n_retained; i++) {
-    if (acb_poly_degree(&L->retained_f[i]) == (slong)L->degree) seen_full = true;
-    if (!poly_exact_kth_root(Mp, &L->retained_f[i], k, L->wprec)) { fmpz_poly_clear(Mp); return ERR_POWER; }
+  if (k0 < 2) return ERR_POWER;
+  // For L = M^k the true exponent k satisfies k | degree (M has degree/k Gamma factors)
+  // and makes the conductor an exact k-th power (cond(M^k) = cond(M)^k). The moment only
+  // ESTIMATES k (moment ~ k^2): a noisy estimate that rounds a genuine M^4 down to 2
+  // underestimates by a divisor, so consider every k in [k0, degree] with k | degree,
+  // k0 | k, and cond an exact k-th power, preferring the LARGEST that passes the rigorous
+  // certificate. (We test conductor-exactness per candidate via conductor_kth_root rather
+  // than n_is_perfect_power, whose returned exponent is not necessarily maximal -- it gives
+  // 2 for 37^4 = 1369^2.) This only ever turns a previously-safe-but-incomplete refusal
+  // into a correct extraction: the per-prime exact gate and the mus-block gate still run
+  // for the chosen k and reject anything unsound, so a too-large k is filtered back down
+  // (e.g. cond a 4th power but the factors only squares).
+  uint64_t cbase;
+  for (uint64_t k = L->degree; k >= k0; k--) {
+    if ((L->degree % k) != 0) continue;   // M's degree = degree/k must be a positive integer
+    if ((k % k0) != 0) continue;          // keep k consistent with the moment estimate
+    if (!conductor_kth_root(L->conductor, k, &cbase)) continue; // cond not an exact k-th power
+    if (power_certify_k(L, k)) { *k_out = k; return ERR_SUCCESS; }
   }
-  fmpz_poly_clear(Mp);
-  if (!seen_full) return ERR_POWER;
-  // The archimedean data must also be k copies: each sorted block of k mus must be
-  // equal (mus are sorted in Lfunc_init_advanced). A mismatch means L's gamma factors
-  // disagree with a pure power, so we must not extract (spec section 10).
-  for (uint64_t i = 0; i + k <= L->degree; i += k)
-    for (uint64_t j = 1; j < k; j++)
-      if (L->mus[i] != L->mus[i + j])
-        return ERR_POWER;
-  *k_out = k;
-  return ERR_SUCCESS;
+  cert_roots_reset(L);
+  return ERR_POWER;
 }
 
 // Power / repeated-factor guard. Call at the top of Lfunc_compute, after the Euler

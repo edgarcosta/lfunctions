@@ -356,6 +356,7 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
   L->seen_sqfree_fulldeg = false;
   L->retained_p = NULL; L->retained_f = NULL;
   L->n_retained = 0; L->retained_cap = 0;
+  L->cert_roots = NULL; L->n_cert_roots = 0;
   L->factors = NULL; L->factor_mults = NULL; L->n_factors = 0;
   acb_init(L->sign);
   acb_init(L->sqrt_sign);

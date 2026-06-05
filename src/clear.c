@@ -151,6 +151,12 @@ extern "C"{
         free(L->retained_f);
       }
     free(L->retained_p);
+    if(L->cert_roots)
+      {
+        for(uint64_t i=0;i<L->n_cert_roots;i++)
+          fmpz_poly_clear(&L->cert_roots[i]);
+        free(L->cert_roots);
+      }
     if(L->factors)
       {
         for(uint64_t i=0;i<L->n_factors;i++)

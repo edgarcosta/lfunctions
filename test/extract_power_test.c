@@ -378,5 +378,58 @@ int main(void)
   }
   printf("extract_power_test: complex non-self-dual boundary OK (ERR_POWER)\n");
 
+  // ---- E^4 (degree 8, even k=4): multi-k candidate recovery (Fix C) ----
+  // L = E^4 has conductor 37^4 (maximal perfect-power exponent E=4) and 2nd moment ~16,
+  // so the moment estimate k0~4. The candidate loop considers divisors of E that are
+  // multiples of k0 -- here only {4} -- and the rigorous certificate confirms k=4: every
+  // (E_p)^4 is an exact 4th power and the mus split into equal blocks of 4. The single-k
+  // (round(sqrt(moment))) predecessor could only ever have tried one exponent; this proves
+  // k=4 is recovered and a degree-8 4th power is assembled end-to-end.
+  k_param = 4;
+  Lfunc_t Eref4 = Lfunc_init(2, 37, 0.5, mus, &ec);
+  ec = ERR_SUCCESS;
+  ec |= Lfunc_use_all_lpolys(Eref4, e_callback, NULL);
+  ec |= Lfunc_compute(Eref4);
+  assert(!fatal_error(ec));
+
+  Lparams_t Lp4 = { .degree = 8, .conductor = 37ull*37ull*37ull*37ull, .normalisation = 0.5,
+                    .mus = (double[]){0,0,0,0,1,1,1,1}, .target_prec = 100, .wprec = 0,
+                    .gprec = 0, .self_dual = YES, .rank = DK, .cache_dir = ".",
+                    .extract_powers = YES };
+  Lerror_t e4 = ERR_SUCCESS;
+  Lfunc_t L4 = Lfunc_init_advanced(&Lp4, &e4);
+  assert(!fatal_error(e4));
+  e4 |= Lfunc_use_all_lpolys(L4, lk_callback, NULL);
+  e4 |= Lfunc_compute(L4);
+  assert(!fatal_error(e4));
+
+  Lfunc_t *f4 = NULL; uint64_t *m4 = NULL;
+  assert(Lfunc_factors(L4, &f4, &m4) == 1 && m4[0] == 4); // recovered k=4
+  assert(Lfunc_rank(f4[0]) == rankE);
+  assert(Lfunc_rank(L4) == 4*rankE);
+  arb_srcptr zE4 = Lfunc_zeros(Eref4, 0);
+  arb_srcptr z4  = Lfunc_zeros(L4, 0);
+  assert(arb_overlaps((arb_ptr)(z4+0), (arb_ptr)(zE4+0)));
+  assert(arb_overlaps((arb_ptr)(z4+1), (arb_ptr)(zE4+0)));
+  assert(arb_overlaps((arb_ptr)(z4+2), (arb_ptr)(zE4+0)));
+  assert(arb_overlaps((arb_ptr)(z4+3), (arb_ptr)(zE4+0))); // quadrupled
+  assert(arb_overlaps((arb_ptr)(z4+4), (arb_ptr)(zE4+1)));
+  acb_t s4; acb_init(s4); acb_pow_ui(s4, Lfunc_sign(Eref4), 4, 100);
+  assert(acb_overlaps(s4, Lfunc_sign(L4))); acb_clear(s4); // sign(E)^4
+  acb_t vL4, vE4, vE4k; acb_init(vL4); acb_init(vE4); acb_init(vE4k);
+  Lerror_t sv4 = Lfunc_special_value(vE4, Eref4, 1.5, 0.0)
+               | Lfunc_special_value(vL4, L4, 1.5, 0.0);
+  assert(!fatal_error(sv4));
+  acb_pow_ui(vE4k, vE4, 4, 100);
+  assert(acb_overlaps(vL4, vE4k));
+  acb_clear(vL4); acb_clear(vE4); acb_clear(vE4k);
+  { arb_t tk; arb_init(tk);
+    arb_pow_ui(tk, Lfunc_Taylor(Eref4), 4, 100);
+    assert(arb_overlaps((arb_ptr)Lfunc_Taylor(L4), tk));
+    arb_clear(tk); }
+  Lfunc_clear(L4); Lfunc_clear(Eref4);
+
+  printf("extract_power_test: E^4 multi-k recovery OK (k=4)\n");
+
   return 0;
 }
