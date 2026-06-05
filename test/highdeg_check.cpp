@@ -173,7 +173,7 @@ int main(int argc, char **argv) {
   if (!tolerate_rh)
     check((ec & ERR_RH_ERROR) == 0, "rh-confirmed", "ERR_RH_ERROR must be absent");
   else if (ec & ERR_RH_ERROR)
-    printf("  [note] ERR_RH_ERROR present (tolerated for degree>=3; bead lfunctions-0zo)\n");
+    printf("  [note] ERR_RH_ERROR present (tolerated: declared genuine miss, e.g. 196.a doubled zeros)\n");
 
   if (have_expect) {
     // (1) rank

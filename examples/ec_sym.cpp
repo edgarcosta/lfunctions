@@ -18,9 +18,9 @@
  *  - self_dual = YES (a symmetric power of the self-dual L-function of an
  *    elliptic curve is self-dual), declared through the public Lfunc_init_advanced
  *    rather than poking the opaque handle, mirroring test/highdeg_check.cpp.
- *  - Degree >= 3 emits a tolerated ERR_RH_ERROR: the Turing zero count is
- *    miscalibrated for degree >= 3 (bead lfunctions-0zo).  It is a warning, not a
- *    fatal error, so it is collected and reported, never asserted against.
+ *  - Uses the default Buthe verifier, which certifies RH-completeness for
+ *    degrees 2-9; any ERR_RH_ERROR would be a non-fatal warning, so it is
+ *    collected and reported, never asserted against.
  *
  * Goldens: Sym^2 rank / eps / first zero from the certified high-degree suite
  * (test/highdeg/objects.yaml); Sym^3 from Pari lfunsympow(E,3) via lfunorderzero
@@ -204,7 +204,7 @@ static Lerror_t check_sym_power(int k, uint64_t conductor, double normalisation,
   ecode |= Lfunc_use_all_lpolys(L, sym_lpoly_callback, &ctx);
   assert(!fatal_error(ecode));
 
-  ecode |= Lfunc_compute(L);    // ERR_RH_ERROR (degree >= 3) is a tolerated warning
+  ecode |= Lfunc_compute(L);    // any ERR_RH_ERROR is a non-fatal warning, collected not asserted
   assert(!fatal_error(ecode));
 
   printf("Sym^%d of 11.a1 (degree %d, conductor %lu):\n", k, k + 1, (unsigned long) conductor);
