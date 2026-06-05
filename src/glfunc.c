@@ -48,6 +48,8 @@ void fprint_errors(FILE *f, Lerror_t ecode) {
   if (ecode & ERR_BAD_NORM)
     fprintf(f, "Invalid normalisation_of_input selector; use ALGEBRAIC_NORM "
                "or ANALYTIC_NORM.\n");
+  if (ecode & ERR_BAD_SUPPLY)
+    fprintf(f, "Invalid coefficient or Euler-factor supply argument.\n");
   // warnings
   if (ecode & ERR_INSUFF_EULER)
     fprintf(f,

@@ -300,6 +300,8 @@ Lerror_t Lfunc_compute(Lfunc_t Lf)
 
   if(fatal_error(L->supply_ecode)) // a supply call recorded a fatal error (e.g. a conflict)
     return L->supply_ecode;
+  if(L->nmax_called && L->M0>0 && L->M0-1>L->M)
+    return ERR_BAD_SUPPLY; // direct block would read coefficients past M
 
   if(verbose) {
     for(int i = 0; i < 100; i++) {

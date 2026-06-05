@@ -53,7 +53,7 @@ typedef struct {
 typedef Lfunc_rational Lfunc_rational_t[1];
 
 // provided by Drew Sutherland, 2024
-static inline int atoii (long v[], int n, char *s)
+static inline int atoii (int64_t v[], int n, char *s)
 {
   while (isspace(*s)) s++;
   char c = *s;
@@ -62,7 +62,7 @@ static inline int atoii (long v[], int n, char *s)
   if ( !n ) return -1;
   int i = 0;
   while ( i < n ) {
-    v[i] = atol(s); i++;
+    v[i] = atoll(s); i++;
     if (*s=='-') s++;
     while ( isdigit(*s) ) s++;
     if ( *s=='.') { s++; while ( isdigit(*s) ) s++; }
@@ -77,7 +77,7 @@ static inline int atoii (long v[], int n, char *s)
   return i;
 }
 
-static inline int atoiii (long v[], int d[], int m, int n, char *s) // d has length m, v has length m*n, ith list has length d[i] stored at v+i*n
+static inline int atoiii (int64_t v[], int d[], int m, int n, char *s) // d has length m, v has length m*n, ith list has length d[i] stored at v+i*n
 {
   char *t;
   int i;
@@ -102,7 +102,7 @@ static inline int atoiii (long v[], int d[], int m, int n, char *s) // d has len
   return i;
 }
 
-static inline double atoff (double v[], int n, char *s)
+static inline int atoff (double v[], int n, char *s)
 {
   while (isspace(*s)) s++;
   char c = *s;
@@ -161,7 +161,10 @@ static inline int split(char * str, char delim, char ***array, size_t *length ) 
 
   // allocate dynamic array
   res = calloc( 1, count * sizeof(char *));
-  if( !res ) return -1;
+  if( !res ) {
+    replace_null(str, delim, count - 1);
+    return -1;
+  }
 
   p = str;
   for(size_t k=0; k <count; ++k ){
@@ -181,12 +184,19 @@ static inline int split(char * str, char delim, char ***array, size_t *length ) 
 void populate_local_factors(Lfunc_rational_t L) {
   size_t n = L->size_euler_factors;
   size_t d = L->degree;
-  if (n == 0) // nothing parsed: leave ans as the all-ones init
+  if (n == 0) {
+    fprintf(stderr, "No Euler factors parsed for %s.\n", L->label ? L->label : "(unknown)");
+    L->ecode |= ERR_NO_DATA;
     return;
+  }
 
   // Pack the parsed integer Euler factors into one contiguous fmpz_poly array,
   // factor i (= the i-th prime, 2, 3, 5, ...) being 1 + c_1 T + ... + c_d T^d.
   fmpz_poly_struct *factors = (fmpz_poly_struct *) malloc(n * sizeof(fmpz_poly_struct));
+  if(!factors) {
+    L->ecode |= ERR_OOM;
+    return;
+  }
   for (size_t i = 0; i < n; ++i) {
     fmpz_poly_init(factors + i);
     for (size_t j = 0; j <= d; ++j)
@@ -207,6 +217,18 @@ void populate_local_factors(Lfunc_rational_t L) {
 
 
 
+void Lfunc_rational_init(Lfunc_rational_t L) {
+  L->label = NULL;
+  L->ecode = ERR_SUCCESS;
+  L->L = NULL;
+  L->mus = NULL;
+  L->weight = 0;
+  L->degree = 0;
+  L->conductor = 0;
+  L->euler_factors = NULL;
+  L->size_euler_factors = 0;
+}
+
 void Lfunc_rational_clear(Lfunc_rational_t L) {
   if(L->label != NULL)
     free(L->label);
@@ -216,32 +238,46 @@ void Lfunc_rational_clear(Lfunc_rational_t L) {
     free(L->mus);
   if(L->euler_factors != NULL)
     free(L->euler_factors);
-}
-
-void Lfunc_rational_init(Lfunc_rational_t L) {
-  L->label = NULL;
-  L->L = NULL;
-  L->mus = NULL;
-  L->euler_factors = NULL;
+  Lfunc_rational_init(L);
 }
 
 int Lfunc_rational_set_s(Lfunc_rational_t L, char *s) {
 
-  char **tokens;
+  char **tokens = NULL;
   size_t tokens_length = 0;
+  size_t label_len = 0;
   int status = 0;
 
   status = split(s, ':', &tokens, &tokens_length);
   // printf("tokens_length: %d\n", tokens_length);
 
+  if(status != 0)
+    return -1;
+
   if(tokens_length != 6)
     status = -1;
 
   if(status != -1) {
+    for(size_t i = 0; i < tokens_length; ++i) {
+      if(tokens[i] == NULL) {
+        status = -1;
+        break;
+      }
+    }
+  }
+
+  if(status != -1) {
     // read label
-    size_t len = strlen(tokens[0]) + 1;
-    L->label = (char *) malloc(len * sizeof(char));
-    strncpy(L->label, tokens[0], len);
+    label_len = strlen(tokens[0]) + 1;
+    L->label = (char *) malloc(label_len * sizeof(char));
+    if(!L->label) {
+      L->ecode |= ERR_OOM;
+      status = -1;
+    }
+  }
+
+  if(status != -1) {
+    strncpy(L->label, tokens[0], label_len);
     // printf("label = %s\n", L->label);
 
     // printf("label = %s %d\n", tokens[1], strlen(tokens[1]));
@@ -251,8 +287,22 @@ int Lfunc_rational_set_s(Lfunc_rational_t L, char *s) {
     // printf("conductor = %ld\n", L->conductor);
     L->weight = atol(tokens[3]);
     // printf("weight = %d\n", L->weight);
+    if(L->degree <= 0 || L->conductor <= 0)
+      status = -1;
+  }
+
+  if(status != -1) {
     L->mus = (double *)malloc(L->degree*sizeof(double));
+    if(!L->mus) {
+      L->ecode |= ERR_OOM;
+      status = -1;
+    }
+  }
+
+  if(status != -1) {
     status = atoff(L->mus, L->degree, tokens[4]);
+    if(status != L->degree)
+      status = -1;
   }
 
 
@@ -260,25 +310,61 @@ int Lfunc_rational_set_s(Lfunc_rational_t L, char *s) {
     // assuming a matrix as input
     // this just counts commas
     size_t entries = replace_char(tokens[5], ',', ',') + 1;
-    assert(entries % (L->degree + 1) == 0);
-    L->size_euler_factors = entries/(L->degree + 1);
+    if(entries % (L->degree + 1) != 0) {
+      status = -1;
+    }
+    else {
+      L->size_euler_factors = entries/(L->degree + 1);
+      if(L->size_euler_factors == 0)
+        status = -1;
+    }
+  }
+
+  if(status != -1) {
     int* d;
     d = (int *)malloc(L->size_euler_factors * sizeof(int));
-    for(size_t i = 0; i < L->size_euler_factors; ++i)
-      d[i] = L->degree + 1;
-    L->euler_factors = (int64_t *) malloc( L->size_euler_factors * (L->degree + 1) * sizeof(int64_t));
-    status = atoiii(L->euler_factors, d, L->size_euler_factors, L->degree + 1, tokens[5]);
+    if(!d) {
+      L->ecode |= ERR_OOM;
+      status = -1;
+    }
+    if(status != -1) {
+      for(size_t i = 0; i < L->size_euler_factors; ++i)
+        d[i] = L->degree + 1;
+      L->euler_factors = (int64_t *) malloc( L->size_euler_factors * (L->degree + 1) * sizeof(int64_t));
+      if(!L->euler_factors) {
+        L->ecode |= ERR_OOM;
+        status = -1;
+      }
+    }
+    if(status != -1) {
+      status = atoiii(L->euler_factors, d, L->size_euler_factors, L->degree + 1, tokens[5]);
+      if(status <= 0 || (size_t)status != L->size_euler_factors) {
+        L->size_euler_factors = status > 0 ? (size_t)status : 0;
+        status = -1;
+      }
+    }
+    if(status != -1) {
+      for(size_t i = 0; i < L->size_euler_factors; ++i) {
+        if(d[i] != L->degree + 1) {
+          status = -1;
+          break;
+        }
+      }
+    }
+    free(d);
   }
   if(status != -1) {
     L->L = Lfunc_init(L->degree, L->conductor, L->weight*0.5, L->mus, &L->ecode);
     if(fatal_error(L->ecode)) {
-      fprint_errors(stderr, L->ecode);
       status = -1;
     }
   }
 
   replace_null(s, ':', tokens_length - 1);
-  return status;
+  free(tokens);
+  if(status == -1)
+    L->size_euler_factors = 0;
+  return status == -1 ? -1 : 0;
 }
 
 
@@ -297,16 +383,27 @@ int main(int argc, char** argv) {
   FILE* output = fopen(argv[2], "w");
   if (output == NULL) {
     printf("Could not open file %s.\n", argv[2]);
+    fclose(input);
     return 1;
   }
 
 
   char *line = NULL;
   size_t len = 0;
+  size_t line_no = 0;
+  int rc = 0;
   while (getline(&line, &len, input) != -1) {
+    line_no++;
     Lfunc_rational_t L;
     Lfunc_rational_init(L);
-    Lfunc_rational_set_s(L, line);
+    if(Lfunc_rational_set_s(L, line) != 0) {
+      fprintf(stderr, "Could not parse input line %zu.\n", line_no);
+      if(fatal_error(L->ecode))
+        fprint_errors(stderr, L->ecode);
+      Lfunc_rational_clear(L);
+      rc = 1;
+      break;
+    }
     printf("label = %s\n", L->label);
     printf("degree = %d conductor = %" PRId64 " weight = %d mus = [ ", L->degree, L->conductor, L->weight);
     for(int i=0; i < L->degree; ++i)
@@ -317,12 +414,16 @@ int main(int argc, char** argv) {
     populate_local_factors(L);
     if(fatal_error(L->ecode)) {
       fprint_errors(stderr, L->ecode);
-      return -1;
+      Lfunc_rational_clear(L);
+      rc = 1;
+      break;
     }
     L->ecode|=Lfunc_compute(L->L);
     if(fatal_error(L->ecode)) {
       fprint_errors(stderr, L->ecode);
-      return -1;
+      Lfunc_rational_clear(L);
+      rc = 1;
+      break;
     }
     printf("Rank = %" PRIu64 "\n", Lfunc_rank(L->L));
     printf("Epsilon = ");acb_printd(Lfunc_sign(L->L),20);printf("\n");
@@ -332,6 +433,8 @@ int main(int argc, char** argv) {
     // TODO write output to output
     Lfunc_rational_clear(L);
   }
+  free(line);
   fclose(input);
   fclose(output);
+  return rc;
 }

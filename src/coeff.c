@@ -165,6 +165,12 @@ void use_lpoly(Lfunc *L, uint64_t p, const acb_poly_t f)
 
 }
 
+static Lerror_t bad_supply(Lfunc *L)
+{
+  L->supply_ecode|=ERR_BAD_SUPPLY;
+  return ERR_BAD_SUPPLY;
+}
+
 void Lfunc_use_lpoly(Lfunc_t Lf, uint64_t p, const acb_poly_t poly)
 {
   Lfunc *L;
@@ -174,7 +180,17 @@ void Lfunc_use_lpoly(Lfunc_t Lf, uint64_t p, const acb_poly_t poly)
     L->supply_ecode|=ERR_SUPPLY_CONFLICT; // void return: surfaced by Lfunc_compute
     return;
   }
+  if(!poly)
+  {
+    bad_supply(L);
+    return;
+  }
   L->factor_supplied=true;
+  if(!L->nmax_called)
+  {
+    L->M=Lfunc_nmax(Lf);
+    L->nmax_called=true;
+  }
   use_lpoly(L,p,poly);
 }
 
@@ -255,6 +271,8 @@ Lerror_t Lfunc_use_all_lpolys(Lfunc_t Lf, void (*lpoly_callback) (acb_poly_t lpo
 // zero-poly short-circuit; surplus factors (len > pi(nmax)) are ignored.
 static Lerror_t use_lpolys_array(Lfunc *L, const acb_poly_struct *fa, const fmpz_poly_struct *fz, uint64_t len)
 {
+  if((fa && fz) || (!fa && !fz && len>0))
+    return bad_supply(L);
   if(L->raw_supplied) // raw a_n overwrote ans; multiplying factors in is incoherent
   {
     L->supply_ecode|=ERR_SUPPLY_CONFLICT;
@@ -329,7 +347,7 @@ static void apply_input_norm(acb_t z, uint64_t n, int norm_of_input, Lfunc *L)
 // must be explicit and valid; (3) a_1 must be supplied and equal to 1. Also
 // records the code in supply_ecode so Lfunc_compute bails even if the caller
 // ignores the return value.
-static Lerror_t raw_guard(Lfunc *L, uint64_t len, int norm_of_input, bool a1_is_one)
+static Lerror_t raw_guard(Lfunc *L, uint64_t len, int norm_of_input, bool have_coeffs, bool a1_is_one)
 {
   if(L->factor_supplied || L->raw_supplied)
   {
@@ -341,7 +359,17 @@ static Lerror_t raw_guard(Lfunc *L, uint64_t len, int norm_of_input, bool a1_is_
     L->supply_ecode|=ERR_BAD_NORM;
     return ERR_BAD_NORM;
   }
-  if(len==0 || !a1_is_one)
+  if(len==0)
+  {
+    L->supply_ecode|=ERR_A1_NOT_ONE;
+    return ERR_A1_NOT_ONE;
+  }
+  if(!have_coeffs)
+  {
+    L->supply_ecode|=ERR_BAD_SUPPLY;
+    return ERR_BAD_SUPPLY;
+  }
+  if(!a1_is_one)
   {
     L->supply_ecode|=ERR_A1_NOT_ONE;
     return ERR_A1_NOT_ONE;
@@ -381,9 +409,9 @@ static Lerror_t check_coeff_bound(Lfunc *L, const acb_t an, uint64_t n)
 // acb form trusts the supplied ball. A short array reduces M and warns; surplus
 // is ignored. The a_1 == 1 test (fmpz exact equality vs the acb ball containing
 // 1) is the caller's, passed in as a1_is_one.
-static Lerror_t use_dirichlet_coeffs(Lfunc *L, const fmpz *az, acb_srcptr aa, uint64_t len, int norm_of_input, bool a1_is_one)
+static Lerror_t use_dirichlet_coeffs(Lfunc *L, const fmpz *az, acb_srcptr aa, uint64_t len, int norm_of_input, bool have_coeffs, bool a1_is_one)
 {
-  Lerror_t guard=raw_guard(L,len,norm_of_input,a1_is_one);
+  Lerror_t guard=raw_guard(L,len,norm_of_input,have_coeffs,a1_is_one);
   if(guard)
     return guard;
   if(!L->nmax_called)
@@ -413,17 +441,19 @@ static Lerror_t use_dirichlet_coeffs(Lfunc *L, const fmpz *az, acb_srcptr aa, ui
 Lerror_t Lfunc_use_dirichlet_coeffs_fmpz(Lfunc_t Lf, const fmpz *a, uint64_t len, int norm_of_input)
 {
   Lfunc *L=(Lfunc *)Lf;
-  bool a1_is_one = len>0 && fmpz_is_one(a+0);
-  return use_dirichlet_coeffs(L,a,NULL,len,norm_of_input,a1_is_one);
+  bool have_coeffs = len==0 || a!=NULL;
+  bool a1_is_one = len>0 && a && fmpz_is_one(a+0);
+  return use_dirichlet_coeffs(L,a,NULL,len,norm_of_input,have_coeffs,a1_is_one);
 }
 
 Lerror_t Lfunc_use_dirichlet_coeffs_acb(Lfunc_t Lf, acb_srcptr a, uint64_t len, int norm_of_input)
 {
   Lfunc *L=(Lfunc *)Lf;
   // a_1's ball must contain 1 (certified contract: the ball encloses the truth)
-  bool a1_is_one = len>0 &&
+  bool have_coeffs = len==0 || a!=NULL;
+  bool a1_is_one = len>0 && a &&
     (arb_contains_si(acb_realref(a+0),1) && arb_contains_zero(acb_imagref(a+0)));
-  return use_dirichlet_coeffs(L,NULL,a,len,norm_of_input,a1_is_one);
+  return use_dirichlet_coeffs(L,NULL,a,len,norm_of_input,have_coeffs,a1_is_one);
 }
 
 bool Lfunc_reduce_nmax(Lfunc_t LL, uint64_t nmax)

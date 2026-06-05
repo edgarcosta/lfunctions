@@ -49,6 +49,7 @@
 #define ERR_A1_NOT_ONE ((uint64_t) 1<<14) // fatal: supplied a_1 is not 1 (raw a_n front-ends)
 #define ERR_COEFF_BOUND ((uint64_t) 1<<15) // fatal: a supplied raw a_n exceeds the degree's Euler-product bound (|a_n| > C*n^alpha)
 #define ERR_BAD_NORM ((uint64_t) 1<<16) // fatal: invalid normalisation_of_input selector for raw a_n front-ends
+#define ERR_BAD_SUPPLY ((uint64_t) 1<<17) // fatal: invalid supply argument, e.g. a NULL array with positive length
 
 // warnings
 #define ERR_SOME_DATA ((uint64_t) 1<<32) // We had some sensible data, but not to end of Turing Zone
@@ -147,7 +148,8 @@ extern "C"{
   // lowers M to p-1, and flags ERR_INSUFF_EULER.
   Lerror_t Lfunc_use_all_lpolys(Lfunc_t L, void (*lpoly_callback) (acb_poly_t lpoly, uint64_t p, int d, int64_t prec, void *parm), void *param);
 
-  // you provide one Euler polynomial at a time
+  // you provide one Euler polynomial at a time; the first successful push
+  // initializes the coefficient range if Lfunc_nmax has not already been called
   void Lfunc_use_lpoly(Lfunc_t L, uint64_t p, const acb_poly_t poly);
 
   // ---- Batch / array supply front-ends (alongside the callback and push) -----
@@ -156,7 +158,8 @@ extern "C"{
   // a[0] = a_1 (which must be 1). normalisation_of_input is ALGEBRAIC_NORM (the
   // library applies the n^{-normalisation} shift) or ANALYTIC_NORM (a_n already
   // analytic; no shift); any other selector is fatal ERR_BAD_NORM. len must be
-  // positive, so a_1 is actually supplied. The library uses min(len,
+  // positive, so a_1 is actually supplied; a NULL coefficient array with
+  // positive len is fatal ERR_BAD_SUPPLY. The library uses min(len,
   // Lfunc_nmax(L)) of them; len <
   // nmax reduces nmax and warns (ERR_INSUFF_EULER), surplus is ignored. Each
   // supplied a_n is checked against the degree's Euler-product Ramanujan bound
@@ -177,11 +180,12 @@ extern "C"{
   // k-th prime, for primes <= Lfunc_nmax(L). Factors are in the algebraic
   // normalisation, exactly like Lfunc_use_lpoly, which these route through. A
   // short array (len < pi(nmax)) reduces nmax and warns (ERR_INSUFF_EULER);
-  // surplus is ignored. These compose freely with the callback / push / each
-  // other (all multiply into the coefficient array). The fmpz_poly form is
-  // converted to acb_poly at working precision first; the acb_poly form is the
-  // ball-valued route for certified callers. For non-consecutive primes, use
-  // Lfunc_use_lpoly.
+  // surplus is ignored. A NULL factor array is allowed only when len == 0; with
+  // positive len it is fatal ERR_BAD_SUPPLY. These compose freely with the
+  // callback / push / each other (all multiply into the coefficient array). The
+  // fmpz_poly form is converted to acb_poly at working precision first; the
+  // acb_poly form is the ball-valued route for certified callers. For
+  // non-consecutive primes, use Lfunc_use_lpoly.
   Lerror_t Lfunc_use_lpolys_acb(Lfunc_t L, const acb_poly_struct *f, uint64_t len);
   Lerror_t Lfunc_use_lpolys_fmpz(Lfunc_t L, const fmpz_poly_struct *f, uint64_t len);
 

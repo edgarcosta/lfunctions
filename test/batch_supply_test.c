@@ -324,6 +324,41 @@ static void test_guard_zero_len_raw(void) {
   }
 }
 
+// len > 0 with a NULL supply pointer must be rejected before the front-end
+// reads the first entry.
+static void test_guard_null_supply_len_positive(void) {
+  assert(fatal_error(ERR_BAD_SUPPLY));
+  double mus[] = {0, 1};
+  {
+    Lerror_t ec = ERR_SUCCESS;
+    Lfunc_t L = Lfunc_init(2, 35, 0.0, mus, &ec); assert(!fatal_error(ec));
+    Lerror_t e = Lfunc_use_dirichlet_coeffs_fmpz(L, NULL, 1, ALGEBRAIC_NORM);
+    assert((e & ERR_BAD_SUPPLY) && fatal_error(e));
+    Lfunc_clear(L);
+  }
+  {
+    Lerror_t ec = ERR_SUCCESS;
+    Lfunc_t L = Lfunc_init(2, 35, 0.0, mus, &ec); assert(!fatal_error(ec));
+    Lerror_t e = Lfunc_use_dirichlet_coeffs_acb(L, NULL, 1, ALGEBRAIC_NORM);
+    assert((e & ERR_BAD_SUPPLY) && fatal_error(e));
+    Lfunc_clear(L);
+  }
+  {
+    Lerror_t ec = ERR_SUCCESS;
+    Lfunc_t L = Lfunc_init(2, 35, 0.0, mus, &ec); assert(!fatal_error(ec));
+    Lerror_t e = Lfunc_use_lpolys_acb(L, NULL, 1);
+    assert((e & ERR_BAD_SUPPLY) && fatal_error(e));
+    Lfunc_clear(L);
+  }
+  {
+    Lerror_t ec = ERR_SUCCESS;
+    Lfunc_t L = Lfunc_init(2, 35, 0.0, mus, &ec); assert(!fatal_error(ec));
+    Lerror_t e = Lfunc_use_lpolys_fmpz(L, NULL, 1);
+    assert((e & ERR_BAD_SUPPLY) && fatal_error(e));
+    Lfunc_clear(L);
+  }
+}
+
 // normalisation_of_input has no silent default.
 static void test_guard_bad_norm(void) {
   double mus[] = {0, 1}; Lerror_t ec = ERR_SUCCESS;
@@ -427,13 +462,15 @@ static void test_guard_violated_bound(void) {
   Lfunc_clear(L);
 }
 
+// --- isolated white-box regression (internal M/M0 bookkeeping) --------------
+
 // A short supply must also clamp M0, otherwise compute would still consume the
 // direct-sum coefficients n < M0 beyond the reduced M.
 static void test_short_supply_clamps_M0(void) {
   double mus[] = {0, 1}; Lerror_t ec = ERR_SUCCESS;
   Lfunc_t L = Lfunc_init(2, 1000000, 0.0, mus, &ec); assert(!fatal_error(ec));
   (void)Lfunc_nmax(L);
-  Lfunc *LL = (Lfunc *)L;
+  Lfunc *LL = (Lfunc *)L; // white-box access stays isolated to this test
   assert(LL->M0 > 2);
   fmpz *a = _fmpz_vec_init(1);
   fmpz_one(a);
@@ -462,6 +499,49 @@ static Lfunc_t run_callback_cut(uint64_t cut, Lerror_t *ec) {
   *ec |= Lfunc_compute(L);
   return L;
 }
+
+static Lfunc_t run_lpoly_before_explicit_nmax(uint64_t cut, Lerror_t *ec) {
+  double mus[] = {0, 1};
+  Lfunc_t L = Lfunc_init(2, 5 * 7, 0.0, mus, ec);
+  if (fatal_error(*ec)) return L;
+
+  acb_poly_t f;
+  acb_poly_init(f);
+  factor_acb(f, 2);
+  Lfunc_use_lpoly(L, 2, f); // this is intentionally before explicit Lfunc_nmax
+
+  uint64_t nmax = Lfunc_nmax(L);
+  assert(nmax >= cut - 1);
+
+  uint64_t primes[64];
+  uint64_t np = primes_upto(cut - 1, primes);
+  assert(np > 1 && primes[0] == 2);
+  for (uint64_t k = 1; k < np; k++) {
+    factor_acb(f, primes[k]);
+    Lfunc_use_lpoly(L, primes[k], f);
+  }
+  acb_poly_clear(f);
+
+  assert(Lfunc_reduce_nmax(L, cut - 1));
+  *ec |= Lfunc_compute(L);
+  return L;
+}
+
+// A caller may push an Euler factor before asking for Lfunc_nmax explicitly.
+// The pushed factor must survive the later nmax query/reduction and agree with
+// the callback route truncated at the same prime.
+static void test_lpoly_before_explicit_nmax(void) {
+  uint64_t cut = 101; // factors through p=97, same small case as below
+  Lerror_t ep = ERR_SUCCESS, er = ERR_SUCCESS;
+  Lfunc_t P = run_lpoly_before_explicit_nmax(cut, &ep);
+  Lfunc_t R = run_callback_cut(cut, &er);
+  assert(!fatal_error(ep) && !fatal_error(er));
+  assert(!(ep & ERR_INSUFF_EULER));
+  assert(er & ERR_INSUFF_EULER);
+  assert_outputs_overlap(P, R);
+  Lfunc_clear(P); Lfunc_clear(R);
+}
+
 static Lfunc_t run_lpolys_acb_short(uint64_t nfac, Lerror_t *ec) {
   double mus[] = {0, 1};
   Lfunc_t L = Lfunc_init(2, 5 * 7, 0.0, mus, ec);
@@ -544,10 +624,12 @@ int main(void) {
   test_guard_a1_fmpz();
   test_guard_a1_acb();
   test_guard_zero_len_raw();
+  test_guard_null_supply_len_positive();
   test_guard_bad_norm();
   test_guard_conflicts();
   test_guard_violated_bound();
   test_short_supply_clamps_M0();
+  test_lpoly_before_explicit_nmax();
   test_insufficient_supply();
   test_rh_unavailable();
   printf("batch_supply_test: all tests passed\n");

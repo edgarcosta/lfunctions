@@ -108,7 +108,7 @@ extern "C"{
     acb_t sign; // root number eps in Lambda(s)=eps*Lambda(1-s); = sqrt_sign^2
     acb_t *ans; // Dirichlet coefficients: ans[n-1] = a_n (analytic norm), len allocated_M
     uint64_t M; // largest n with a_n used = floor(sqrt(N)*exp(2*pi*(hi_i+0.5)/B))
-    uint64_t M0; // split point ceil(sqrt(N)/100): n<M0 summed directly, n>=M0 via FFT
+    uint64_t M0; // split point ceil(sqrt(N)/100): n<M0 summed directly, n>=M0 via FFT; after any reduction M0-1 <= M
     uint64_t allocated_M; // allocated capacity of ans (slots); M0, M <= allocated_M
     double dc; // sqrt(conductor); log-scale center mapping coeff index to FFT bin
 
