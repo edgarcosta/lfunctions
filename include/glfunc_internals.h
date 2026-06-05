@@ -163,8 +163,7 @@ extern "C"{
   Lerror_t buthe_check_RH(Lfunc *L);
 
   // from turing.c
-  Lerror_t turing_check_RH(Lfunc *L, int64_t);
-  Lerror_t turing_check_RH_classify(Lfunc *L, int64_t, bool *too_many);
+  Lerror_t turing_check_RH(Lfunc *L, int64_t, bool *too_many);
   
   // from compute.c
   void lfunc_compute(Lfunc *L);

@@ -419,12 +419,15 @@ Lerror_t Lfunc_compute(Lfunc_t Lf)
   // directional inconsistency, not merely a failure to certify (see
   // rh_methods_disagree).
   switch (L->rh_method) {
-  case LFUNC_RH_TURING:
-    ecode |= turing_check_RH(L, prec);
+  case LFUNC_RH_TURING: {
+    bool tm;
+    ecode |= turing_check_RH(L, prec, &tm); // Turing-selected verdict; too_many unused here
+    (void)tm;
     break;
+  }
   case LFUNC_RH_BOTH: {
     bool turing_too_many = false;
-    Lerror_t turing_e = turing_check_RH_classify(L, prec, &turing_too_many);
+    Lerror_t turing_e = turing_check_RH(L, prec, &turing_too_many);
     Lerror_t buthe_e = buthe_check_RH(L);
     ecode |= buthe_e; // BOTH returns Buthe's verdict
     (void)turing_e; // verdict is Buthe's; Turing's role is the contradiction guard
