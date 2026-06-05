@@ -252,10 +252,13 @@ buthe_winf_integral(arb_t res, const arb_t b, const arb_t h, double mu, slong pr
 
   /* t0 = 1/32.  R0 = 0.9 * (pi/h): the nearest singularity of 1/cosh(ht/2)
      to the origin is the pole at t = i*pi/h, so any R0 < pi/h keeps the disc
-     inside the analyticity strip.  The factor 0.9 gives comfortable margin
-     while keeping R0 >> t0 = 1/32 for all h up to ~90 (well beyond the
-     Buthe-table range).  Series terms past M are bounded by a Cauchy estimate
-     with ratio t0/R0. */
+     inside the analyticity strip.  Series terms past M are bounded by a Cauchy
+     estimate with ratio t0/R0 = h/(28.8*pi) ~ h/90.5.  That ratio is small (a
+     tight enclosure) for the h actually used: the h < 2*pi*b/5 guard caps
+     h <= 8 for degree <= 9, giving ratio ~ 0.09.  As h approaches ~90 the ratio
+     approaches 1 and the Cauchy tail degrades to a fail-safe non-finite ball
+     (which can never false-confirm); h beyond ~90 is out of the supported
+     range. */
   // R0 < pi/h keeps the disc inside the analyticity strip of 1/cosh(h t/2)
   arb_set_ui(t0, 1);
   arb_div_ui(t0, t0, 32, wprec);
