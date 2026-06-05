@@ -76,9 +76,11 @@ first), and must have exactly `degree + 1` entries:
 
 with the convention `c0 = 1`. The inner lists are matched to the primes
 `2, 3, 5, 7, 11, ...` **in order**: the first inner list is the factor at
-`p = 2`, the second at `p = 3`, and so on. You must supply at least as many
-factors as there are primes up to `Lfunc_nmax` (the tool asserts this); for an
-elliptic curve, a degree-2 factor is `[1, -a_p, p]` at a good prime `p`.
+`p = 2`, the second at `p = 3`, and so on. The tool passes this list to
+`Lfunc_use_lpolys_fmpz`; if the list is shorter than the library's computed
+`Lfunc_nmax`, the library reduces `nmax` to the first missing prime minus one
+and reports the warning `ERR_INSUFF_EULER`. For an elliptic curve, a degree-2
+factor is `[1, -a_p, p]` at a good prime `p`.
 
 Coefficients are parsed as 64-bit integers, so this tool is suited to objects
 whose local factors have integer coefficients that fit in `int64` (elliptic

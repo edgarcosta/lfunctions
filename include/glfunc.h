@@ -55,7 +55,7 @@
 #define ERR_SOME_DATA ((uint64_t) 1<<32) // We had some sensible data, but not to end of Turing Zone
 #define ERR_ZERO_PREC ((uint64_t) 1<<33) // couldn't isolate zeros to target_prec
 #define ERR_RH_ERROR ((uint64_t) 1<<34) // RH check (using Buthe's or Turing's method) failed
-#define ERR_INSUFF_EULER ((uint64_t) 1<<35) // ran out of Euler factors before we expected to
+#define ERR_INSUFF_EULER ((uint64_t) 1<<35) // ran out of supplied factors/coefficients before the expected bound
 #define ERR_NO_RANK ((uint64_t) 1<<36) // could not determine rank of L
 #define ERR_CONFLICT_RANK ((uint64_t) 1<<37) // rank we computed did not agree with what we were told
 #define ERR_DBL_ZERO ((uint64_t) 1<<38) // stationary point failed to converge. Double zero?
@@ -127,16 +127,16 @@ extern "C"{
   // coefficient a_n is expected. M is derived from the conductor, not passed in:
   //   dc = sqrt(conductor);  M = floor(dc * exp(2*pi*(hi_i + 0.5) / B))
   // (hi_i and B are fixed by degree/mus/precision at init). It is computed on
-  // the first call and then frozen (the nmax_called flag); Lfunc_use_all_lpolys
-  // and Lfunc_reduce_nmax trigger that first call, so the range is set once any
-  // of them runs.
+  // the first call and then frozen (the nmax_called flag); the callback, batch,
+  // raw-coefficient front-ends, and Lfunc_reduce_nmax trigger that first call.
+  // Lfunc_use_lpoly does too on the first successful push.
   //
   // ERR_G_EXTENT: the G data (gamma grid, built at init) is conductor-blind, its
   // floor set by the degree; the conductor only sets how far down the grid is
   // read at compute time. A large enough conductor pushes that read below the
   // floor, and Lfunc_compute returns the recoverable ERR_G_EXTENT.
   uint64_t Lfunc_nmax(Lfunc_t L);
-  // If you can't get to nmax, declare how many Euler factors will be provided.
+  // If you can't get to nmax, declare the smaller trusted supply bound.
   // NB it takes your word for it and does not check. It calls Lfunc_nmax first
   // (so it triggers and freezes the conductor-derived M), then lowers M to nmax;
   // nmax must be strictly below the current M, else it returns false.
@@ -149,7 +149,10 @@ extern "C"{
   Lerror_t Lfunc_use_all_lpolys(Lfunc_t L, void (*lpoly_callback) (acb_poly_t lpoly, uint64_t p, int d, int64_t prec, void *parm), void *param);
 
   // you provide one Euler polynomial at a time; the first successful push
-  // initializes the coefficient range if Lfunc_nmax has not already been called
+  // initializes the coefficient range if Lfunc_nmax has not already been called.
+  // If an explicit push loop will stop early, call Lfunc_reduce_nmax before
+  // Lfunc_compute; this void route cannot infer that missing later pushes mean
+  // "end of supply".
   void Lfunc_use_lpoly(Lfunc_t L, uint64_t p, const acb_poly_t poly);
 
   // ---- Batch / array supply front-ends (alongside the callback and push) -----
@@ -189,7 +192,7 @@ extern "C"{
   Lerror_t Lfunc_use_lpolys_acb(Lfunc_t L, const acb_poly_struct *f, uint64_t len);
   Lerror_t Lfunc_use_lpolys_fmpz(Lfunc_t L, const fmpz_poly_struct *f, uint64_t len);
 
-  // Once all polys have been provided, do the computation
+  // Once all supply data has been provided, do the computation
   Lerror_t Lfunc_compute(Lfunc_t L);
 
   // what working precision did the computation use
