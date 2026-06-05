@@ -959,8 +959,14 @@ static void assert_arb_overlaps_str(arb_srcptr value, const char *s) {
 // Check the leading zeros on `side` against the NULL-terminated refs.
 static void assert_zeros(Lfunc_t L, uint64_t side, const char *const refs[MAX_TEST_ZEROS]) {
   arb_srcptr zeros = Lfunc_zeros(L, side);
-  for(size_t i = 0; i < MAX_TEST_ZEROS and refs[i] != NULL; ++i)
+  for(size_t i = 0; i < MAX_TEST_ZEROS and refs[i] != NULL; ++i) {
+    // A pinned position must be a genuine (nonzero) zero. Lfunc_zeros leaves the
+    // unused tail slots at 0, so without this a ref list longer than the actual
+    // zero count would silently validate against the zero-padding whenever a
+    // golden value happens to sit near 0.
+    assert(not arb_contains_zero(zeros + i));
     assert_arb_overlaps_str(zeros + i, refs[i]);
+  }
 }
 
 static const artin_testcase ARTIN_TESTS[] = {
