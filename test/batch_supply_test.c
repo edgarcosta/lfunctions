@@ -358,12 +358,30 @@ static void test_guard_conflicts(void) {
     _fmpz_vec_clear(a, nmax);
     Lfunc_clear(L);
   }
+  // (d) raw, then a void Lfunc_use_lpoly push: the push cannot return the
+  // conflict, so it is recorded on L and surfaces (fatal) at Lfunc_compute.
+  {
+    Lerror_t ec = ERR_SUCCESS;
+    Lfunc_t L = Lfunc_init(2, 35, 0.0, mus, &ec); assert(!fatal_error(ec));
+    uint64_t nmax = Lfunc_nmax(L);
+    fmpz *a = make_an_fmpz(nmax);
+    ec |= Lfunc_use_dirichlet_coeffs_fmpz(L, a, nmax, ALGEBRAIC_NORM);
+    assert(!fatal_error(ec));
+    _fmpz_vec_clear(a, nmax);
+    acb_poly_t f; acb_poly_init(f); factor_acb(f, 2);
+    Lfunc_use_lpoly(L, 2, f); // void return: the conflict is only recorded on L
+    acb_poly_clear(f);
+    Lerror_t e = Lfunc_compute(L); // bails on the recorded conflict before computing
+    assert((e & ERR_SUPPLY_CONFLICT) && fatal_error(e));
+    Lfunc_clear(L);
+  }
 }
 
-// NEGATIVE soundness test: a supplied coefficient exceeding the degree's
+// NEGATIVE soundness test: a supplied coefficient that exceeds the degree's
 // Euler-product Ramanujan bound (|a_n| <= C*n, with C = coeff_bound(2) = 1) is
-// caught, not silently accepted -- the net for a wrong normalisation_of_input or
-// packed garbage. a_2 is forced to 1000, well above the |a_2| <= 2 it requires.
+// caught, not silently accepted. a_2 is forced to 1000, far above the |a_2| <= 2
+// the bound allows (a stand-in for packed garbage or a mis-scaled supply). It has
+// teeth: it would pass silently if check_coeff_bound were a no-op.
 static void test_guard_violated_bound(void) {
   double mus[] = {0, 1}; Lerror_t ec = ERR_SUCCESS;
   Lfunc_t L = Lfunc_init(2, 35, 0.0, mus, &ec); assert(!fatal_error(ec));
