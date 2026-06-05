@@ -863,56 +863,120 @@ int process_line(const string &line, ostream &output, primesieve::iterator &ps, 
 }
 
 
-// Embedded self-test: run the conductor-47 dimension-2 dihedral rep
-// 2.47.5t2.a.a through the same pipeline as the tool mode and assert on
-// certified output. Golden constants are the certified values printed by this
-// program, independently cross-checked in Magma (Dokchitser L-series built
-// from the a_p of the weight-1 level-47 dihedral form for Q(sqrt(-47)), see
-// the commit message). Returns 0 on success; asserts otherwise.
-int self_test() {
-  // Verbatim 2.47.5t2.a.a line from the bottom-of-file example (no spaces).
-  const string line =
+// ---------------------------------------------------------------------------
+// Embedded regression self-test.
+//
+// Each case runs one Artin representation through the exact parse -> lpoly ->
+// Lfunc_compute pipeline that the tool mode uses (process_line), then asserts
+// on certified balls. Coverage grows by adding rows to ARTIN_TESTS; the shared
+// helpers keep every row checking the same way. Golden constants are
+// cross-checked against independent sources (Magma for 2.47.5t2.a.a; see the
+// commit history), or are self-certifying invariants (|epsilon| = 1).
+// ---------------------------------------------------------------------------
+
+// Ball radius (2^-TEST_ERR_BITS) placed around every golden constant before the
+// overlap check, matching the precision this program prints.
+static const slong TEST_ERR_BITS = 50;
+
+// Largest number of zeros any single case pins on one side.
+static const size_t MAX_TEST_ZEROS = 4;
+
+struct artin_testcase {
+  const char *label;                   // diagnostic label (matches the line label)
+  const char *line;                    // verbatim ':'-delimited input line (no spaces)
+  int64_t rank;                        // expected analytic rank
+  const char *l1_re, *l1_im;           // expected L(1); NULL re skips the check
+  const char *zeros0[MAX_TEST_ZEROS];  // expected zeros on side 0, NULL-terminated
+};
+
+// Certified-ball assertion helpers, factored out so every case checks the same
+// way and the sibling object beads can reuse them.
+
+static void assert_rank(Lfunc_t L, int64_t expected) {
+  assert(Lfunc_rank(L) == expected);
+}
+
+// |epsilon| = 1 for every unitary L-function: a self-certifying invariant that
+// needs no external golden value.
+static void assert_epsilon_unit(Lfunc_t L) {
+  arb_t abs, one;
+  arb_init(abs); arb_init(one);
+  acb_abs(abs, Lfunc_sign(L), 300);
+  arb_one(one);
+  arb_add_error_2exp_si(one, -TEST_ERR_BITS);
+  assert(arb_overlaps(abs, one));
+  arb_clear(abs); arb_clear(one);
+}
+
+// Complex overlap against decimal strings, with the standard error ball.
+static void assert_acb_overlaps_str(acb_srcptr value, const char *re, const char *im) {
+  acb_t ref; acb_init(ref);
+  arb_set_str(acb_realref(ref), re, 300);
+  arb_set_str(acb_imagref(ref), im, 300);
+  arb_add_error_2exp_si(acb_realref(ref), -TEST_ERR_BITS);
+  arb_add_error_2exp_si(acb_imagref(ref), -TEST_ERR_BITS);
+  assert(acb_overlaps(value, ref));
+  acb_clear(ref);
+}
+
+// Real overlap against a decimal string, with the standard error ball.
+static void assert_arb_overlaps_str(arb_srcptr value, const char *s) {
+  arb_t ref; arb_init(ref);
+  arb_set_str(ref, s, 300);
+  arb_add_error_2exp_si(ref, -TEST_ERR_BITS);
+  assert(arb_overlaps(value, ref));
+  arb_clear(ref);
+}
+
+// Check the leading zeros on `side` against the NULL-terminated refs.
+static void assert_zeros(Lfunc_t L, uint64_t side, const char *const refs[MAX_TEST_ZEROS]) {
+  arb_srcptr zeros = Lfunc_zeros(L, side);
+  for(size_t i = 0; i < MAX_TEST_ZEROS and refs[i] != NULL; ++i)
+    assert_arb_overlaps_str(zeros + i, refs[i]);
+}
+
+static const artin_testcase ARTIN_TESTS[] = {
+  // 2.47.5t2.a.a: dim 2, conductor 47, self-dual, odd, rank 0. The odd dihedral
+  // D5 = 5t2 rep, i.e. the weight-1 level-47 dihedral form for Q(sqrt(-47)).
+  // L(1) and the first zero are cross-checked in Magma (Dokchitser L-series
+  // from the a_p; see the commit history).
+  {
+    "2.47.5t2.a.a",
     "2.47.5t2.a.a:2:47:[1,0,-1,2,-2,1]:[0,1]:5:"
     "[[[1],[-2],[1]],[[1],[0],[-1]],[[1],[0,0,-1,-1],[1]],[[1],[1,0,1,1],[1]],[[1],[-1]]]:"
     "[[2,47],[3,5]]:[[[1,1,1,1,1],[1,2,2]],[1,2]]:"
-    "[[[5]],[[[[4,[-47,1]],[3,[47,1]]],[2,3,4,5,1]]]]:[[],[]]";
+    "[[[5]],[[[[4,[-47,1]],[3,[47,1]]],[2,3,4,5,1]]]]:[[],[]]",
+    0,                                  // rank
+    "0.45066022094739052973", "0",      // L(1)
+    { "2.9874346957843450441", NULL, NULL, NULL },  // first zero, side 0
+  },
+};
 
-  primesieve::iterator ps;
-  artin_rep AR;
-  Lfunc_t &L = AR.L;
+// Run every case through process_line and assert on its certified output.
+// Returns 0 on success; asserts otherwise.
+int self_test() {
+  const size_t ncases = sizeof(ARTIN_TESTS) / sizeof(ARTIN_TESTS[0]);
+  for(size_t k = 0; k < ncases; ++k) {
+    const artin_testcase &c = ARTIN_TESTS[k];
 
-  // Exercise the output path too (into a stringstream rather than a file).
-  stringstream record;
-  process_line(line, record, ps, AR);
+    primesieve::iterator ps;
+    artin_rep AR;
+    Lfunc_t &L = AR.L;
 
-  // --- regression asserts on certified output ---
-  // (1) rank
-  assert(Lfunc_rank(L) == 0);
+    // Exercise the output path too (into a stringstream rather than a file).
+    stringstream record;
+    process_line(c.line, record, ps, AR);
 
-  // (2) L(1): special_values[0] = L(1) (computed by process_line above).
-  //     Cross-checked against Magma Dokchitser: 0.4506602209473905297...
-  {
-    acb_t ref; acb_init(ref);
-    arb_set_str(acb_realref(ref), "0.45066022094739052973", 300);
-    arb_set_str(acb_imagref(ref), "0", 300);
-    arb_add_error_2exp_si(acb_realref(ref), -50);
-    arb_add_error_2exp_si(acb_imagref(ref), -50);
-    assert(acb_overlaps(&AR.special_values[0], ref));
-    acb_clear(ref);
+    // --- certified asserts ---
+    assert_rank(L, c.rank);                                            // analytic rank
+    if(c.l1_re != NULL)
+      assert_acb_overlaps_str(&AR.special_values[0], c.l1_re, c.l1_im);  // L(1)
+    assert_zeros(L, 0, c.zeros0);                                      // zeros, side 0
+    assert_epsilon_unit(L);                                           // |epsilon| = 1
+
+    cout << "self-test PASSED for " << c.label << endl;
+    artin_rep_clear(AR);
   }
-
-  // (3) first zero on the critical line.
-  //     Cross-checked against Magma sign-change bisection: 2.9874346957843450...
-  {
-    arb_t ref; arb_init(ref);
-    arb_set_str(ref, "2.9874346957843450441", 300);
-    arb_add_error_2exp_si(ref, -50);
-    assert(arb_overlaps(Lfunc_zeros(L, 0), ref));
-    arb_clear(ref);
-  }
-
-  cout << "self-test PASSED for " << AR.label << endl;
-  artin_rep_clear(AR);
   return 0;
 }
 
