@@ -671,7 +671,20 @@ istream & operator>>(istream & is, artin_rep &o)
           for(size_t i = 0; i < buf.size(); ++i)
             o.mus[i] = buf[i];
           // alg = anal so normalisation = 0.0
-          o.L = Lfunc_init(o.dimension, o.conductor, 0.0, o.mus, &o.ecode);
+          Lparams_t params;
+          params.degree = o.dimension;
+          params.conductor = o.conductor;
+          params.normalisation = 0.0;
+          params.mus = o.mus;
+          params.target_prec = DEFAULT_TARGET_PREC; // bead lfunctions-54s: target_prec should be tunable
+          params.wprec = 0;
+          params.gprec = 0;
+          params.self_dual = DK;
+          params.rank = DK;
+          params.cache_dir = (char *)".";
+          params.extract_powers = YES;
+
+          o.L = Lfunc_init_advanced(&params, &o.ecode);
           if(fatal_error(o.ecode)) {
             fprint_errors(stderr, o.ecode);
             throw_line("could not init L-function"s);

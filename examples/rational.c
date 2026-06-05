@@ -270,7 +270,20 @@ int Lfunc_rational_set_s(Lfunc_rational_t L, char *s) {
     status = atoiii(L->euler_factors, d, L->size_euler_factors, L->degree + 1, tokens[5]);
   }
   if(status != -1) {
-    L->L = Lfunc_init(L->degree, L->conductor, L->weight*0.5, L->mus, &L->ecode);
+    Lparams_t params = {
+      .degree = (uint64_t) L->degree,
+      .conductor = (uint64_t) L->conductor,
+      .normalisation = L->weight * 0.5,
+      .mus = L->mus,
+      .target_prec = DEFAULT_TARGET_PREC, // bead lfunctions-54s: target_prec should be tunable
+      .wprec = 0,
+      .gprec = 0,
+      .self_dual = DK,
+      .rank = DK,
+      .cache_dir = (char *)".",
+      .extract_powers = YES
+    };
+    L->L = Lfunc_init_advanced(&params, &L->ecode);
     if(fatal_error(L->ecode)) {
       fprint_errors(stderr, L->ecode);
       status = -1;
