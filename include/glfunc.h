@@ -15,7 +15,7 @@
 #define MAX_DEGREE (9) // if increasing, need more integrals in buthe.c
 // and probably need to take a good look at g.c
 #define MAX_R MAX_DEGREE // alias for MAX_DEGREE (max degree r); sizes the Buthe tables
-#define MAX_ZEROS (256) // hard cap on the number of zeros found/stored per side
+#define MAX_ZEROS (2048) // hard cap on the number of zeros found/stored per side
 #define DEFAULT_TARGET_PREC (100) // default target precision in bits when none is given
 // error codes
 // those in lower 32 bits are fatal

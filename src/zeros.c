@@ -15,8 +15,6 @@ extern "C"{
 #define sign_t uint8_t
 #define direction_t uint8_t
 
-#define MAX_ZEROS (256)
-
 sign_t sign(arb_t x) {
   if(arb_contains_zero(x))
     return UNK;
