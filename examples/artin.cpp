@@ -14,13 +14,16 @@
  *   - Self-test mode (argc == 1): with no arguments, runs an embedded
  *     regression test over a table of Artin reps (ARTIN_TESTS): the self-dual
  *     dimension-2, conductor-47 rep 2.47.5t2.a.a (the odd dihedral D5 = 5t2
- *     Artin L-function, i.e. the weight-1 level-47 dihedral form) and the
+ *     Artin L-function, i.e. the weight-1 level-47 dihedral form); the
  *     non-self-dual conductor-52 rep 2.52.6t5.b.a (the weight-1 level-52 newform
- *     52.1.j.a, complex root number, distinct side-0 and side-1 zeros). Each row
+ *     52.1.j.a, complex root number, distinct side-0 and side-1 zeros); and the
+ *     self-dual symplectic conductor-2304 rep 2.2304.8t5.b.a (8T5, real root
+ *     number -1 forcing analytic rank 1, central zero at height 0). Each row
  *     feeds its embedded input line through the exact same parse -> lpoly ->
  *     Lfunc_compute pipeline the tool mode uses, then asserts on certified
- *     output: rank, L(1), zeros, and |epsilon| = 1, plus the complex root number
- *     and dual zeros for the non-self-dual row. Exits 0 on success.
+ *     output: rank, L(1), zeros, and |epsilon| = 1, plus the root number (real or
+ *     complex) and, for the non-self-dual row, that it is genuinely complex and
+ *     its dual zeros differ. Exits 0 on success.
  *   Any other argc prints a usage message and exits nonzero.
  */
 #define __STDC_FORMAT_MACROS
@@ -874,8 +877,10 @@ int process_line(const string &line, ostream &output, primesieve::iterator &ps, 
 // Lfunc_compute pipeline that the tool mode uses (process_line), then asserts
 // on certified balls. Coverage grows by adding rows to ARTIN_TESTS; the shared
 // helpers keep every row checking the same way. Golden constants are
-// cross-checked against independent sources (Magma for 2.47.5t2.a.a; see the
-// commit history), or are self-certifying invariants (|epsilon| = 1).
+// cross-checked against independent sources (Magma for 2.47.5t2.a.a; an
+// independent Pari lfunartin run for 2.2304.8t5.b.a, validated by reproducing the
+// in-tree 2.47 first zero exactly; see the commit history), or are
+// self-certifying invariants (|epsilon| = 1).
 // ---------------------------------------------------------------------------
 
 // Ball radius (2^-TEST_ERR_BITS) placed around every golden constant before the
@@ -891,9 +896,14 @@ struct artin_testcase {
   int64_t rank;                        // expected analytic rank
   const char *l1_re, *l1_im;           // expected L(1); NULL re skips the check
   const char *zeros0[MAX_TEST_ZEROS];  // expected zeros on side 0, NULL-terminated
-  // Non-self-dual extras. Self-dual cases leave these NULL: epsilon is then real
-  // (+1 or -1) and side 1 equals side 0, so neither check adds anything.
-  const char *eps_re, *eps_im;         // expected complex root number; NULL re skips
+  // Root-number check. When eps_re != NULL the printed epsilon is overlapped
+  // against (eps_re, eps_im); this works for a real +-1 (self-dual rows) as well
+  // as a genuinely complex value (non-self-dual rows). eps_nonreal additionally
+  // demands a nonzero imaginary part, which only a non-self-dual object has; it
+  // is the public-API witness of non-self-duality (paired with differing sides).
+  // Self-dual rows leave eps_re NULL or set eps_nonreal = false.
+  const char *eps_re, *eps_im;         // expected root number; NULL re skips the check
+  bool eps_nonreal;                    // also assert Im(epsilon) != 0 (non-self-dual)
   const char *zeros1[MAX_TEST_ZEROS];  // expected zeros on side 1 (dual), NULL-terminated
 };
 
@@ -916,12 +926,11 @@ static void assert_epsilon_unit(Lfunc_t L) {
   arb_clear(abs); arb_clear(one);
 }
 
-// For a non-self-dual L-function the root number is genuinely complex: it must
-// overlap the LMFDB value AND its imaginary part must be bounded away from 0, so
-// epsilon is not the real +-1 of a self-dual object. Together with the differing
-// sides (assert_zeros on side 1) this is how non-self-duality is observed through
-// the public API, which exposes no self-dual getter.
-static void assert_epsilon_complex(Lfunc_t L, const char *re, const char *im) {
+// Overlap the root number against a target (re, im), with the standard error
+// ball. Works for a real epsilon (im = "0", e.g. the +-1 of a self-dual row) as
+// well as a genuinely complex one: it only checks containment, never that the
+// value is non-real. The non-real demand lives in assert_epsilon_nonreal below.
+static void assert_epsilon_overlaps(Lfunc_t L, const char *re, const char *im) {
   acb_srcptr eps = Lfunc_sign(L);
   arb_t ref_re, ref_im;
   arb_init(ref_re); arb_init(ref_im);
@@ -931,9 +940,16 @@ static void assert_epsilon_complex(Lfunc_t L, const char *re, const char *im) {
   arb_add_error_2exp_si(ref_im, -TEST_ERR_BITS);
   assert(arb_overlaps(acb_realref(eps), ref_re));
   assert(arb_overlaps(acb_imagref(eps), ref_im));
-  // The imaginary part does not contain 0: epsilon is not real.
-  assert(not arb_contains_zero(acb_imagref(eps)));
   arb_clear(ref_re); arb_clear(ref_im);
+}
+
+// For a non-self-dual L-function the root number is genuinely complex: its
+// imaginary part must be bounded away from 0, so epsilon is not the real +-1 of a
+// self-dual object. Together with the differing sides (assert_zeros on side 1)
+// this is how non-self-duality is observed through the public API, which exposes
+// no self-dual getter.
+static void assert_epsilon_nonreal(Lfunc_t L) {
+  assert(not arb_contains_zero(acb_imagref(Lfunc_sign(L))));
 }
 
 // Complex overlap against decimal strings, with the standard error ball.
@@ -983,7 +999,8 @@ static const artin_testcase ARTIN_TESTS[] = {
     0,                                  // rank
     "0.45066022094739052973", "0",      // L(1)
     { "2.9874346957843450441", NULL, NULL, NULL },  // first zero, side 0
-    NULL, NULL,                         // self-dual: real epsilon, no complex check
+    NULL, NULL,                         // self-dual: real epsilon, root-number check skipped
+    false,                              // eps_nonreal: epsilon is real (+-1)
     { NULL, NULL, NULL, NULL },         // self-dual: side 1 == side 0
   },
   // 2.52.6t5.b.a: dim 2, conductor 52, NON-self-dual, odd, rank 0. The 6T5
@@ -1016,9 +1033,42 @@ static const artin_testcase ARTIN_TESTS[] = {
     },
     // complex root number (orbit a; conjugate of orbit b's)
     "0.71162606906186618878", "-0.70255842307352351147",
+    true,                               // eps_nonreal: epsilon is genuinely complex
     {                                   // zeros, side 1 (dual = orbit b)
       "4.1616836029103998493", "6.0466894126964459225",
       "7.3976654053799542365", "8.5326493988442311994",
+    },
+  },
+  // 2.2304.8t5.b.a: dim 2, conductor 2304, self-dual, even, RANK 1. The 8T5
+  // (order-16) symplectic rep (Frobenius-Schur indicator -1): self-dual with a
+  // real root number that is forced to -1, which makes the sign of the functional
+  // equation odd and pins the analytic rank at 1, with a central zero at height 0.
+  // Lfunc_zeros(L, 0) returns the POSITIVE zeros (the central one is excluded), so
+  // zeros0 below are 1.6126..., 2.6362..., ... and the rank-1 claim is asserted on
+  // its own. epsilon = -1 is real, so eps_nonreal is false. The input line comes
+  // from the generator at the bottom of this file (the 2.2304.8t5.b.a example
+  // there), the same generator validated by reproducing the 2.47 line. Golden
+  // source: an independent Pari lfunartin run on x^8+12x^6+36x^4+36x^2+9 (the 8T5
+  // splitting field), selecting the dimension-2 character of conductor 2304; that
+  // run reproduces the in-tree 2.47 first zero 2.9874346957843450441 exactly.
+  {
+    "2.2304.8t5.b.a",
+    "2.2304.8t5.b.a:2:2304:[9,0,36,0,36,0,12,0,1]:[1,1]:1:"
+    "[[[1],[-2],[1]],[[1],[2],[1]],[[1],[0],[1]],[[1],[0],[1]],[[1],[0],[1]],[[1]]]:"
+    "[[2,3],[6,6]]:[[[1,1,1,1,1,1,1,1],[2,2,2,2]],[1,2]]:[[],[]]:"
+    "[[[4,4]],[[[[3,[-6015168,0,1]],[4,[-1672704,0,1]],[5,[-9331200,0,1]]],"
+    "[[1],[8,7,6,5,4,3,2,1]]]]]",
+    1,                                  // rank (sign -1 forces analytic rank 1)
+    NULL, NULL,                         // L(1): not pinned (rank-1 row)
+    {                                   // positive zeros, side 0 (central zero at 0 excluded)
+      "1.6125769007629963859", "2.6361552143853642710",
+      "3.8068658144698460955", "4.4511575848266216156",
+    },
+    "-1", "0",                          // epsilon = -1 (real)
+    false,                              // eps_nonreal: epsilon is real, do not demand Im != 0
+    {                                   // self-dual: side 1 == side 0 (positive zeros)
+      "1.6125769007629963859", "2.6361552143853642710",
+      "3.8068658144698460955", "4.4511575848266216156",
     },
   },
 };
@@ -1044,10 +1094,14 @@ int self_test() {
       assert_acb_overlaps_str(&AR.special_values[0], c.l1_re, c.l1_im);  // L(1)
     assert_zeros(L, 0, c.zeros0);                                      // zeros, side 0
     assert_epsilon_unit(L);                                           // |epsilon| = 1
-    if(c.eps_re != NULL)
-      assert_epsilon_complex(L, c.eps_re, c.eps_im);  // non-self-dual: complex epsilon
+    if(c.eps_re != NULL) {
+      assert_epsilon_overlaps(L, c.eps_re, c.eps_im);   // root number (real or complex)
+      if(c.eps_nonreal)
+        assert_epsilon_nonreal(L);                      // non-self-dual: Im(epsilon) != 0
+    }
     if(c.zeros1[0] != NULL)
-      assert_zeros(L, 1, c.zeros1);                   // non-self-dual: dual zeros differ
+      assert_zeros(L, 1, c.zeros1);                   // self-dual: side 1 == side 0,
+                                                      // or non-self-dual: dual zeros differ
 
     cout << "self-test PASSED for " << c.label << endl;
     artin_rep_clear(AR);
