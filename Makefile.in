@@ -94,12 +94,16 @@ print-%:
 # drop in a new source file and it joins the suite, no edit here required.
 # CHECK_EXCLUDE is the deny-list: binaries that require command-line arguments
 # or input files (they assert on argc / print a usage message and exit nonzero
-# without args) and so cannot run unattended. Only add an entry here if a
-# binary needs arguments. (artin runs an embedded self-test when given none.)
+# without args) and so cannot run unattended, plus heavy opt-in tests that are
+# too slow/large for the default suite. Only add an entry here if a binary needs
+# arguments or is an intentionally opt-in heavy run. (artin runs an embedded
+# self-test when given none; zero_overflow_test is a several-minute, multi-GB
+# MAX_ZEROS-exhaustion regression run directly via its .exe.)
 CHECK_EXCLUDE = \
 	examples/bound \
 	examples/rational \
-	test/highdeg_check
+	test/highdeg_check \
+	test/zero_overflow_test
 
 CHECK_BINS = $(filter-out $(addprefix build/, $(addsuffix .exe, $(CHECK_EXCLUDE))), $(TESTS) $(EXECUTABLES))
 
