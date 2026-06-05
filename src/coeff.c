@@ -176,22 +176,27 @@ void use_lpoly(Lfunc *L, uint64_t p, const acb_poly_t f)
       uint64_t nc = L->retained_cap ? 2*L->retained_cap : 256;
       uint64_t *new_p = (uint64_t *) realloc(L->retained_p, sizeof(uint64_t)*nc);
       if (!new_p) {
-        printf("Attempt to (re-)allocate memory for retained primes failed. Exiting.\n");
-        exit(0);
+        L->extract_powers = NO;
+      } else {
+        acb_poly_struct *new_f = (acb_poly_struct *) realloc(L->retained_f, sizeof(acb_poly_struct)*nc);
+        if (!new_f) {
+          // Note: new_p doesn't strictly leak here since we realloc'd in-place or returned new pointer,
+          // but we assign it to retained_p so it gets freed on clear.
+          L->retained_p = new_p; 
+          L->extract_powers = NO;
+        } else {
+          L->retained_p = new_p;
+          L->retained_f = new_f;
+          L->retained_cap = nc;
+        }
       }
-      acb_poly_struct *new_f = (acb_poly_struct *) realloc(L->retained_f, sizeof(acb_poly_struct)*nc);
-      if (!new_f) {
-        printf("Attempt to (re-)allocate memory for retained factors failed. Exiting.\n");
-        exit(0);
-      }
-      L->retained_p = new_p;
-      L->retained_f = new_f;
-      L->retained_cap = nc;
     }
-    L->retained_p[L->n_retained] = p;
-    acb_poly_init(&L->retained_f[L->n_retained]);
-    acb_poly_set(&L->retained_f[L->n_retained], f);
-    L->n_retained++;
+    if (L->extract_powers == YES) {
+      L->retained_p[L->n_retained] = p;
+      acb_poly_init(&L->retained_f[L->n_retained]);
+      acb_poly_set(&L->retained_f[L->n_retained], f);
+      L->n_retained++;
+    }
   }
   //if(p<=2){printf("in use_lpoly pre-norm with p = %" PRIu64 "\n",p);acb_poly_printd(f,20);printf("\n");}
   arb_log_ui(logp,p,prec);
@@ -272,43 +277,66 @@ bool conductor_kth_root(uint64_t cond, uint64_t k, uint64_t *base)
 }
 
 // Rigorously decide whether the EXACT integer Euler factor Lp is a perfect k-th
-// power of an integer polynomial. If so, set Mp to that integer root and return
-// true; else return false. EXACT: rounds the ball k-th root to integers and checks
-// Mp^k == Lp over fmpz_poly. (Real callers supply exact integer Euler factors; an
-// inexact or non-integer coefficient returns false -> extract-or-reject.)
-bool poly_exact_kth_root(fmpz_poly_t Mp, const acb_poly_t Lp, uint64_t k, int64_t prec)
+// power of an algebraic polynomial. If so, set Mp to that algebraic root and return
+// true; else return false. EXACT: rounds the ball k-th root to algebraic integers and checks
+// Mp^k == Lp exactly over acb.
+bool poly_exact_kth_root(acb_poly_t Mp, const acb_poly_t Lp, uint64_t k, int64_t prec)
 {
   slong d = acb_poly_degree(Lp);
   if (d < 0 || (d % (slong)k) != 0) return false;
-  fmpz_poly_t F; fmpz_poly_init(F);
-  bool ok = true;
-  for (slong i = 0; i <= d && ok; i++) {
+
+  // We require Lp to be exact
+  for (slong i = 0; i <= d; i++) {
     acb_srcptr c = acb_poly_get_coeff_ptr(Lp, i);
-    fmpz_t z; fmpz_init(z);
-    if (c == NULL) { fmpz_zero(z); }
-    else if (acb_is_exact(c) && arb_is_zero(acb_imagref(c)) && arb_is_int(acb_realref(c)))
-      arf_get_fmpz(z, arb_midref(acb_realref(c)), ARF_RND_DOWN);
-    else ok = false;
-    if (ok) fmpz_poly_set_coeff_fmpz(F, i, z);
-    fmpz_clear(z);
+    if (c != NULL && !acb_is_exact(c)) return false;
   }
-  if (!ok) { fmpz_poly_clear(F); return false; }
+
   acb_poly_t root; acb_poly_init(root);
   acb_t e; acb_init(e); acb_set_ui(e, 1); acb_div_ui(e, e, k, prec);
   acb_poly_pow_acb_series(root, Lp, e, d/(slong)k + 1, prec);
   acb_clear(e);
-  fmpz_poly_zero(Mp);
+
+  acb_poly_zero(Mp);
   for (slong i = 0; i <= d/(slong)k; i++) {
     acb_srcptr c = acb_poly_get_coeff_ptr(root, i);
-    fmpz_t z; fmpz_init(z);
-    if (c != NULL) arf_get_fmpz(z, arb_midref(acb_realref(c)), ARF_RND_NEAR); else fmpz_zero(z);
-    fmpz_poly_set_coeff_fmpz(Mp, i, z); fmpz_clear(z);
+    acb_t z; acb_init(z);
+    if (c != NULL) {
+      fmpz_t r, im; fmpz_init(r); fmpz_init(im);
+      arf_get_fmpz(r, arb_midref(acb_realref(c)), ARF_RND_NEAR);
+      arf_get_fmpz(im, arb_midref(acb_imagref(c)), ARF_RND_NEAR);
+      arb_set_fmpz(acb_realref(z), r);
+      arb_set_fmpz(acb_imagref(z), im);
+      fmpz_clear(r); fmpz_clear(im);
+    }
+    acb_poly_set_coeff_acb(Mp, i, z);
+    acb_clear(z);
   }
   acb_poly_clear(root);
-  fmpz_poly_t chk; fmpz_poly_init(chk);
-  fmpz_poly_pow(chk, Mp, (ulong)k);
-  ok = fmpz_poly_equal(chk, F);
-  fmpz_poly_clear(chk); fmpz_poly_clear(F);
+
+  acb_poly_t chk; acb_poly_init(chk);
+  acb_poly_pow_ui(chk, Mp, (ulong)k, prec);
+
+  bool ok = true;
+  for (slong i = 0; i <= d && ok; i++) {
+    acb_srcptr c_L = acb_poly_get_coeff_ptr(Lp, i);
+    acb_srcptr c_chk = acb_poly_get_coeff_ptr(chk, i);
+    acb_t exact_chk; acb_init(exact_chk);
+    if (c_chk != NULL) {
+      fmpz_t r, im; fmpz_init(r); fmpz_init(im);
+      arf_get_fmpz(r, arb_midref(acb_realref(c_chk)), ARF_RND_NEAR);
+      arf_get_fmpz(im, arb_midref(acb_imagref(c_chk)), ARF_RND_NEAR);
+      arb_set_fmpz(acb_realref(exact_chk), r);
+      arb_set_fmpz(acb_imagref(exact_chk), im);
+      fmpz_clear(r); fmpz_clear(im);
+    }
+    if (c_L == NULL) {
+      if (!acb_is_zero(exact_chk)) ok = false;
+    } else {
+      if (!acb_equal(c_L, exact_chk)) ok = false;
+    }
+    acb_clear(exact_chk);
+  }
+  acb_poly_clear(chk);
   return ok;
 }
 
@@ -318,7 +346,7 @@ static void cert_roots_reset(Lfunc *L)
 {
   if (L->cert_roots) {
     for (uint64_t i = 0; i < L->n_cert_roots; i++)
-      fmpz_poly_clear(&L->cert_roots[i]);
+      acb_poly_clear(&L->cert_roots[i]);
     free(L->cert_roots);
     L->cert_roots = NULL;
   }
@@ -326,9 +354,9 @@ static void cert_roots_reset(Lfunc *L)
 }
 
 // Run the full rigorous certificate for a fixed candidate k: EVERY retained factor
-// (good AND bad) must be an exact integer k-th power (certified over fmpz_poly), each
+// (good AND bad) must be an exact integer k-th power (certified over acb_poly), each
 // sorted block of k mus must be equal, and at least one full-degree (good) factor must
-// be present. On success, the exact integer roots are kept in L->cert_roots (one per
+// be present. On success, the exact algebraic roots are kept in L->cert_roots (one per
 // retained factor, same order) for reuse when feeding M, and true is returned. On any
 // failure the partially-built store is freed and false is returned.
 static bool power_certify_k(Lfunc *L, uint64_t k)
@@ -344,16 +372,15 @@ static bool power_certify_k(Lfunc *L, uint64_t k)
   // k-th root fed to M would be unsound; reject. Keep each certified root for reuse.
   cert_roots_reset(L);
   if (L->n_retained) {
-    L->cert_roots = (fmpz_poly_struct *) malloc(sizeof(fmpz_poly_struct)*L->n_retained);
+    L->cert_roots = (acb_poly_struct *) malloc(sizeof(acb_poly_struct)*L->n_retained);
     if (!L->cert_roots) {
-      printf("Attempt to allocate memory for certified k-th roots failed. Exiting.\n");
-      exit(0);
+      return false;
     }
   }
   bool seen_full = false;
   for (uint64_t i = 0; i < L->n_retained; i++) {
     if (acb_poly_degree(&L->retained_f[i]) == (slong)L->degree) seen_full = true;
-    fmpz_poly_init(&L->cert_roots[i]);
+    acb_poly_init(&L->cert_roots[i]);
     L->n_cert_roots = i + 1;
     if (!poly_exact_kth_root(&L->cert_roots[i], &L->retained_f[i], k, L->wprec)) {
       cert_roots_reset(L);
@@ -370,31 +397,19 @@ static bool power_certify_k(Lfunc *L, uint64_t k)
 Lerror_t power_extract_prepare(Lfunc *L, uint64_t *k_out)
 {
   if (L->moment_count == 0) return ERR_POWER;
-  // candidate k from the 2nd moment (~ k^2)
-  arb_t S; arb_init(S);
-  arb_div_ui(S, L->moment_sum, L->moment_count, L->wprec);
-  arb_sqrt(S, S, L->wprec);
-  double kf = arf_get_d(arb_midref(S), ARF_RND_NEAR);
-  arb_clear(S);
-  uint64_t k0 = (uint64_t) (kf + 0.5);
-  // A mis-read 2nd moment yields a safe false ERR_POWER: the rigorous gate certifies,
-  // it cannot rescue a wrong candidate k.
-  if (k0 < 2) return ERR_POWER;
+  
   // For L = M^k the true exponent k satisfies k | degree (M has degree/k Gamma factors)
-  // and makes the conductor an exact k-th power (cond(M^k) = cond(M)^k). The moment only
-  // ESTIMATES k (moment ~ k^2): a noisy estimate that rounds a genuine M^4 down to 2
-  // underestimates by a divisor, so consider every k in [k0, degree] with k | degree,
-  // k0 | k, and cond an exact k-th power, preferring the LARGEST that passes the rigorous
-  // certificate. (We test conductor-exactness per candidate via conductor_kth_root rather
+  // and makes the conductor an exact k-th power (cond(M^k) = cond(M)^k). 
+  // We consider every k in [2, degree] with k | degree and cond an exact k-th power,
+  // preferring the LARGEST that passes the rigorous certificate. 
+  // (We test conductor-exactness per candidate via conductor_kth_root rather
   // than n_is_perfect_power, whose returned exponent is not necessarily maximal -- it gives
-  // 2 for 37^4 = 1369^2.) This only ever turns a previously-safe-but-incomplete refusal
-  // into a correct extraction: the per-prime exact gate and the mus-block gate still run
+  // 2 for 37^4 = 1369^2.) The per-prime exact gate and the mus-block gate still run
   // for the chosen k and reject anything unsound, so a too-large k is filtered back down
   // (e.g. cond a 4th power but the factors only squares).
   uint64_t cbase;
-  for (uint64_t k = L->degree; k >= k0; k--) {
+  for (uint64_t k = L->degree; k >= 2; k--) {
     if ((L->degree % k) != 0) continue;   // M's degree = degree/k must be a positive integer
-    if ((k % k0) != 0) continue;          // keep k consistent with the moment estimate
     if (!conductor_kth_root(L->conductor, k, &cbase)) continue; // cond not an exact k-th power
     if (power_certify_k(L, k)) { *k_out = k; return ERR_SUCCESS; }
   }

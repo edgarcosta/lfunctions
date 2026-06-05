@@ -436,6 +436,12 @@ extern "C"{
     // Part B produces exactly one factor; Part C (N*M^k) will generalize this to
     // a product over n_factors >= 1.
     if (L->n_factors == 1) {
+      if (do_dash && !lam_p) {
+        // The non-completed L'(s) is not implemented anywhere in the library
+        // -- Lam_dash_to_L_dash is a no-op -- so we must explicitly fail
+        // rather than return mathematically incorrect results.
+        return ERR_SPEC_VALUE;
+      }
       Lfunc_t Mt = L->factors[0];
       uint64_t k = L->factor_mults[0];
       Lfunc *M = (Lfunc *) Mt;
@@ -443,11 +449,6 @@ extern "C"{
       Lerror_t fecode = Lfunc_special_value_choice(vM, do_dash ? vMd : NULL, Mt,
                                                    alg_res, alg_ims, lam_p, do_dash);
       acb_pow_ui(res, vM, (ulong)k, M->wprec);              // M(s)^k
-      // CAVEAT: the derivative branch (do_dash=true) is only meaningful with lam_p=true
-      // (the completed Lambda). The non-completed L'(s) is not implemented anywhere in
-      // the library -- Lam_dash_to_L_dash is a no-op -- so M(s)^k differentiation via
-      // the (vM, vMd) chain below is correct only for Lambda. In normal use this is
-      // unreachable: the public Lfunc_special_value only ever requests do_dash=false.
       if (do_dash && res_dash) {                            // k M^{k-1} M'
         acb_t t; acb_init(t);
         acb_pow_ui(t, vM, (ulong)(k-1), M->wprec);

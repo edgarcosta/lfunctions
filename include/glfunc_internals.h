@@ -127,7 +127,7 @@ extern "C"{
     uint64_t *retained_p;          // supplied good/bad primes, in supply order
     acb_poly_struct *retained_f;   // the raw supplied Euler factors L_p
     uint64_t n_retained, retained_cap; // count and capacity of the retained store
-    fmpz_poly_struct *cert_roots;  // exact integer k-th roots of retained_f, same order/count
+    acb_poly_struct *cert_roots;   // exact algebraic k-th roots of retained_f, same order/count
     uint64_t n_cert_roots;         // populated by power_extract_prepare, consumed in assembly
     Lfunc_t *factors;              // owned primitive factors (length n_factors)
     uint64_t *factor_mults;        // their multiplicities
@@ -190,7 +190,7 @@ extern "C"{
   Lerror_t power_guard(Lfunc *L);
   Lerror_t power_extract_prepare(Lfunc *L, uint64_t *k_out); // fix & certify k; ERR_POWER if not a clean power
   // True iff the EXACT integer Euler factor Lp is a perfect k-th power; sets Mp to the root.
-  bool poly_exact_kth_root(fmpz_poly_t Mp, const acb_poly_t Lp, uint64_t k, int64_t prec);
+  bool poly_exact_kth_root(acb_poly_t Mp, const acb_poly_t Lp, uint64_t k, int64_t prec);
   // True iff cond is an exact k-th power; sets *base to the integer k-th root.
   bool conductor_kth_root(uint64_t cond, uint64_t k, uint64_t *base);
 

@@ -290,8 +290,7 @@ static Lerror_t extract_and_assemble(Lfunc *L, uint64_t k)
   Mp.normalisation = L->normalisation;    // M shares L's algebraic->analytic shift
   double *mmus = (double *) malloc(sizeof(double)*Mp.degree);
   if (!mmus) {
-    printf("Attempt to allocate memory for M's mus failed. Exiting.\n");
-    exit(0);
+    return ERR_OOM;
   }
   for (uint64_t i = 0; i < Mp.degree; i++)
     mmus[i] = L->mus[i*k] - L->normalisation; // M's algebraic mus (L->mus is analytic)
@@ -311,11 +310,10 @@ static Lerror_t extract_and_assemble(Lfunc *L, uint64_t k)
   Lfunc *M = (Lfunc *) Mt;
 
   // ---- supply M_p = retained_f^(1/k) for primes up to nmax(M) ----
-  // EVERY supplied factor (good AND bad) was certified an exact integer k-th power by
-  // power_extract_prepare, which kept the exact integer roots in L->cert_roots (one per
-  // retained factor, same order). We feed M those EXACT fmpz_poly roots -- no re-extraction
-  // -- so M sees the same point factors L did. (cert_roots is exact integers, so the acb
-  // conversion at M->wprec is exact, identical to a fresh extraction.)
+  // EVERY supplied factor (good AND bad) was certified an exact k-th power by
+  // power_extract_prepare, which kept the exact algebraic roots in L->cert_roots (one per
+  // retained factor, same order). We feed M those EXACT acb_poly roots -- no re-extraction
+  // -- so M sees the same point factors L did.
   uint64_t Mmax = Lfunc_nmax(Mt);
   acb_poly_t Mp_poly; acb_poly_init(Mp_poly);
   for (uint64_t i = 0; i < L->n_retained; i++) {
@@ -323,7 +321,7 @@ static Lerror_t extract_and_assemble(Lfunc *L, uint64_t k)
     if (p > Mmax) continue;               // retention is in SUPPLY order, not prime
                                           // order (callers may append bad factors
                                           // last), so skip-and-continue, never break.
-    acb_poly_set_fmpz_poly(Mp_poly, &L->cert_roots[i], M->wprec); // certified in prepare
+    acb_poly_set(Mp_poly, &L->cert_roots[i]); // certified in prepare
     Lfunc_use_lpoly(Mt, p, Mp_poly);
   }
   acb_poly_clear(Mp_poly);
@@ -347,21 +345,29 @@ static Lerror_t extract_and_assemble(Lfunc *L, uint64_t k)
   acb_pow_ui(L->sign, M->sign, k, L->wprec);          // eps^k
   acb_pow_ui(L->sqrt_sign, M->sqrt_sign, k, L->wprec); // sqrt_sign^k
   arb_pow_ui(L->L_d, M->L_d, k, L->wprec);            // leading Taylor coeff ^ k
-  // Lam_d (= Lambda^(rank)(1/2), an unnormalized derivative) is intentionally NOT
-  // maintained for an assembled L: the pipeline stage that consumes it is skipped,
-  // L_d is set directly above, and Lfunc_Taylor returns L_d. (It is not a plain k-th
-  // power of M's: the correct value would be (k*r)!/(r!)^k * Lam_d(M)^k.)
+  
+  // Initialize Lam_d (= Lambda^(rank)(1/2))
+  arb_pow_ui(L->Lam_d, M->Lam_d, k, L->wprec);
+  arb_t t_fac; arb_init(t_fac);
+  arb_fac_ui(t_fac, k * M->rank, L->wprec);
+  arb_mul(L->Lam_d, L->Lam_d, t_fac, L->wprec);
+  arb_fac_ui(t_fac, M->rank, L->wprec);
+  arb_pow_ui(t_fac, t_fac, k, L->wprec);
+  arb_div(L->Lam_d, L->Lam_d, t_fac, L->wprec);
+  arb_clear(t_fac);
 
   // ---- attach the factor (owned by L; cleared in clear.c) ----
   L->factors = (Lfunc_t *) malloc(sizeof(Lfunc_t));
   if (!L->factors) {
-    printf("Attempt to allocate memory for factors failed. Exiting.\n");
-    exit(0);
+    Lfunc_clear(Mt);
+    return ERR_OOM;
   }
   L->factor_mults = (uint64_t *) malloc(sizeof(uint64_t));
   if (!L->factor_mults) {
-    printf("Attempt to allocate memory for factor multiplicities failed. Exiting.\n");
-    exit(0);
+    free(L->factors);
+    L->factors = NULL;
+    Lfunc_clear(Mt);
+    return ERR_OOM;
   }
   L->factors[0] = Mt; L->factor_mults[0] = k; L->n_factors = 1;
   return ec;                                          // may carry warnings

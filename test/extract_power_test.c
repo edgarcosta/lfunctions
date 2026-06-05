@@ -358,10 +358,9 @@ int main(void)
 
   printf("extract_power_test: C1 non-square bad factor OK\n");
 
-  // Complex (non-self-dual) boundary: extraction supports rational-integer L-functions
-  // only. A complex L = M^2, built so detection still finds k=2 and the perfect-square
-  // conductor, must be REFUSED by the exact integer certificate (ERR_POWER), not
-  // extracted. Supporting complex Euler factors is feature request lfunctions-5g6.
+  // Complex (non-self-dual) boundary: extraction now supports algebraic exact roots
+  // (feat: lfunctions-5g6). A complex L = M^2, built so detection still finds k=2 and the perfect-square
+  // conductor, should be successfully extracted.
   {
     Lparams_t LpC = { .degree=4, .conductor=37u*37u, .normalisation=0.5,
                       .mus=(double[]){0,0,1,1}, .target_prec=100, .wprec=0, .gprec=0,
@@ -371,12 +370,12 @@ int main(void)
     assert(!fatal_error(eC));
     eC |= Lfunc_use_all_lpolys(LC, lk_complex_callback, NULL);
     eC |= Lfunc_compute(LC);
-    assert(eC & ERR_POWER);            // complex Euler factor -> exact certificate refuses
+    assert(!fatal_error(eC));            // complex Euler factor -> exact certificate succeeds!
     Lfunc_t *fc = NULL; uint64_t *mc = NULL;
-    assert(Lfunc_factors(LC, &fc, &mc) == 0);   // not extracted
+    assert(Lfunc_factors(LC, &fc, &mc) == 1 && mc[0] == 2);   // extracted successfully
     Lfunc_clear(LC);
   }
-  printf("extract_power_test: complex non-self-dual boundary OK (ERR_POWER)\n");
+  printf("extract_power_test: complex non-self-dual boundary OK (extracts)\n");
 
   // ---- E^4 (degree 8, even k=4): multi-k candidate recovery (Fix C) ----
   // L = E^4 has conductor 37^4 (maximal perfect-power exponent E=4) and 2nd moment ~16,
