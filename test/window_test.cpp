@@ -455,13 +455,16 @@ int main() {
   }
   printf("tau ok\n");
 
-  // bead 31c.5: a valid shrink (H=16) returns a correct prefix of the default zeros.
-  // H=16 (B=128) clears every lower-bound guard; its zeros reach only ~1.5*16=24,
-  // a strict subset of the default (H=32, reach ~48). The low zeros must agree.
+  // bead 31c.5: a valid, RH-certified shrink (H=18) returns a correct prefix of
+  // the default zeros. H=18 (B=144) clears every lower-bound guard and the Turing
+  // check; its zeros reach only ~1.5*18=27, a strict subset of the default
+  // (H=32, reach ~48). The low zeros must agree, and ERR_RH_ERROR must be absent
+  // because the public zero-list completeness contract depends on it.
   {
     Lerror_t ecs;
-    Lfunc_t Ls = build_37(16.0, 0, "build/wt_cache_shrink", &ecs);
+    Lfunc_t Ls = build_37(18.0, 0, "build/wt_cache_shrink_cert", &ecs);
     assert(!fatal_error(ecs));
+    assert((ecs & ERR_RH_ERROR) == 0);
     assert(Lfunc_rank(Ls) == 1);
     // |eps| = 1
     { arb_t m; arb_init(m); acb_abs(m, Lfunc_sign(Ls), 100);
@@ -471,7 +474,7 @@ int main() {
     assert(nshr > 0 && nshr < ndef);                 // strictly fewer zeros than default
     for (int i = 0; i < nshr; ++i)                   // and a correct prefix (overlap)
       assert(arb_overlaps(Lfunc_zeros(Ls,0)+i, Lfunc_zeros(L,0)+i));
-    // the largest shrunk zero is within the H=16 reach (well under the default's ~48)
+    // the largest shrunk zero is within the H=18 reach (well under the default's ~48)
     arb_t lim; arb_init(lim); arb_set_d(lim, 30.0);
     assert(arb_lt(Lfunc_zeros(Ls,0)+(nshr-1), lim));
     arb_clear(lim);
