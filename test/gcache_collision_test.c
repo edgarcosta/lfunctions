@@ -1,10 +1,10 @@
 /*
   Regression test for the G-cache filename collision bug.
 
-  compute_g() caches the gamma-factor (G) data to a file named after the
-  L-function's mu's.  The filename must encode *all* the mu's, so that two
-  L-functions with different mu-multisets (in particular different degrees)
-  never share a cache file.
+  compute_g() caches the gamma-factor (G) data.  The filename must encode the
+  data that defines the grid, including degree and *all* the mu's, so that two
+  L-functions with different mu-multisets never share a cache file in normal
+  use.
 
   The bug: the filename was built with a self-overlapping
       sprintf(fname1, "%s_%.1f", fname1, mu)
@@ -52,19 +52,13 @@ static void cleanup_dir(const char *dir) {
 // exp(2 pi (hi_i + 1/2) / B) term directly.
 static uint64_t nmax_in(uint64_t degree, double normalisation,
                         const double *mus, const char *cache_dir) {
-  Lparams_t Lp = {0}; // zero-init: future Lparams_t fields default safely
+  Lparams_t Lp;
+  Lparams_init(&Lp);
   Lp.degree = degree;
   Lp.conductor = 1;
   Lp.normalisation = normalisation;
   Lp.mus = (double *)mus;          // init_advanced only reads from this
-  Lp.target_prec = DEFAULT_TARGET_PREC;  // required for the cache path
-  Lp.rank = DK;
-  Lp.self_dual = DK;
   Lp.cache_dir = (char *)cache_dir;
-  Lp.gprec = 0;                    // required for the cache path
-  Lp.wprec = 0;
-  Lp.max_t = 0;                    // default output window (64/degree)
-  Lp.max_fft_NN = 0;               // default transform-size cap (1<<16)
 
   Lerror_t ecode = ERR_SUCCESS;
   Lfunc_t L = Lfunc_init_advanced(&Lp, &ecode);
@@ -78,7 +72,7 @@ int main(void) {
   // analytic mu's are mus[i] + normalisation:
   //   degree 4: [0,0,1,1] + 0.5 = [0.5, 0.5, 1.5, 1.5]
   //   degree 2: [0,1]     + 0.5 = [0.5, 1.5]
-  // -> both share the largest mu 1.5, so the buggy name collapses both to g_1.5.
+  // -> both share the largest mu 1.5, so the old buggy name collapsed both to g_1.5.
   double mus4[4] = {0.0, 0.0, 1.0, 1.0};
   double mus2[2] = {0.0, 1.0};
 

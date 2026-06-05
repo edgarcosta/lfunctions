@@ -80,6 +80,7 @@ extern "C"{
     acb_t *w; // twiddle factors for length fft_N
     acb_t *ww; // ditto for fft_NN
     arb_t *zeros[2]; // zero ordinates t on the critical line; [0]=L, [1]=dual L
+    uint64_t zero_cap; // active per-side zero cap, <= MAX_ZEROS; default MAX_ZEROS
     double eta; // contour-tilt knob in delta=(1-eta)*pi/2; =0, only feeds delta
     arb_t delta; // contour offset (1-eta)*pi/2 = pi/2; only feeds (unused) exp_delta
     arb_t exp_delta; // exp(-delta) = exp(-pi/2); unused
@@ -155,6 +156,9 @@ extern "C"{
 
   // from glfunc_g.c
   Lerror_t compute_g(Lfunc *);
+
+  // from glfunc.c
+  void Lfunc_set_zero_cap_for_tests(Lfunc_t L, uint64_t cap);
 
   // from acb_fft.c
   void acb_initfft(acb_t *w, uint64_t n, uint64_t prec);

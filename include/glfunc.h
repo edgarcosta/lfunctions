@@ -110,13 +110,17 @@ extern "C"{
    *        mus = [6, 7] and normalisation = 0
    */
   Lfunc_t Lfunc_init(uint64_t degree, uint64_t conductor, double normalisation, const double *mus, Lerror_t *ecode);
+  // Fill Lparams with the defaults used by Lfunc_init:
+  // target_prec=DEFAULT_TARGET_PREC, wprec/gprec=0 (derived), self_dual=DK,
+  // rank=DK, cache_dir=".", max_t=0 (64/degree), max_fft_NN=0 (1<<16).
+  // Call this before setting the object-specific fields for Lfunc_init_advanced.
+  void Lparams_init(Lparams_t *Lparams);
+
   // do the same but with more control. Lparams.conductor fixes the coefficient
   // range M implicitly, as in Lfunc_init (see Lfunc_nmax); no Lparams field sets
   // the prime/coefficient count directly.
-  // NOTE: zero-initialise Lparams_t (memset, or set every field) before calling.
-  // The newer fields use exactly 0 as the "use the default" sentinel (max_t => 64/degree,
-  // max_fft_NN => 1<<16); a negative or non-finite max_t is a caller error rejected with
-  // ERR_WINDOW_TOO_SMALL, so leaving these uninitialised yields garbage window geometry.
+  // Prefer Lparams_init() over raw zero-initialisation: the tri-state fields use
+  // DK (-1) as their default, while 0 is the meaningful value NO / rank 0.
   Lfunc_t Lfunc_init_advanced(Lparams_t *Lparams, Lerror_t *ecode);
 
   // Largest prime p (equivalently largest index M) for which an Euler factor /

@@ -292,7 +292,7 @@ Lerror_t find_zeros(Lfunc *L, uint64_t side)
       ecode|=isolate_zero(L->zeros[side][count++], tmp1, tmp2, L->u_values_off[side][n-1], L->u_values_off[side][n], last_sign, L, side, prec);
       if(fatal_error(ecode))
         return ecode;
-      if(count==MAX_ZEROS)
+      if(count==L->zero_cap)
         return ecode|ERR_ZERO_OVERFLOW;
       continue;
     }
@@ -318,11 +318,11 @@ Lerror_t find_zeros(Lfunc *L, uint64_t side)
           arb_printd(z1, 20);printf(" ");arb_printd(z2, 20);printf("\n");}
         arb_set(L->zeros[side][count], z1);
         count++;
-        if(count==MAX_ZEROS)
+        if(count==L->zero_cap)
           return ecode|ERR_ZERO_OVERFLOW;
         arb_set(L->zeros[side][count], z2);
         count++;
-        if(count==MAX_ZEROS)
+        if(count==L->zero_cap)
           return ecode|ERR_ZERO_OVERFLOW;
       }
     }

@@ -557,9 +557,7 @@ computeres:
     for (imax=imin;error_bound(twomu,L->degree,imax*delta)<prec;imax++);
 
     coeff_bound(m,L->degree,53);
-    arb_init(L->C);
     arb_set_arf(L->C,m);
-    arb_init(L->alpha);
     arb_set_ui(L->alpha,1);
 
     if(op) {
@@ -589,7 +587,6 @@ computeres:
       // header has already been written (and would flush on fclose), so discard
       // the partial file before returning so it cannot poison the cache name.
       arb_clear(u); arb_clear(eps); arb_clear(thresh); arf_clear(m);
-      arb_clear(L->C); arb_clear(L->alpha);
       gcache_writer_abort(fp, cache_path);
       return ERR_WINDOW_TOO_SMALL;
     }
@@ -599,7 +596,6 @@ computeres:
     L->low_i=imin;
     L->hi_i=imax;
 
-    arb_init(L->eq59);
     arb_set(L->eq59,thresh);
     if(op) {
       // %a (hex float) so this body copy of one_over_B round-trips bit-for-bit;
@@ -614,13 +610,12 @@ computeres:
       fflush(fp);
     }
 
-    L->Gs=(arb_t **)malloc(sizeof(arb_t *)*k);
+    L->Gs=(arb_t **)calloc(k,sizeof(arb_t *));
     if(!L->Gs)
     {
       // Graceful fatal return (no exit() on this branch); discard the partial
       // cache file so it cannot poison the cache name on a later run.
       arb_clear(u); arb_clear(eps); arb_clear(thresh); arf_clear(m);
-      arb_clear(L->C); arb_clear(L->alpha); arb_clear(L->eq59);
       gcache_writer_abort(fp, cache_path);
       return ERR_OOM;
     }
@@ -629,23 +624,24 @@ computeres:
       L->Gs[i]=(arb_t *)malloc(sizeof(arb_t)*(imax-imin+1));
       if(!L->Gs[i])
       {
-        // Unwind the rows already allocated (none are arb_init'd yet), then fail
-        // gracefully and discard the partial cache file.
-        for(j=0;j<i;j++)
-          free(L->Gs[j]);
-        free(L->Gs);
+        // Leave already-initialised rows for Lfunc_clear; just discard the
+        // partial cache file and report a graceful fatal error.
         arb_clear(u); arb_clear(eps); arb_clear(thresh); arf_clear(m);
-        arb_clear(L->C); arb_clear(L->alpha); arb_clear(L->eq59);
         gcache_writer_abort(fp, cache_path);
         return ERR_OOM;
       }
-    }
-    for(i=0;i<k;i++)
       for(j=0;j<=imax-imin;j++)
         arb_init(L->Gs[i][j]);
+    }
 
 
     g = calloc(k,sizeof(g[0]));
+    if(!g) {
+      arb_clear(u); arb_clear(eps);
+      arb_clear(thresh); arf_clear(m);
+      gcache_writer_abort(fp, cache_path);
+      return ERR_OOM;
+    }
     for (i=0;i<k;i++)
       arb_init(g[i]);
     int64_t ii;
@@ -797,8 +793,6 @@ computeres:
     //double dalpha;
     // C = coeff_bound(degree, 53) is canonical in the degree, which the header
     // has just verified, so the value read below is safe to trust.
-    arb_init(L->C);
-    arb_init(L->alpha);
     if(fscanf(infile,"%" PRId64 " %" PRId64 " %" PRId64 "\n",&m,&e,&alpha)!=3)
       return GCACHE_CORRUPT;
     arb_set_si(L->C,m);
@@ -819,7 +813,6 @@ computeres:
     fmpz_init(b);
     mpz_init(x);
     mpz_init(ee);
-    arb_init(L->eq59);
     if(!mpz_inp_str(x,infile,10))
       return GCACHE_CORRUPT;
     if(!mpz_inp_str(ee,infile,10))
@@ -832,7 +825,7 @@ computeres:
     mpz_clear(x);
     mpz_clear(ee);
 
-    L->Gs=(arb_t **)malloc(sizeof(arb_t *)*L->max_K);
+    L->Gs=(arb_t **)calloc(L->max_K,sizeof(arb_t *));
     if(!L->Gs)
       return GCACHE_CORRUPT;
     for(uint64_t k=0;k<L->max_K;k++)
@@ -883,17 +876,22 @@ computeres:
     if(use_cache) {
       char fname1[1024] = "";
       size_t off = 0;
-      // Build the cache filename, bailing out if any snprintf hits an encoding
-      // error (returns < 0) or would truncate. snprintf reports the would-be
-      // length, so capture it in an int (off is size_t: adding a negative return
-      // directly would wrap) and advance only once a write fully fit. A truncated
-      // name would drop trailing mus / path chars and let distinct L-functions
-      // collide on one cache file, so on any failure we skip the cache
-      // (best-effort) and compute the G data fresh rather than read or write the
-      // wrong data. These checks bound both writes for any mus and cache_dir --
-      // nothing here relies on a cap on the number or magnitude of the mus.
+      // Build a self-identifying cache filename, bailing out if any snprintf hits
+      // an encoding error (returns < 0) or would truncate. The header is still
+      // validated on read, but the filename now carries the fields that define
+      // the G data in normal use: cache format version, degree, effective gprec,
+      // window one_over_B, and the sorted analytic mus.
       bool name_fits = true;
+      int n0 = snprintf(fname1, sizeof(fname1), "v%d_r%lu_p%" PRId64 "_b%a",
+                        GCACHE_VERSION, (unsigned long)L->degree,
+                        L->gprec, L->one_over_B);
+      if(n0 < 0 || (size_t) n0 >= sizeof(fname1))
+        name_fits = false;
+      else
+        off = (size_t) n0;
       for(uint64_t r=0; r<L->degree; r++) {
+        if(!name_fits)
+          break;
         int n = snprintf(fname1+off, sizeof(fname1)-off, "_%.1f", L->mus[r]);
         if(n < 0 || (size_t) n >= sizeof(fname1)-off) {
           name_fits = false;
@@ -902,7 +900,7 @@ computeres:
         off += (size_t) n;
       }
       if(name_fits) {
-        int n = snprintf(fname, sizeof(fname), "%s/g%s", L->cache_dir, fname1);
+        int n = snprintf(fname, sizeof(fname), "%s/g_%s", L->cache_dir, fname1);
         name_fits = (n >= 0) && ((size_t) n < sizeof(fname));
       }
       if(name_fits) {

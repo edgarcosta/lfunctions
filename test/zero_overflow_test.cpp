@@ -58,16 +58,14 @@ static int count_zeros(Lfunc_t L, uint64_t side) {
 
 int main() {
   static double mus[2] = {0, 1};
-  Lparams_t Lp = {};
+  Lparams_t Lp;
+  Lparams_init(&Lp);
   Lp.degree = 2;
   Lp.conductor = (uint64_t)P * (uint64_t)Q; // 100160063 ~ 1e8
   Lp.normalisation = 0.0;
   Lp.mus = mus;
   Lp.target_prec = 300;                     // survive precision decay to the 1.5*H Turing end
-  Lp.wprec = 0;
-  Lp.gprec = 0;
   Lp.self_dual = YES;                        // self-dual: skip the dual side (halve the work)
-  Lp.rank = DK;
   Lp.cache_dir = (char *)"build/zero_overflow_cache";
   Lp.max_t = 384.0;                          // H: want_fft_NN = next_pow2(2048*384) = 2^20
   Lp.max_fft_NN = (uint64_t)1 << 21;         // cap comfortably above the required 2^20

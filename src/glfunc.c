@@ -17,17 +17,57 @@ static uint64_t next_pow2_u64(uint64_t n) {
   return p;
 }
 
-// Free everything Lfunc_init_advanced allocated before a window guard rejects, then
-// signal the error (origin's free-on-error convention; have_B selects whether L->B
-// was initialised yet). The caller receives NULL and never double-frees.
-static Lfunc_t window_reject(Lfunc *L, bool have_B, Lerror_t *ecode, Lerror_t code) {
-  if (have_B) arb_clear(L->B);
-  arb_clear(L->pi);
-  arb_clear(L->zero_error);
-  arb_clear(L->zero_prec);
-  free(L->mus);
-  free(L);
+static void init_lfunc_scalars(Lfunc *L) {
+  arb_init(L->zero_prec);
+  arb_init(L->zero_error);
+  arb_init(L->mu);
+  arb_init(L->nu);
+  arb_init(L->C);
+  arb_init(L->alpha);
+  arb_init(L->B);
+  arb_init(L->two_pi_by_B);
+  arb_init(L->pi);
+  arb_init(L->eq59);
+  arb_init(L->arb_A);
+  arb_init(L->one_over_A);
+  arb_init(L->delta);
+  arb_init(L->exp_delta);
+  arb_init(L->pre_ftwiddle_error);
+  arb_init(L->ftwiddle_error);
+#ifdef BUTHE
+  arb_init(L->buthe_Wf);
+  arb_init(L->buthe_Winf);
+  arb_init(L->buthe_Ws);
+  arb_init(L->buthe_b);
+  arb_init(L->buthe_C);
+  arb_init(L->buthe_h);
+  for(uint64_t i=0;i<(MAX_R-1)*(2*MAX_MUI_2+1);i++)
+    arb_init(L->buthe_ints[i]);
+#endif
+#ifdef TURING
+  arb_init(L->imint);
+  arb_init(L->X);
+#endif
+  arb_init(L->one_over_root_N);
+  arb_init(L->sum_ans);
+  arb_init(L->u_H);
+  arb_init(L->u_pi_by_H2);
+  arb_init(L->u_A);
+  arb_init(L->u_one_over_A);
+  arb_init(L->u_pi_A);
+  arb_init(L->upsampling_error);
+  arb_init(L->Lam_d);
+  arb_init(L->L_d);
+  acb_init(L->sign);
+  acb_init(L->sqrt_sign);
+  arf_init(L->arf_A);
+  arf_init(L->arf_one_over_A);
+}
+
+static Lfunc_t init_fail(Lfunc *L, Lerror_t *ecode, Lerror_t code) {
   *ecode |= code;
+  if(L)
+    Lfunc_clear((Lfunc_t)L);
   return (Lfunc_t)NULL;
 }
 
@@ -150,51 +190,63 @@ int double_comp(const void *a, const void *b) {
     return 0;
 }
 
+void Lparams_init(Lparams_t *Lp) {
+  if(!Lp)
+    return;
+  Lp->degree = 0;
+  Lp->conductor = 0;
+  Lp->normalisation = 0.0;
+  Lp->mus = NULL;
+  Lp->target_prec = DEFAULT_TARGET_PREC;
+  Lp->wprec = 0;
+  Lp->gprec = 0;
+  Lp->self_dual = DK;
+  Lp->rank = DK;
+  Lp->cache_dir = ".";
+  Lp->max_t = 0.0;
+  Lp->max_fft_NN = 0;
+}
+
 Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
   ecode[0] = ERR_SUCCESS;
   uint64_t i, j;
   arb_t tmp;
 
+  if (!Lp || !Lp->mus) {
+    ecode[0] |= ERR_MU_HALF;
+    return ((Lfunc_t)NULL);
+  }
   if ((Lp->degree < 2) || (Lp->degree > MAX_DEGREE)) {
     ecode[0] |= ERR_BAD_DEGREE;
     return ((Lfunc_t)NULL);
   }
 
-  Lfunc *L = (Lfunc *)malloc(sizeof(Lfunc));
+  Lfunc *L = (Lfunc *)calloc(1, sizeof(Lfunc));
   if (!L) {
     ecode[0] |= ERR_OOM;
     return (Lfunc_t)NULL;
   }
+  init_lfunc_scalars(L);
   L->degree = Lp->degree;
   L->normalisation = Lp->normalisation;
   L->conductor = Lp->conductor;
   L->mus = (double *)malloc(sizeof(double) * L->degree);
-  if (!L->mus) {
-    ecode[0] |= ERR_OOM;
-    free(L);
-    return (Lfunc_t)NULL;
-  }
+  if (!L->mus)
+    return init_fail(L, ecode, ERR_OOM);
   for (i = 0; i < L->degree; i++) {
     L->mus[i] = Lp->mus[i] + Lp->normalisation; // alg->anal
-    if (!is_half_int(L->mus[i])) {
-      ecode[0] |= ERR_MU_HALF;
-      // only L and L->mus are live here (no arb_t initialised yet)
-      free(L->mus);
-      free(L);
-      return (Lfunc_t)NULL;
-    }
+    if (!is_half_int(L->mus[i]))
+      return init_fail(L, ecode, ERR_MU_HALF);
   }
 
   // we sort the mus so we can name G cache files canonically
   qsort(L->mus, L->degree, sizeof(double), double_comp);
 
-  L->target_prec = Lp->target_prec;
-  arb_init(L->zero_prec);
+  L->target_prec = (Lp->target_prec > 0) ? Lp->target_prec : DEFAULT_TARGET_PREC;
+  L->zero_cap = MAX_ZEROS;
   arb_set_ui(L->zero_prec, 1);
   arb_mul_2exp_si(L->zero_prec, L->zero_prec, -L->target_prec - 1);
-  arb_init(L->zero_error);
   arb_add_error(L->zero_error, L->zero_prec);
-  arb_init(L->pi);
 
   // Resolve window geometry from H (max_t) before decay() reads L->max_t.
   // A returned interval that fails to contain the true value is the worst
@@ -207,7 +259,7 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
   // the default-window branch (the bare Lp->max_t > 0.0 test let NaN through,
   // since NaN > 0.0 is false). The sentinel is exactly 0.0, which is finite.
   if (!isfinite(Lp->max_t)) {
-    return window_reject(L, false, ecode, ERR_WINDOW_TOO_SMALL);
+    return init_fail(L, ecode, ERR_WINDOW_TOO_SMALL);
   }
   if (Lp->max_t > 0.0) {                       // non-default window
     L->max_t = Lp->max_t;
@@ -219,7 +271,7 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
     // >= not >: (double)UINT64_MAX rounds up to exactly 2^64, and (uint64_t)2^64 is
     // undefined behaviour, so need == 2^64 must be rejected too (not just > 2^64).
     if (!isfinite(need) || need >= (double)UINT64_MAX) {
-      return window_reject(L, false, ecode, ERR_WINDOW_TOO_LARGE);
+      return init_fail(L, ecode, ERR_WINDOW_TOO_LARGE);
     }
     want_fft_NN = next_pow2_u64((uint64_t)need);
   } else if (Lp->max_t == 0.0) {                // sentinel: default window
@@ -227,12 +279,12 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
     L->one_over_B = (double)L->degree / 512.0;  // identical to the old g.c:848 value
     want_fft_NN = (uint64_t)1 << 16;            // identical to the old glfunc.c:233 value
   } else {                                      // finite, < 0: too small
-    return window_reject(L, false, ecode, ERR_WINDOW_TOO_SMALL);
+    return init_fail(L, ecode, ERR_WINDOW_TOO_SMALL);
   }
 
   // Upper bound: the required transform must fit under the cap.
   if (want_fft_NN > L->max_fft_NN) {
-    return window_reject(L, false, ecode, ERR_WINDOW_TOO_LARGE);
+    return init_fail(L, ecode, ERR_WINDOW_TOO_LARGE);
   }
 
   // ---- Lower-bound guards (spec step 4); any failure => fatal, before compute_g ----
@@ -240,7 +292,7 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
   //     out of the buffer sized fft_NN (heap overflow). fft_N never drops below
   //     1<<11, so want_fft_NN must reach it too.
   if (want_fft_NN < ((uint64_t)1 << 11)) {
-    return window_reject(L, false, ecode, ERR_WINDOW_TOO_SMALL);
+    return init_fail(L, ecode, ERR_WINDOW_TOO_SMALL);
   }
 
   // Derive B now (needed by the beta preflight below and reused later for L->B).
@@ -248,7 +300,6 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
   // entry is mu_max.
   double B_eff = 1.0 / L->one_over_B;
   double mu_max = L->mus[L->degree - 1];
-  arb_init(L->B);
   {
     arb_t tmpB;
     arb_init(tmpB);
@@ -260,7 +311,7 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
   // (3) taylor_terms termination needs B > 4/degree (necessary asymptotic floor;
   //     the hard cap in g.c is the belt-and-suspenders backstop).
   if (!(B_eff > 4.0 / (double)L->degree)) {
-    return window_reject(L, true, ecode, ERR_WINDOW_TOO_SMALL);
+    return init_fail(L, ecode, ERR_WINDOW_TOO_SMALL);
   }
 
   // (2) ftwiddle truncation: need B > 0.5 + mu_max AND the resulting decay rate
@@ -269,7 +320,7 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
   //     init_ftwiddle_error) rather than inspecting the damage afterwards.
   arb_const_pi(L->pi, 100); // beta preflight (and decay) need pi
   if (!(B_eff > 0.5 + mu_max) || !ftwiddle_beta_positive(L, 100)) {
-    return window_reject(L, true, ecode, ERR_WINDOW_TOO_SMALL);
+    return init_fail(L, ecode, ERR_WINDOW_TOO_SMALL);
   }
 
   if (Lp->wprec > 0)
@@ -290,10 +341,8 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
   // See Lemma 2 of M_error1.pdf, Lemma 5 of g.pdf
   // r is always >=2
   L->nus = (arb_t *)malloc(sizeof(arb_t) * L->degree);
-  if (!L->nus) {
-    ecode[0] |= ERR_OOM;
-    return (Lfunc_t)NULL;
-  }
+  if (!L->nus)
+    return init_fail(L, ecode, ERR_OOM);
 
   for (j = 0; j < 2; j++) {
     arb_init(L->nus[j]);
@@ -305,7 +354,6 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
   }
 
   // See Lemma 2/5 again
-  arb_init(L->nu);
   arb_set(L->nu, L->nus[0]);
   for (j = 1; j < L->degree; j++)
     arb_add(L->nu, L->nu, L->nus[j], L->target_prec);
@@ -316,7 +364,6 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
   arb_add(L->nu, L->nu, tmp, L->target_prec);
 
   // mu=-1/2+1/r(1+sum mu_j) See Lemma 5.2 of Artin
-  arb_init(L->mu);
   arb_set_d(L->mu, -0.5);
   double smu = 1.0;
   for (i = 0; i < L->degree; i++)
@@ -326,8 +373,10 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
   arb_add(L->mu, L->mu, tmp, L->target_prec);
 
   ecode[0] |= compute_g(L);
-  if (fatal_error(ecode[0]))
-    return (Lfunc_t)NULL;
+  if (fatal_error(ecode[0])) {
+    arb_clear(tmp);
+    return init_fail(L, ecode, ERR_SUCCESS);
+  }
   if (verbose) {
     printf("eq 5-9 error = ");
     arb_printd(L->eq59, 20);
@@ -339,7 +388,6 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
   arb_set_d(tmp, L->one_over_B);
   arb_inv(L->B, tmp, L->wprec);
 
-  arb_init(L->two_pi_by_B);
   arb_set_d(L->two_pi_by_B, L->one_over_B * 2.0);
   arb_mul(L->two_pi_by_B, L->two_pi_by_B, L->pi, L->wprec);
 
@@ -355,44 +403,37 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
     L->fft_N = next_pow2_u64(support > floor_n ? support : floor_n);
   }
   L->fft_NN = want_fft_NN; // final output length (= 1<<16 for the default window)
-  // Defensive backstop only: this branch is UNREACHABLE for any accepted input.
+  // Defensive backstop only: this branch is unreachable for any accepted input.
   // want_fft_NN >= 1<<11 (the sub-floor guard above rejects anything smaller), and
   // fft_N = next_pow2(max(1<<11, support)). The conductor-dependent part of support is
   // hi_i - calc_m(1) ~ B*ln(N)/(4*pi); with fft_NN ~ 1024*degree*max_t = 128*degree*B,
   // fft_N exceeds fft_NN only once ln(N) > ~512*pi*degree (thousands; ~3217 at degree 2),
   // far beyond any uint64_t conductor (ln N <= ~44). So fft_N <= fft_NN
-  // always. L is only PARTIALLY constructed here (compute_g ran, but the w/ww/res/
-  // zeros/upsampling allocations below have not), so Lfunc_clear would dereference
-  // not-yet-allocated pointers; we keep the graceful fatal return instead. Freeing the
-  // partial Lfunc for such early init failures is tracked by bead lfunctions-1eb.
-  if (L->fft_N > L->fft_NN) { ecode[0] |= ERR_WINDOW_TOO_LARGE; return (Lfunc_t)NULL; }
+  // always. Keep the backstop anyway in case the sizing assumptions change.
+  if (L->fft_N > L->fft_NN) {
+    arb_clear(tmp);
+    return init_fail(L, ecode, ERR_WINDOW_TOO_LARGE);
+  }
 
   L->A = L->fft_NN * L->one_over_B;
-  arb_init(L->arb_A);
   arb_set_d(L->arb_A, L->A);
-  arf_init(L->arf_A);
   arf_set_d(L->arf_A, L->A);
 
-  arb_init(L->one_over_A);
   arb_inv(L->one_over_A, L->arb_A, L->wprec);
-  arf_init(L->arf_one_over_A);
   arf_ui_div(L->arf_one_over_A, 1, L->arf_A, L->wprec, ARF_RND_NEAR);
 
   L->G = (acb_t *)malloc(sizeof(acb_t) * L->fft_N);
   if (!L->G) {
     arb_clear(tmp);
-    ecode[0] |= ERR_OOM;
-    return (Lfunc_t)NULL;
+    return init_fail(L, ecode, ERR_OOM);
   }
   for (i = 0; i < L->fft_N; i++)
     acb_init(L->G[i]);
 
   L->eta = 0.0;
-  arb_init(L->delta);
   arb_mul_2exp_si(L->delta, L->pi, -1); // pi/2
   arb_set_d(tmp, 1.0 - L->eta);
   arb_mul(L->delta, L->delta, tmp, L->wprec); // (1-eta)pi/2
-  arb_init(L->exp_delta);
   arb_neg(tmp, L->delta);
   arb_exp(L->exp_delta, tmp, L->wprec);
 
@@ -400,8 +441,7 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
       (acb_t *)malloc(sizeof(acb_t) * L->fft_N / 2); // twiddles for little FFT
   if (!L->w) {
     arb_clear(tmp);
-    ecode[0] |= ERR_OOM;
-    return (Lfunc_t)NULL;
+    return init_fail(L, ecode, ERR_OOM);
   }
 
   for (i = 0; i < L->fft_N / 2; i++)
@@ -412,8 +452,7 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
       (acb_t *)malloc(sizeof(acb_t) * L->fft_NN / 2); // twiddles for big FFT
   if (!L->ww) {
     arb_clear(tmp);
-    ecode[0] |= ERR_OOM;
-    return (Lfunc_t)NULL;
+    return init_fail(L, ecode, ERR_OOM);
   }
   for (i = 0; i < L->fft_NN / 2; i++)
     acb_init(L->ww[i]);
@@ -423,9 +462,12 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
   L->zeros[0] = (arb_t *)malloc(sizeof(arb_t) * MAX_ZEROS);
   L->zeros[1] = (arb_t *)malloc(sizeof(arb_t) * MAX_ZEROS);
   if ((!L->zeros[0]) || (!L->zeros[1])) {
+    free(L->zeros[0]);
+    free(L->zeros[1]);
+    L->zeros[0] = NULL;
+    L->zeros[1] = NULL;
     arb_clear(tmp);
-    ecode[0] |= ERR_OOM;
-    return (Lfunc_t)NULL;
+    return init_fail(L, ecode, ERR_OOM);
   }
   for (i = 0; i < MAX_ZEROS; i++) {
     arb_init(L->zeros[0][i]);
@@ -435,15 +477,13 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
   L->kres = (acb_t *)malloc(sizeof(acb_t) * L->fft_N);
   if (!L->kres) {
     arb_clear(tmp);
-    ecode[0] |= ERR_OOM;
-    return (Lfunc_t)NULL;
+    return init_fail(L, ecode, ERR_OOM);
   }
 
-  L->skm = (acb_t **)malloc(sizeof(acb_t *) * L->max_K);
+  L->skm = (acb_t **)calloc(L->max_K, sizeof(acb_t *));
   if (!L->skm) {
     arb_clear(tmp);
-    ecode[0] |= ERR_OOM;
-    return (Lfunc_t)NULL;
+    return init_fail(L, ecode, ERR_OOM);
   }
 
   uint64_t k, n;
@@ -451,8 +491,7 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
     L->skm[k] = (acb_t *)malloc(sizeof(acb_t) * L->fft_N);
     if (!L->skm[k]) {
       arb_clear(tmp);
-      ecode[0] |= ERR_OOM;
-      return (Lfunc_t)NULL;
+      return init_fail(L, ecode, ERR_OOM);
     }
 
     for (n = 0; n < L->fft_N; n++)
@@ -462,8 +501,7 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
   L->res = (acb_t *)malloc(sizeof(acb_t) * L->fft_NN);
   if (!L->res) {
     arb_clear(tmp);
-    ecode[0] |= ERR_OOM;
-    return (Lfunc_t)NULL;
+    return init_fail(L, ecode, ERR_OOM);
   }
 
   for (n = 0; n < L->fft_N; n++)
@@ -471,20 +509,13 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
   for (n = 0; n < L->fft_NN; n++)
     acb_init(L->res[n]);
 
-  arb_init(L->pre_ftwiddle_error);
-  arb_init(L->ftwiddle_error);
   init_ftwiddle_error(L, L->wprec);
 
-  arb_init(L->one_over_root_N);
-  arb_init(L->sum_ans);
-  acb_init(L->sign);
-  acb_init(L->sqrt_sign);
   L->allocated_M = 8192;
   L->ans = (acb_t *)malloc(sizeof(acb_t) * L->allocated_M);
   if (!L->ans) {
     arb_clear(tmp);
-    ecode[0] |= ERR_OOM;
-    return (Lfunc_t)NULL;
+    return init_fail(L, ecode, ERR_OOM);
   }
   for (size_t i = 0; i < L->allocated_M; ++i)
     acb_init(L->ans[i]);
@@ -494,18 +525,11 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
 #ifdef BUTHE
   init_buthe(L, L->wprec); // setup stuff for Buthe zero check
 #endif
-#ifdef TURING
-  arb_init(L->imint);
-  arb_init(L->X);
-#endif
   L->nmax_called = false; // noone has called nmax yet
-
-  arb_init(L->Lam_d);
-  arb_init(L->L_d);
 
   ecode[0] |= init_upsampling(L);
   if (fatal_error(ecode[0]))
-    return (Lfunc_t)NULL;
+    return init_fail(L, ecode, ERR_SUCCESS);
 
   // (4) Upsample period-fit (spec step 4, last bullet): the output + Turing +
   // upsampling-guard samples must fit in one output period of fft_NN. This is
@@ -515,11 +539,7 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
   // replicating the search) keeps the two from diverging. Runs before zero-
   // finding (which happens in Lfunc_compute), so no degraded result is returned.
   if (L->u_no_values > L->fft_NN) {
-    // L is fully constructed here (init_upsampling succeeded, every u_* field and
-    // array is set), so the authoritative teardown applies before we hand back NULL.
-    Lfunc_clear((Lfunc_t)L);
-    ecode[0] |= ERR_WINDOW_TOO_SMALL;
-    return (Lfunc_t)NULL;
+    return init_fail(L, ecode, ERR_WINDOW_TOO_SMALL);
   }
 
   return (Lfunc_t)L;
@@ -528,36 +548,27 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
 Lfunc_t Lfunc_init(uint64_t degree, uint64_t conductor, double normalisation,
                    const double *mus, Lerror_t *ecode) {
   Lparams_t Lp;
+  Lparams_init(&Lp);
   Lp.degree = degree;
   Lp.conductor = conductor;
   Lp.normalisation = normalisation;
-  Lp.mus = (double *)malloc(sizeof(double) * degree);
-  if (!Lp.mus) {
-    ecode[0] |= ERR_OOM;
-    return (Lfunc_t)NULL;
-  }
-  for (size_t i = 0; i < degree; ++i)
-    Lp.mus[i] = mus[i];
-  Lp.target_prec = DEFAULT_TARGET_PREC;
-  Lp.rank = DK;
-  Lp.self_dual = DK;
-  Lp.cache_dir = ".";
-  Lp.gprec = 0; // We will try to do something sensible
-  Lp.wprec = 0; // ditto
-  Lp.max_t = 0.0;     // sentinel => 64/degree
-  Lp.max_fft_NN = 0;  // sentinel => 1<<16
-
-  // Lfunc_init_advanced copies Lp.mus into L->mus, so this scratch array is ours
-  // to free; otherwise it leaks (Lp is a stack local that goes out of scope).
-  Lfunc_t L = Lfunc_init_advanced(&Lp, ecode);
-  free(Lp.mus);
-  return L;
+  Lp.mus = (double *)mus; // Lfunc_init_advanced copies this array.
+  return Lfunc_init_advanced(&Lp, ecode);
 }
 
 int64_t Lfunc_wprec(Lfunc_t Lf) {
   Lfunc *L;
   L = (Lfunc *)Lf;
   return L->wprec;
+}
+
+void Lfunc_set_zero_cap_for_tests(Lfunc_t Lf, uint64_t cap) {
+  Lfunc *L = (Lfunc *)Lf;
+  if(!L)
+    return;
+  if(cap == 0 || cap > MAX_ZEROS)
+    cap = MAX_ZEROS;
+  L->zero_cap = cap;
 }
 
 #ifdef __cplusplus

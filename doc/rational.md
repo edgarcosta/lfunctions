@@ -147,6 +147,5 @@ prime-ordered form described above, and they must cover every prime up to
 `Lfunc_nmax`.
 
 > **Stale `g_*` cache files.** The library caches the gamma-factor product to
-> disk as `g_<normalisation>` files in the current directory. Remove any such
-> files (`rm -f g_*`) before a run; a stale one is silently reused and can
-> corrupt the result.
+> disk as self-identifying `g_*` files in the current directory. Remove them
+> (`rm -f g_*`) before an ad-hoc run when you want a clean cache.

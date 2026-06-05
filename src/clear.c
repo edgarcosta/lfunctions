@@ -12,6 +12,8 @@ extern "C"{
   void Lfunc_clear(Lfunc_t LL)
   {
     Lfunc *L=(Lfunc *) LL;
+    if(!L)
+      return;
 
     free(L->mus);
     arb_cclear(L->zero_prec);

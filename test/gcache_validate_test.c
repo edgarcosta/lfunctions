@@ -1,14 +1,14 @@
 /*
   Regression test for the G-cache staleness footgun (bead lfunctions-fe3).
 
-  compute_g() caches the gamma-factor (G) data to a file named after the
-  L-function's mu's.  The cached grid extent (low_i, hi_i, max_K) and the
-  precision it was computed at (gprec) are a function of (degree, mus, gprec);
-  hi_i and max_K grow monotonically with gprec.  The cache is consulted
-  whenever the *input* gprec is 0 (default mode), but the *effective* gprec is
-  then derived as max(target+gamma+EXTRA_BITS, wprec).  A caller who raises
-  wprec (as one does for a large conductor) therefore needs a higher-precision
-  grid than a default run wrote.
+  compute_g() caches the gamma-factor (G) data.  The cached grid extent
+  (low_i, hi_i, max_K) and the precision it was computed at (gprec) are a
+  function of (degree, mus, window, gprec); hi_i and max_K grow monotonically
+  with gprec.  The cache is consulted whenever the *input* gprec is 0 (default
+  mode), but the *effective* gprec is then derived as
+  max(target+gamma+EXTRA_BITS, wprec).  A caller who raises wprec (as one does
+  for a large conductor) therefore needs a higher-precision grid than a default
+  run wrote.
 
   The bug: read_gfile() validated nothing.  A cheap cache file written by a
   default (wprec=0) run was silently reused by a later run with an elevated
@@ -16,13 +16,11 @@
   result was a silently-truncated grid and wrong numbers, with no error.  The
   documented workaround was "rm -f g_* before running".
 
-  The fix: the cache file carries a self-describing header (magic, version,
-  degree, the sorted mus as exact halved integers, and the gprec it was
-  computed at).  On load the library verifies the file is USABLE for the
-  current request -- same degree and mus, and cached gprec >= required gprec --
-  and, when it is not, recomputes and overwrites the stale file instead of
-  returning wrong numbers.  (A file whose header is valid but whose body is
-  truncated/corrupt is a genuinely broken file and stays a fatal ERR_G_INFILE.)
+  The fix is layered: the filename now includes the cache version, degree,
+  effective gprec, window, and mus, and the file body still carries a
+  self-describing header.  On load the library verifies the file is USABLE for
+  the current request; a file whose header is valid but whose body is
+  truncated/corrupt is a genuinely broken file and stays a fatal ERR_G_INFILE.
 
   We probe at init time via Lfunc_nmax, which reflects hi_i and so reveals an
   undersized grid, exactly as test/gcache_collision_test.c does.
@@ -60,19 +58,14 @@ static void cleanup_dir(const char *dir) {
 static bool init_is_fatal(uint64_t degree, double normalisation,
                           const double *mus, int64_t wprec,
                           const char *cache_dir, uint64_t *out_nmax) {
-  Lparams_t Lp = {0}; // zero-init: future Lparams_t fields default safely
+  Lparams_t Lp;
+  Lparams_init(&Lp);
   Lp.degree = degree;
   Lp.conductor = 1;
   Lp.normalisation = normalisation;
   Lp.mus = (double *)mus;                // init_advanced only reads from this
-  Lp.target_prec = DEFAULT_TARGET_PREC;  // required for the cache path
-  Lp.rank = DK;
-  Lp.self_dual = DK;
   Lp.cache_dir = (char *)cache_dir;
-  Lp.gprec = 0;                          // required for the cache path
   Lp.wprec = wprec;
-  Lp.max_t = 0;                          // default output window (64/degree)
-  Lp.max_fft_NN = 0;                     // default transform-size cap (1<<16)
 
   Lerror_t ecode = ERR_SUCCESS;
   Lfunc_t L = Lfunc_init_advanced(&Lp, &ecode);
@@ -137,9 +130,8 @@ int main(void) {
   assert(!fatal_stale);
   assert(nmax_stale == nmax_hi);
 
-  // Sufficiency, not equality: a grid written at HIGH precision must satisfy a
-  // later DEFAULT request (cached gprec >= required gprec), so it is reused
-  // rather than rejected.  Guards the fix against over-rejecting usable caches.
+  // The filename includes effective gprec, so a later DEFAULT request writes its
+  // own default-precision cache instead of touching the high-precision file.
   char dir_over[] = "./gcache_over_XXXXXX";
   assert(mkdtemp(dir_over) != NULL);
   uint64_t nmax_seed_hi = 0, nmax_reuse_lo = 0;
@@ -147,7 +139,8 @@ int main(void) {
   bool fatal_reuse_lo = init_is_fatal(2, norm, mus2, 0,        dir_over, &nmax_reuse_lo);
   cleanup_dir(dir_over);
   assert(!fatal_seed_hi);
-  assert(!fatal_reuse_lo);      // over-sufficient cache reused, not rejected
+  assert(!fatal_reuse_lo);
+  assert(nmax_reuse_lo == nmax_default);
 
   // No happy-path regression: a matching cache is reused and gives the same
   // answer as a pristine run.
@@ -162,6 +155,6 @@ int main(void) {
   assert(nmax_w1 == nmax_default);   // first (pristine) run matches reference
   assert(nmax_w2 == nmax_default);   // cache reuse gives the identical answer
 
-  printf("PASS: stale G cache rejected; sufficient/matching caches reused\n");
+  printf("PASS: stale G cache avoided; matching caches reused\n");
   return 0;
 }
