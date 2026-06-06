@@ -3,6 +3,7 @@
 #include "glfunc_internals.h"
 #include "math.h"
 #include "stdlib.h"
+#include "limits.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -35,8 +36,8 @@ void fprint_errors(FILE *f, Lerror_t ecode) {
   if (ecode & ERR_SPEC_VALUE)
     fprintf(f, "Fatal error in special value routine.\n");
   if (ecode & ERR_SUPPLY_CONFLICT)
-    fprintf(f, "Incompatible supply: raw Dirichlet coefficients cannot be mixed "
-               "with Euler factors, nor supplied more than once.\n");
+    fprintf(f, "Incompatible, duplicate, or out-of-order L-series supply "
+               "route/factor.\n");
   if (ecode & ERR_A1_NOT_ONE)
     fprintf(f,
             "Supplied a_1 is not 1 (the leading Dirichlet coefficient must be "
@@ -46,8 +47,8 @@ void fprint_errors(FILE *f, Lerror_t ecode) {
                "Euler-product bound |a_n| <= C*n^alpha (check "
                "normalisation_of_input).\n");
   if (ecode & ERR_BAD_NORM)
-    fprintf(f, "Invalid normalisation_of_input selector; use ALGEBRAIC_NORM "
-               "or ANALYTIC_NORM.\n");
+    fprintf(f, "Invalid normalisation_of_input selector; use LFUNC_ALGEBRAIC_NORM "
+               "or LFUNC_ANALYTIC_NORM.\n");
   if (ecode & ERR_BAD_SUPPLY)
     fprintf(f, "Invalid coefficient or Euler-factor supply argument.\n");
   // warnings
@@ -68,9 +69,7 @@ void fprint_errors(FILE *f, Lerror_t ecode) {
   if (ecode & ERR_RH_ERROR)
     fprintf(f, "Failed to confirm RH for zeros in output region.\n");
   if (ecode & ERR_RH_UNAVAILABLE)
-    fprintf(f, "RH check skipped: raw Dirichlet coefficients were supplied, so "
-               "no per-prime Euler factors are available for the Buthe/Turing "
-               "verification.\n");
+    fprintf(f, "RH check skipped or unavailable for this build/supply route.\n");
   if (ecode & ERR_DBL_ZERO)
     fprintf(
         f,
@@ -125,8 +124,12 @@ uint64_t decay(Lfunc *L) {
 }
 
 bool is_half_int(double x) {
-  return (x >= 0.0) && ((2.0 * x) == ceil(2.0 * x)) &&
-         ((2.0 * x) == floor(2.0 * x));
+  if(!isfinite(x) || x < 0.0)
+    return false;
+  double y = 2.0 * x;
+  if(!isfinite(y) || (long double)y > (long double)LONG_MAX)
+    return false;
+  return isfinite(y) && y == ceil(y) && y == floor(y);
 }
 
 int double_comp(const void *a, const void *b) {
@@ -394,6 +397,8 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
   // batch-supply state: no supply call has happened yet
   L->factor_supplied = false;
   L->raw_supplied = false;
+  L->factor_route = 0;
+  L->last_factor_p = 0;
   L->supply_ecode = ERR_SUCCESS;
 
   arb_init(L->Lam_d);

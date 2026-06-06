@@ -408,17 +408,20 @@ Lerror_t Lfunc_compute(Lfunc_t Lf)
       return ecode;
   }
 #ifdef BUTHE
-  if(L->raw_supplied)
-    ecode|=ERR_RH_UNAVAILABLE; // raw a_n: no per-prime factors for Buthe's wf()
-  else
+  if(!L->raw_supplied)
     ecode|=buthe_check_RH(L);
+  #ifndef TURING
+  else
+    ecode|=ERR_RH_UNAVAILABLE; // raw a_n: no per-prime factors for Buthe's wf()
+  #endif
 #endif
 
 #ifdef TURING
-  if(L->raw_supplied)
-    ecode|=ERR_RH_UNAVAILABLE; // raw a_n: RH not verified (see Lfunc_zeros/Lfunc_rank docs)
-  else
-    ecode|=turing_check_RH(L,prec);
+  ecode|=turing_check_RH(L,prec);
+#endif
+
+#if !defined(BUTHE) && !defined(TURING)
+  ecode|=ERR_RH_UNAVAILABLE;
 #endif
   
 #endif

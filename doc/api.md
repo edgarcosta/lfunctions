@@ -10,11 +10,12 @@ per-function reference, generated from the header, is at the
 [bottom of this page](#full-header-reference); the prose below links into it
 with cross-references such as {c:func}`Lfunc_init`.
 
-Everything the library computes is returned as a *certified ball*: FLINT/Arb
+Primary numerical query results are returned as *certified balls*: FLINT/Arb
 `arb_t` (real) and `acb_t` (complex) values whose radius is a rigorous error
-bound, never a bare floating-point number. To consume a result you read its
-midpoint and radius with the usual Arb accessors, or compare it against a
-reference ball with `arb_overlaps` / `acb_overlaps` / `arb_contains`.
+bound. Plot samples are the exception: {c:func}`Lfunc_plot_data` returns plain
+doubles for visualisation. To consume a ball result you read its midpoint and
+radius with the usual Arb accessors, or compare it against a reference ball with
+`arb_overlaps` / `acb_overlaps` / `arb_contains`.
 
 ```{contents}
 :local:
@@ -164,17 +165,18 @@ by {c:func}`Lfunc_plot_data` owns its own buffer and is freed separately with
 ## The mu / normalisation convention
 
 An L-function in this library is specified in the **algebraic** normalisation
-(integer Dirichlet coefficients, functional equation `s -> k - s` for motivic
-weight `k`) but is computed internally in the **analytic** normalisation
-(functional equation centered at `1/2`). Two inputs bridge the two:
+(integer Dirichlet coefficients, functional equation `s -> w + 1 - s` for
+motivic weight `w`) but is computed internally in the **analytic**
+normalisation (functional equation centered at `1/2`). Two inputs bridge the
+two:
 
 - `mus[i]` are the shifts of the `Gamma_R` factors that make up the completed
   L-function's gamma factor, in the algebraic normalisation.
 - `normalisation` is the shift along the `s`-axis that converts algebraic to
   analytic. If `a_n` is the n-th Dirichlet coefficient in the algebraic
   normalisation, then `a_n / n^{normalisation}` is the coefficient in the
-  analytic one. For a functional equation `Lambda(s) = eps Lambda(k - s)`, take
-  `normalisation = (k - 1) / 2`.
+  analytic one. For motivic weight `w`, take `normalisation = w / 2`. For a
+  classical modular form of weight `k`, this is `(k - 1) / 2`.
 
 Internally the library stores `mus[i] + normalisation` for each `i` and runs
 entirely in the analytic normalisation. The hard constraint is:
@@ -199,10 +201,9 @@ identical output. For a classical modular form of weight 13 (motivic weight
 mus = [0, 1],   normalisation = 6       <==>     mus = [6, 7],     normalisation = 0
 ```
 
-Choosing `normalisation = (k - 1) / 2` and small `mus` keeps the encoding close
-to how the object is usually tabulated (for example on the LMFDB), which is why
-the worked examples use `mus = [0, 1]` with the weight-derived
-`normalisation`.
+Choosing the weight-derived `normalisation` and small `mus` keeps the encoding
+close to how the object is usually tabulated (for example on the LMFDB), which
+is why the worked examples use `mus = [0, 1]` with that convention.
 
 (supplying-euler-factors)=
 
@@ -221,8 +222,8 @@ uint64_t nmax = Lfunc_nmax(L);
 Euler-factor supply takes local L-polynomials `L_p(T)` (polynomials in `T`
 with constant term normalised to 1) in the **algebraic** normalisation. Raw
 Dirichlet-coefficient supply can take either algebraic or analytic
-coefficients; the caller must say which one with {c:macro}`ALGEBRAIC_NORM` or
-{c:macro}`ANALYTIC_NORM`.
+coefficients; the caller must say which one with {c:macro}`LFUNC_ALGEBRAIC_NORM` or
+{c:macro}`LFUNC_ANALYTIC_NORM`.
 
 ### Driven by the library: `Lfunc_use_all_lpolys`
 
@@ -237,8 +238,10 @@ Lerror_t Lfunc_use_all_lpolys(
 The library calls `lpoly_callback` once for each prime `p <= Lfunc_nmax(L)`,
 in increasing order. The callback fills `lpoly` with `L_p(T)`; `d` is the
 expected degree of the factor and `prec` the working precision, and `param` is
-your opaque pointer passed straight through. This is the most convenient route:
-you never enumerate the primes yourself.
+your opaque pointer passed straight through. A nonzero factor must have constant
+term 1 and degree at most the L-function degree. A `NULL` callback is fatal
+{c:macro}`ERR_BAD_SUPPLY`. This is the most convenient route: you never
+enumerate the primes yourself.
 
 It also carries a **short-circuit**: if the callback leaves `lpoly` set to the
 zero polynomial for some prime, the library stops calling, takes that prime as
@@ -267,10 +270,13 @@ void lpoly_callback(acb_poly_t poly, uint64_t p, int d, int64_t prec, void *para
 void Lfunc_use_lpoly(Lfunc_t L, uint64_t p, const acb_poly_t poly);
 ```
 
-Push a single factor for the prime `p`. Use this when you already have the
-primes enumerated (for example from `primesieve`) and want to loop yourself.
-The library copies `poly`. If {c:func}`Lfunc_nmax` has not yet been called, the
-first successful push computes and freezes that bound before multiplying the
+Push a single factor for the prime `p`. The prime must be at least 2, and
+successive pushes must be in strictly increasing prime order. A non-prime `p`
+is fatal {c:macro}`ERR_BAD_SUPPLY`. Use this when you
+already have the primes enumerated (for example from `primesieve`) and want to
+loop yourself. The factor must be nonzero, have exact constant term 1, and have
+degree at most the L-function degree. If {c:func}`Lfunc_nmax` has not yet been called,
+the first successful push computes and freezes that bound before multiplying the
 factor into the coefficient array.
 
 This route has no automatic end-of-data signal: if your explicit loop will stop
@@ -278,10 +284,11 @@ before the original bound, call {c:func}`Lfunc_reduce_nmax` before
 {c:func}`Lfunc_compute`. Otherwise the library cannot distinguish "done" from
 "more pushes are coming".
 
-Because this function returns `void`, fatal supply errors such as a `NULL`
-`poly` ({c:macro}`ERR_BAD_SUPPLY`) or an attempt to push after raw coefficient
-supply ({c:macro}`ERR_SUPPLY_CONFLICT`) are recorded on the object and surfaced
-by {c:func}`Lfunc_compute`.
+Because this function returns `void`, fatal supply errors such as `p < 2`,
+non-prime `p`, a `NULL` or malformed `poly` ({c:macro}`ERR_BAD_SUPPLY`), a
+duplicate/out-of-order push, or an attempt to push after another supply route
+({c:macro}`ERR_SUPPLY_CONFLICT`) are recorded on the object and surfaced by
+{c:func}`Lfunc_compute`.
 
 The [worked example](#a-worked-end-to-end-example) on this page uses the
 callback form; other examples use the push route when they already own an
@@ -309,15 +316,18 @@ path. The `fmpz` form is for exact integer polynomials and is converted to
 `acb_poly_t` at working precision; the `acb` form is the ball-valued route for
 callers that already have certified polynomial balls.
 
-If `len` is shorter than the number of primes up to `nmax`, the library stops
-at the first missing prime, reduces `nmax` to `p - 1`, and returns the warning
-bit {c:macro}`ERR_INSUFF_EULER`; surplus factors are ignored. A `NULL` factor
-array is allowed only when `len == 0`; with positive `len` it is fatal
-{c:macro}`ERR_BAD_SUPPLY`.
+Each supplied factor must be nonzero, have exact constant term 1, and have
+degree at most the L-function degree. If `len` is shorter than the number of primes up to
+`nmax`, the library stops at the first missing prime, reduces `nmax` to `p - 1`,
+and returns the warning bit {c:macro}`ERR_INSUFF_EULER`; surplus factors are
+ignored. A `NULL` factor array is allowed only when `len == 0`; with positive
+`len` it is fatal {c:macro}`ERR_BAD_SUPPLY`.
 
-Euler-factor routes compose with each other: callback, push, and factor-array
-supply all multiply into the same coefficient array. They cannot be mixed with
-raw Dirichlet-coefficient supply.
+Choose exactly one Euler-factor route for an object: callback, push, or one
+factor-array call. Repeated factor-array calls and route mixing are fatal
+{c:macro}`ERR_SUPPLY_CONFLICT`. They are not append/chunk operations, and
+separate same-prime factors cannot be multiplied after the local series have
+already been expanded.
 
 ### Raw coefficient arrays: `Lfunc_use_dirichlet_coeffs_fmpz` and `Lfunc_use_dirichlet_coeffs_acb`
 
@@ -342,8 +352,8 @@ The `normalisation_of_input` selector is mandatory:
 
 | Selector | Meaning |
 | --- | --- |
-| {c:macro}`ALGEBRAIC_NORM` | supplied `a_n` are algebraic; the library applies the `n^{-normalisation}` shift before computing |
-| {c:macro}`ANALYTIC_NORM` | supplied `a_n` are already analytic; the library applies no shift |
+| {c:macro}`LFUNC_ALGEBRAIC_NORM` | supplied `a_n` are algebraic; the library applies the `n^{-normalisation}` shift before computing |
+| {c:macro}`LFUNC_ANALYTIC_NORM` | supplied `a_n` are already analytic; the library applies no shift |
 
 Any other selector is fatal {c:macro}`ERR_BAD_NORM`. The first coefficient must
 be supplied and equal to 1: `len == 0` or `a_1 != 1` is fatal
@@ -358,10 +368,10 @@ fatal {c:macro}`ERR_COEFF_BOUND`, often indicating the wrong normalisation
 selector or corrupted input.
 
 If `len < nmax`, the library reduces `nmax` to `len` and returns the warning
-bit {c:macro}`ERR_INSUFF_EULER`; surplus coefficients are ignored. Because raw
-coefficient supply leaves no per-prime Euler factors for the Buthe/Turing RH
-verification, {c:func}`Lfunc_compute` skips that check and returns the warning
-bit {c:macro}`ERR_RH_UNAVAILABLE`.
+bit {c:macro}`ERR_INSUFF_EULER`; surplus coefficients are ignored. In the
+default TURING build, raw coefficients still have enough data for the Turing RH
+check. A Buthe-only build reports {c:macro}`ERR_RH_UNAVAILABLE` for raw
+coefficient input because Buthe's method needs per-prime data.
 
 ### Deliberately reducing the bound: `Lfunc_reduce_nmax`
 
@@ -369,12 +379,16 @@ bit {c:macro}`ERR_RH_UNAVAILABLE`.
 bool Lfunc_reduce_nmax(Lfunc_t L, uint64_t nmax);
 ```
 
-If you cannot reach the original {c:func}`Lfunc_nmax`, call this *before*
-supplying factors or coefficients to declare a smaller trusted bound. **The
-library takes your word for it and does not check** that the reduced bound still
-yields a correct result, so use it only when you understand the consequence.
-Unlike an unexpected short callback or short array supply, this explicit
-reduction does not set {c:macro}`ERR_INSUFF_EULER`.
+If you cannot reach the original {c:func}`Lfunc_nmax`, call this to declare a
+smaller trusted bound. For push-style supply, call it after the last successful
+push and before {c:func}`Lfunc_compute`. For callback, factor-array, and raw
+coefficient routes, call it before the supply front-end if you want deliberate
+truncation without {c:macro}`ERR_INSUFF_EULER`; once a short supply call has
+already returned that warning, a later reduction cannot erase it. The function
+returns `true` only when it actually lowered the current bound (`nmax` strictly
+below the current `M`). **The library takes your word for it and does not
+check** that the reduced bound still yields a correct result, so use it only
+when you understand the consequence.
 
 ## Querying the results
 
@@ -387,18 +401,19 @@ them; copy out (`arb_set` / `acb_set`) anything you need to outlive the object.
 
 {c:func}`Lfunc_rank` returns the analytic rank (order of vanishing at the
 central point) as an `int64_t`. A returned rank of 0 or 1 is rigorous only when
-the RH check ran and succeeded: there must be no {c:macro}`ERR_RH_ERROR` and no
-{c:macro}`ERR_RH_UNAVAILABLE` warning. A value greater than 1 is not certified.
-If the rank could not be determined you get the {c:macro}`ERR_NO_RANK` warning,
-and if it disagrees with a rank you supplied through {c:struct}`Lparams_t` you
-get {c:macro}`ERR_CONFLICT_RANK`.
+there was no short supply and the RH check ran and succeeded: there must be no
+{c:macro}`ERR_INSUFF_EULER`, {c:macro}`ERR_RH_ERROR`,
+{c:macro}`ERR_RH_UNAVAILABLE`, {c:macro}`ERR_NO_RANK`, or
+{c:macro}`ERR_CONFLICT_RANK` warning. A value greater than 1 is not certified.
+If the rank could not be determined you get {c:macro}`ERR_NO_RANK`; if it
+disagrees with a rank supplied through {c:struct}`Lparams_t` you get
+{c:macro}`ERR_CONFLICT_RANK`.
 
 ### Root number: `Lfunc_sign` and `Lfunc_sqrt_sign`
 
 {c:func}`Lfunc_sign` returns the sign (root number) `eps` of the functional
-equation `Lambda(s) = eps * Lambda(k - s)`, as a borrowed `acb_srcptr`. It is a
-complex number of absolute value 1; `|eps| = 1` is a useful sanity check on a
-computation.
+equation, as a borrowed `acb_srcptr`. It is a complex number of absolute value
+1; `|eps| = 1` is a useful sanity check on a computation.
 
 ```{note}
 The relevant symbol is {c:func}`Lfunc_sign`. Some example programs print this
@@ -414,9 +429,8 @@ chosen so that `Lambda` is positive at the central point.
 {c:func}`Lfunc_Taylor` returns the first non-zero Taylor coefficient at the
 central point, that is `L^{(rank)}((w + 1)/2) / rank!`, where `w/2` is the
 normalisation (when the input is algebraic, `w` is the motivic weight). It
-carries the same rigour caveat as the rank: rigorous for rank 0 or 1. To
-evaluate the L-function exactly at the central point, use this rather than
-{c:func}`Lfunc_special_value`.
+carries the same rigour caveat as the rank. To evaluate the L-function exactly
+at the central point, use this rather than {c:func}`Lfunc_special_value`.
 
 ### Zeros: `Lfunc_zeros`
 
@@ -427,12 +441,13 @@ arb_srcptr Lfunc_zeros(Lfunc_t L, uint64_t side);
 Returns the array of imaginary parts of the zeros on the critical line, as
 borrowed `arb_t` balls. `side = 0` gives the zeros of `L`; `side = 1` gives
 those of the dual L-function (for a self-dual L-function the two agree). When
-the rank is 0 or 1 and the RH check ran and succeeded (no
-{c:macro}`ERR_RH_ERROR` and no {c:macro}`ERR_RH_UNAVAILABLE` warning), the list
-is complete up to the height reached; otherwise some zeros may be missing. At
-most {c:macro}`MAX_ZEROS` (256) zeros are stored per side. If the zeros could
-not be refined to the target precision you get the {c:macro}`ERR_ZERO_PREC`
-warning.
+the rank is 0 or 1, no short-supply/rank warning was raised, and the RH check
+ran and succeeded (no {c:macro}`ERR_INSUFF_EULER`,
+{c:macro}`ERR_RH_ERROR`, {c:macro}`ERR_RH_UNAVAILABLE`,
+{c:macro}`ERR_NO_RANK`, or {c:macro}`ERR_CONFLICT_RANK` warning), the list is
+complete up to the height reached; otherwise some zeros may be missing. At most
+{c:macro}`MAX_ZEROS` (256) zeros are stored per side. If the zeros could not be
+refined to the target precision you get the {c:macro}`ERR_ZERO_PREC` warning.
 
 ### Special values: `Lfunc_special_value`
 
@@ -518,10 +533,10 @@ flag to the given `FILE *`. {c:macro}`ERR_SUCCESS` (0) is the clean state.
 | {c:macro}`ERR_BAD_DEGREE` | degree below 2 or above {c:macro}`MAX_DEGREE` |
 | {c:macro}`ERR_SPEC_NZ` | special value requested with `Im(s) < 0` |
 | {c:macro}`ERR_G_EXTENT` | the G grid does not extend low enough (conductor too large for the fixed grid floor, or a stale cached grid was reused) |
-| {c:macro}`ERR_SUPPLY_CONFLICT` | incompatible supply routes, such as raw coefficients mixed with Euler factors, or raw coefficients supplied twice |
+| {c:macro}`ERR_SUPPLY_CONFLICT` | incompatible, duplicate, or out-of-order supply route/factor |
 | {c:macro}`ERR_A1_NOT_ONE` | raw Dirichlet-coefficient supply did not provide `a_1 = 1` |
 | {c:macro}`ERR_COEFF_BOUND` | a supplied raw coefficient definitely exceeds the degree's Euler-product bound |
-| {c:macro}`ERR_BAD_NORM` | invalid `normalisation_of_input`; use {c:macro}`ALGEBRAIC_NORM` or {c:macro}`ANALYTIC_NORM` |
+| {c:macro}`ERR_BAD_NORM` | invalid `normalisation_of_input`; use {c:macro}`LFUNC_ALGEBRAIC_NORM` or {c:macro}`LFUNC_ANALYTIC_NORM` |
 | {c:macro}`ERR_BAD_SUPPLY` | invalid supply argument, including a positive-length `NULL` factor or coefficient array |
 
 ### Warning codes
@@ -531,13 +546,13 @@ flag to the given `FILE *`. {c:macro}`ERR_SUCCESS` (0) is the clean state.
 | {c:macro}`ERR_SOME_DATA` | had sensible data, but not all the way through the Turing zone |
 | {c:macro}`ERR_ZERO_PREC` | could not isolate zeros to the target precision |
 | {c:macro}`ERR_RH_ERROR` | the RH check on the computed zeros failed |
-| {c:macro}`ERR_INSUFF_EULER` | a callback or array supply ended before the expected factor/coefficient bound, and `nmax` was reduced |
+| {c:macro}`ERR_INSUFF_EULER` | a factor or coefficient supply ended before the expected bound, and `nmax` was reduced |
 | {c:macro}`ERR_NO_RANK` | could not determine the rank |
 | {c:macro}`ERR_CONFLICT_RANK` | the computed rank disagreed with the supplied one |
 | {c:macro}`ERR_DBL_ZERO` | a stationary point failed to converge (a double zero?) |
 | {c:macro}`ERR_SPEC_PREC` | could not reach the target error bound in a special value |
 | {c:macro}`ERR_G_OUTFILE` | could not open the file to write the G-data cache |
-| {c:macro}`ERR_RH_UNAVAILABLE` | RH verification was skipped because raw coefficients supplied no per-prime factors |
+| {c:macro}`ERR_RH_UNAVAILABLE` | RH verification was skipped or unavailable for this build/supply route |
 
 When you add a new error code, it belongs in the header next to these and needs
 a matching message branch in `fprint_errors` (in `src/glfunc.c`).
@@ -697,7 +712,8 @@ reading:
 - [`tau_dirichlet.cpp`](https://github.com/edgarcosta/lfunctions/blob/main/examples/tau_dirichlet.cpp):
   the Ramanujan tau example supplied by raw coefficients through
   {c:func}`Lfunc_use_dirichlet_coeffs_fmpz`, demonstrating
-  {c:macro}`ALGEBRAIC_NORM` and the {c:macro}`ERR_RH_UNAVAILABLE` warning.
+  {c:macro}`LFUNC_ALGEBRAIC_NORM` and the default Turing RH check on raw
+  coefficient input.
 
 ## Full header reference
 

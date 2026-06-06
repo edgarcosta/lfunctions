@@ -37,7 +37,7 @@ extern "C"{
   typedef struct{
     uint64_t degree; // degree r (number of Gamma_R factors), 2 <= r <= MAX_DEGREE
     uint64_t conductor; // arithmetic conductor N
-    double normalisation; // algebraic->analytic s-shift = (k-1)/2; only used to form mus
+    double normalisation; // algebraic->analytic s-shift; only used to form mus
     double *mus; // Gamma_R shifts (user mus + normalisation), sorted, non-neg half-ints
     int64_t target_prec; // target output precision in bits (default DEFAULT_TARGET_PREC=100)
     arb_t zero_prec; // intended zero half-width 2^(-target_prec-1); only feeds zero_error
@@ -116,7 +116,9 @@ extern "C"{
 
     // batch-supply bookkeeping (see coeff.c front-ends)
     bool factor_supplied; // true once any factor route (push/callback/factor array) ran: blocks a later raw a_n supply
-    bool raw_supplied;    // true once a raw a_n array was supplied: no per-prime factors (so RH is skipped), and blocks any further supply call
+    bool raw_supplied;    // true once a raw a_n array was supplied; blocks any further supply call
+    int factor_route;     // 0 none, 1 push, 2 callback, 3 array; prevents overlapping factor routes
+    uint64_t last_factor_p; // last prime accepted by the push route; pushes must be increasing
     Lerror_t supply_ecode; // fatal supply-time errors recorded out of a void context (e.g. Lfunc_use_lpoly after raw a_n); Lfunc_compute early-returns it before computing
 
     int64_t offset; // FFT bin index of a_1 = calc_m(1); used only for a bounds check

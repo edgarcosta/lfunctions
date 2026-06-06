@@ -14,8 +14,8 @@
 // normalisation_of_input selector for the raw Dirichlet-coefficient front-ends
 // (Lfunc_use_dirichlet_coeffs_*). No silent default: the caller states which
 // normalisation the supplied a_n are in so the contract is explicit.
-#define ALGEBRAIC_NORM (0) // supplied a_n are algebraic; library applies n^{-normalisation}
-#define ANALYTIC_NORM  (1) // supplied a_n already analytic; no shift applied
+#define LFUNC_ALGEBRAIC_NORM (0) // supplied a_n are algebraic; library applies n^{-normalisation}
+#define LFUNC_ANALYTIC_NORM  (1) // supplied a_n already analytic; no shift applied
 
 //#define BUTHE // if defined, verify RH via Buthe's method (off by default)
 #define TURING // if defined, verify RH via Booker/Turing's method (default)
@@ -45,7 +45,7 @@
 #define ERR_BAD_DEGREE ((uint64_t) 1024) //fatal error when the degree is too low or too high
 #define ERR_SPEC_NZ ((uint64_t) 2048) // special value routine requires Im s >= 0.
 #define ERR_G_EXTENT ((uint64_t) 4096) // fatal: G grid does not extend low enough (conductor too large for the fixed grid floor, or a cached grid was reused)
-#define ERR_SUPPLY_CONFLICT ((uint64_t) 1<<13) // fatal: incompatible/duplicate supply (raw a_n mixed with factors, or raw a_n supplied twice)
+#define ERR_SUPPLY_CONFLICT ((uint64_t) 1<<13) // fatal: incompatible, duplicate, or out-of-order supply route/factor
 #define ERR_A1_NOT_ONE ((uint64_t) 1<<14) // fatal: supplied a_1 is not 1 (raw a_n front-ends)
 #define ERR_COEFF_BOUND ((uint64_t) 1<<15) // fatal: a supplied raw a_n exceeds the degree's Euler-product bound (|a_n| > C*n^alpha)
 #define ERR_BAD_NORM ((uint64_t) 1<<16) // fatal: invalid normalisation_of_input selector for raw a_n front-ends
@@ -61,7 +61,7 @@
 #define ERR_DBL_ZERO ((uint64_t) 1<<38) // stationary point failed to converge. Double zero?
 #define ERR_SPEC_PREC ((uint64_t) 1<<39) // could not achieve target error bound in special value
 #define ERR_G_OUTFILE ((uint64_t) 1<<40) // problem opening file to write g_data cache
-#define ERR_RH_UNAVAILABLE ((uint64_t) 1<<41) // warning: RH check skipped; raw a_n supplied, so no per-prime Euler factors for Buthe/Turing
+#define ERR_RH_UNAVAILABLE ((uint64_t) 1<<41) // warning: RH verification was skipped or unavailable for this build/supply route
 
 #ifdef __cplusplus
 extern "C"{
@@ -100,9 +100,9 @@ extern "C"{
    *  - conductor, the conductor of the L-function. There is no separate
    *      "number of primes/coefficients" parameter: the coefficient range M is
    *      derived from the conductor, computed lazily on the first Lfunc_nmax
-   *      call (triggered by Lfunc_use_all_lpolys / Lfunc_reduce_nmax) and then
-   *      frozen. See Lfunc_nmax for the formula and the ERR_G_EXTENT caveat.
-   *  - normalisation, the shift on s axis to go from the algebraic normalization to the analytic one, i.e., if an is the Dirichlet in the algebraic normalization, then an/n^{normalisation} is the Dirichlet coefficient of in the analytic normalization. Lambda(s)=eps Lambda(k-s) -> normalisation = (k-1)/2
+   *      call (also triggered by any supply front-end) and then frozen. See
+   *      Lfunc_nmax for the formula and the ERR_G_EXTENT caveat.
+   *  - normalisation, the shift on s axis to go from the algebraic normalization to the analytic one, i.e., if an is the Dirichlet in the algebraic normalization, then an/n^{normalisation} is the Dirichlet coefficient of in the analytic normalization. For motivic weight w, use normalisation = w/2; for a classical modular form of weight k, w=k-1.
    *  - mus, the shifts of Gamma_R, mu[i] + normalisation must be half integers
    *  - ecode, where we keep track of errors and warnings
    *
@@ -146,10 +146,15 @@ extern "C"{
   // see Lfunc_nmax). The first call here triggers Lfunc_nmax, computing and
   // freezing M if not already done. Setting poly to zero stops the iteration,
   // lowers M to p-1, and flags ERR_INSUFF_EULER.
+  // A NULL callback is fatal ERR_BAD_SUPPLY.
   Lerror_t Lfunc_use_all_lpolys(Lfunc_t L, void (*lpoly_callback) (acb_poly_t lpoly, uint64_t p, int d, int64_t prec, void *parm), void *param);
 
   // you provide one Euler polynomial at a time; the first successful push
   // initializes the coefficient range if Lfunc_nmax has not already been called.
+  // Pushes must be for prime p >= 2 and strictly increasing; non-prime p is
+  // fatal ERR_BAD_SUPPLY, while duplicate or out-of-order pushes are fatal
+  // ERR_SUPPLY_CONFLICT. The factor must be nonzero, have exact constant term
+  // 1, and have degree at most the L-function degree.
   // If an explicit push loop will stop early, call Lfunc_reduce_nmax before
   // Lfunc_compute; this void route cannot infer that missing later pushes mean
   // "end of supply".
@@ -158,8 +163,8 @@ extern "C"{
   // ---- Batch / array supply front-ends (alongside the callback and push) -----
 
   // Supply the Dirichlet coefficients a_n directly, indexed n = 1..len with
-  // a[0] = a_1 (which must be 1). normalisation_of_input is ALGEBRAIC_NORM (the
-  // library applies the n^{-normalisation} shift) or ANALYTIC_NORM (a_n already
+  // a[0] = a_1 (which must be 1). normalisation_of_input is LFUNC_ALGEBRAIC_NORM (the
+  // library applies the n^{-normalisation} shift) or LFUNC_ANALYTIC_NORM (a_n already
   // analytic; no shift); any other selector is fatal ERR_BAD_NORM. len must be
   // positive, so a_1 is actually supplied; a NULL coefficient array with
   // positive len is fatal ERR_BAD_SUPPLY. The library uses min(len,
@@ -167,13 +172,13 @@ extern "C"{
   // nmax reduces nmax and warns (ERR_INSUFF_EULER), surplus is ignored. Each
   // supplied a_n is checked against the degree's Euler-product Ramanujan bound
   // (|a_n| <= C*n^alpha, alpha = 1); a coefficient exceeding it is fatal
-  // ERR_COEFF_BOUND (catching
-  // e.g. a wrong normalisation_of_input). Overwrites the coefficient array, so it
-  // cannot be combined with any Euler-factor supply nor called twice
-  // (ERR_SUPPLY_CONFLICT), and it disables the RH check (ERR_RH_UNAVAILABLE) since
-  // there are no per-prime factors. fmpz coefficients are exact; the acb form is
-  // the ball-valued route for certified callers and trusts the supplied balls
-  // (a_1's ball must contain 1).
+  // ERR_COEFF_BOUND (catching e.g. a wrong normalisation_of_input). Overwrites the
+  // coefficient array, so it cannot be combined with any Euler-factor supply nor
+  // called twice (ERR_SUPPLY_CONFLICT). In the default TURING build the RH check
+  // can still run from raw coefficients; Buthe-only builds report
+  // ERR_RH_UNAVAILABLE because Buthe needs per-prime data. fmpz coefficients are
+  // exact; the acb form is the ball-valued route for certified callers and trusts
+  // the supplied balls (a_1's ball must contain 1).
   Lerror_t Lfunc_use_dirichlet_coeffs_fmpz(Lfunc_t L, const fmpz *a, uint64_t len, int normalisation_of_input);
   Lerror_t Lfunc_use_dirichlet_coeffs_acb(Lfunc_t L, acb_srcptr a, uint64_t len, int normalisation_of_input);
 
@@ -184,10 +189,13 @@ extern "C"{
   // normalisation, exactly like Lfunc_use_lpoly, which these route through. A
   // short array (len < pi(nmax)) reduces nmax and warns (ERR_INSUFF_EULER);
   // surplus is ignored. A NULL factor array is allowed only when len == 0; with
-  // positive len it is fatal ERR_BAD_SUPPLY. These compose freely with the
-  // callback / push / each other (all multiply into the coefficient array). The
-  // fmpz_poly form is converted to acb_poly at working precision first; the
-  // acb_poly form is the ball-valued route for certified callers. For
+  // positive len it is fatal ERR_BAD_SUPPLY. Each factor must be nonzero, have
+  // exact constant term 1, and have degree at most the L-function degree. Choose
+  // exactly one Euler-factor route: callback, push, or one factor-array call.
+  // Repeated arrays or route mixing are fatal ERR_SUPPLY_CONFLICT because
+  // separate same-prime factors cannot be multiplied after their local series
+  // have already been expanded. The fmpz_poly form is converted to acb_poly at working precision
+  // first; the acb_poly form is the ball-valued route for certified callers. For
   // non-consecutive primes, use Lfunc_use_lpoly.
   Lerror_t Lfunc_use_lpolys_acb(Lfunc_t L, const acb_poly_struct *f, uint64_t len);
   Lerror_t Lfunc_use_lpolys_fmpz(Lfunc_t L, const fmpz_poly_struct *f, uint64_t len);
@@ -204,17 +212,17 @@ extern "C"{
   // return the sqrt of sign (chosen to make Lambda(delta)>0
   acb_srcptr Lfunc_sqrt_sign(Lfunc_t L);
 
-  // return the zeros, side = 0,1 for L, conjugate L
-  // if rank =0,1 this list is complete, providing the error code had neither
-  // ERR_RH_ERROR nor ERR_RH_UNAVAILABLE set (the latter is set when raw
-  // Dirichlet coefficients were supplied, so the RH check could not run)
-  // otherwise zeros may be missing
+  // return the zeros, side = 0,1 for L, conjugate L. If rank = 0 or 1 this list
+  // is complete only when the accumulated error code has none of ERR_INSUFF_EULER,
+  // ERR_RH_ERROR, ERR_RH_UNAVAILABLE, ERR_NO_RANK, or ERR_CONFLICT_RANK set.
+  // Otherwise zeros may be missing or the rank/zero certification is only a
+  // regression-quality numerical comparison.
   arb_srcptr Lfunc_zeros(Lfunc_t L, uint64_t side);
 
   // return rank
-  // rank=0,1 is rigorous, provided the error code had neither ERR_RH_ERROR nor
-  // ERR_RH_UNAVAILABLE set (raw a_n supply skips the RH check)
-  // rank>1 isn't
+  // rank=0,1 is rigorous only when the accumulated error code has none of
+  // ERR_INSUFF_EULER, ERR_RH_ERROR, ERR_RH_UNAVAILABLE, ERR_NO_RANK, or
+  // ERR_CONFLICT_RANK set. rank>1 is not certified by this accessor.
   int64_t Lfunc_rank(Lfunc_t L);
 
   // return the first non-zero Taylor coefficient

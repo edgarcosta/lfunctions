@@ -9,9 +9,12 @@ add an object.
 
 ## Running the suite
 
-The suite certifies the degree 2 to 9 objects in `test/highdeg/objects.yaml`
-against LMFDB and Pari golden values. Run it from the repository root after a
-build (`make check-highdeg` depends on `all`):
+The suite checks the degree 2 to 9 objects in `test/highdeg/objects.yaml`
+against LMFDB and Pari golden values. Rows that do not tolerate `ERR_RH_ERROR`
+exercise the library's certification path; rows marked `xfail`/`tolerate_rh`
+are regression comparisons while the degree >= 3 Turing calibration is pending.
+Run it from the repository root after a build (`make check-highdeg` depends on
+`all`):
 
 ```
 make check-highdeg

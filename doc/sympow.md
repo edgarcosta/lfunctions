@@ -4,7 +4,7 @@ This is a how-to for computing the symmetric-power L-function `Sym^k(E)` of an
 elliptic curve `E/Q` with `lfunctions`. The good-prime Euler factors are formed
 from the curve's `a_p` by the helper `sym_power_lpoly`
 ([`include/sym_power.h`](../include/sym_power.h)); a complete worked example
-(Sym^2 and Sym^3 of `11.a1`, with certified assertions) is
+(Sym^2 and Sym^3 of `11.a1`, with golden-value regression assertions) is
 [`examples/ec_sym.cpp`](../examples/ec_sym.cpp).
 
 There is **no native `Sym^k` constructor yet** (tracked as a future feature):
@@ -132,7 +132,9 @@ The end-to-end recipe, as carried out in `examples/ec_sym.cpp`:
 For degree `>= 3` (so any `Sym^k` with `k >= 2`) the computation currently emits
 a tolerated `ERR_RH_ERROR` **warning** (the Turing zero count is miscalibrated
 for degree `>= 3`); it is a warning, not a fatal error, so collect and report it
-rather than asserting against it, as `examples/ec_sym.cpp` does.
+rather than asserting against it, as `examples/ec_sym.cpp` does. While that
+warning is present, rank/zero checks in this workflow are comparisons against
+trusted golden data, not RH-certified rank/zero-completeness claims.
 
 The same `sym_power_lpoly` implementation backs both `examples/ec_sym.cpp` and
 the high-degree regression driver, and is checked against Pari `lfunsympow` for

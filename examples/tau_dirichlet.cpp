@@ -9,9 +9,10 @@
  * coefficients tau(n) directly with Lfunc_use_dirichlet_coeffs_fmpz, which is the
  * natural entry point when you already hold a_n (say from a database row). The
  * library validates each tau(n) against the degree-2 Euler-product bound
- * automatically (no caller-supplied bound needed); with no per-prime factors the
- * RH check cannot run, so ERR_RH_UNAVAILABLE is raised (a warning, not fatal).
- * The certified central value and first zero still match tau.cpp.
+ * automatically (no caller-supplied bound needed). The default Turing verifier
+ * can still run from raw coefficients; Buthe-only builds lack the per-prime data
+ * for RH verification. The table currently reaches Lfunc_nmax; if a future
+ * precision/bound change outgrows it, the example will surface ERR_INSUFF_EULER.
  *
  * See https://www.lmfdb.org/L/ModularForm/GL2/Q/holomorphic/1/12/a/a/.
  */
@@ -85,33 +86,43 @@ int main() {
   double mus[2] = {0, 1};
   Lerror_t ecode;
 
-  // degree 2, conductor 1, motivic weight 11 -> normalisation (k-1)/2 = 5.5
+  // degree 2, conductor 1, motivic weight 11 -> normalisation 11/2 = 5.5
   L = Lfunc_init(2, 1, 5.5, mus, &ecode);
-  if (fatal_error(ecode)) { fprint_errors(stderr, ecode); return 0; }
+  if (fatal_error(ecode)) { fprint_errors(stderr, ecode); return 1; }
 
-  // tau(p) is tabulated up to p = 47, so we can build tau(n) for n <= 52; if the
-  // library wants more it reduces nmax and warns (just like tau.cpp running out
-  // of factors at p = 53).
+  // tau(p) is tabulated up to p = 47, so we can build tau(n) for n <= 52. This
+  // currently reaches nmax; if the library wants more after a future bound
+  // change, raw coefficient supply reduces nmax and warns.
   const size_t TAU_MAX = 52;
   uint64_t nmax = Lfunc_nmax(L);
   size_t len = nmax < TAU_MAX ? (size_t)nmax : TAU_MAX;
   vector<int64_t> tau;
   build_tau(tau, len);
 
-  // Hand over the coefficients directly. ALGEBRAIC_NORM: these are the algebraic
+  // Hand over the coefficients directly. LFUNC_ALGEBRAIC_NORM: these are the algebraic
   // tau(n); the library applies the n^{-5.5} shift to the analytic normalisation
   // and validates |tau(n)| n^{-11/2} <= d(n) <= n against the degree-2 bound.
   fmpz *a = _fmpz_vec_init(len);
   for (size_t n = 1; n <= len; ++n) fmpz_set_si(a + (n - 1), tau[n]);
-  ecode |= Lfunc_use_dirichlet_coeffs_fmpz(L, a, len, ALGEBRAIC_NORM);
+  ecode |= Lfunc_use_dirichlet_coeffs_fmpz(L, a, len, LFUNC_ALGEBRAIC_NORM);
   _fmpz_vec_clear(a, len);
-  if (fatal_error(ecode)) { fprint_errors(stderr, ecode); return 0; }
+  if (fatal_error(ecode)) { fprint_errors(stderr, ecode); Lfunc_clear(L); return 1; }
 
   ecode |= Lfunc_compute(L);
-  if (fatal_error(ecode)) { fprint_errors(stderr, ecode); return 0; }
+  if (fatal_error(ecode)) { fprint_errors(stderr, ecode); Lfunc_clear(L); return 1; }
 
-  // Supplying coefficients (not factors) means RH could not be verified.
+  // In the default TURING build, raw coefficients still run the RH check;
+  // Buthe-only builds report unavailable. The short-supply warning appears only
+  // if the current nmax outgrows the table above.
+  if (len < nmax)
+    assert(ecode & ERR_INSUFF_EULER);
+  else
+    assert(!(ecode & ERR_INSUFF_EULER));
+#ifdef TURING
+  assert(!(ecode & ERR_RH_UNAVAILABLE));
+#else
   assert(ecode & ERR_RH_UNAVAILABLE);
+#endif
   assert(!fatal_error(ecode));
 
   printf("Order of vanishing = %" PRId64 "\n", Lfunc_rank(L));
@@ -120,9 +131,14 @@ int main() {
 
   acb_t ctmp; acb_init(ctmp);
   ecode |= Lfunc_special_value(ctmp, L, 6.5, 0.0);
-  if (fatal_error(ecode)) { fprint_errors(stderr, ecode); std::abort(); }
+  if (fatal_error(ecode)) {
+    fprint_errors(stderr, ecode);
+    acb_clear(ctmp);
+    Lfunc_clear(L);
+    return 1;
+  }
   printf("L(6.5) = "); acb_printd(ctmp, 20); printf("\n");
-  { // same certified value as tau.cpp's factor route
+  { // same computed value as tau.cpp's factor route
     acb_t ref; acb_init(ref);
     arb_set_str(acb_realref(ref), "0.83934551203194208649", 300);
     arb_set_str(acb_imagref(ref), "0", 300);
@@ -135,7 +151,7 @@ int main() {
 
   arb_srcptr zeros = Lfunc_zeros(L, 0);
   printf("First zero = "); arb_printd(zeros + 0, 20); printf("\n");
-  { // same certified first zero as tau.cpp
+  { // same computed first zero ordinate as tau.cpp
     arb_t ref; arb_init(ref);
     arb_set_str(ref, "9.2223793999211025222", 300);
     arb_add_error_2exp_si(ref, -50);
@@ -144,6 +160,6 @@ int main() {
   }
 
   Lfunc_clear(L);
-  fprint_errors(stderr, ecode); // prints the ERR_RH_UNAVAILABLE (and any shortfall) notice
+  fprint_errors(stderr, ecode); // prints the shortfall/RH warning notices
   return 0;
 }

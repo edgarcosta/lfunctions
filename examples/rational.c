@@ -22,7 +22,11 @@
 #include <flint/fmpz_poly.h>
 #include <assert.h>
 #include <ctype.h>
+#include <errno.h>
 #include <inttypes.h>
+#include <limits.h>
+#include <math.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -52,24 +56,70 @@ typedef struct {
 
 typedef Lfunc_rational Lfunc_rational_t[1];
 
+static bool checked_mul_size(size_t a, size_t b, size_t *out) {
+  if(a != 0 && b > SIZE_MAX/a)
+    return false;
+  *out = a*b;
+  return true;
+}
+
+static bool parse_int64_field(const char *s, int64_t *out) {
+  char *end = NULL;
+  errno = 0;
+  while(isspace((unsigned char)*s))
+    s++;
+  intmax_t v = strtoimax(s, &end, 10);
+  if(errno != 0 || end == s || v < INT64_MIN || v > INT64_MAX)
+    return false;
+  while(isspace((unsigned char)*end))
+    end++;
+  if(*end != '\0')
+    return false;
+  *out = (int64_t)v;
+  return true;
+}
+
+static bool parse_int64_token(char **s, int64_t *out) {
+  char *p = *s;
+  char *end = NULL;
+  errno = 0;
+  intmax_t v = strtoimax(p, &end, 10);
+  if(errno != 0 || end == p || v < INT64_MIN || v > INT64_MAX)
+    return false;
+  *out = (int64_t)v;
+  *s = end;
+  return true;
+}
+
+static bool parse_double_token(char **s, double *out) {
+  char *p = *s;
+  char *end = NULL;
+  errno = 0;
+  double v = strtod(p, &end);
+  if(errno != 0 || end == p || !isfinite(v))
+    return false;
+  *out = v;
+  *s = end;
+  return true;
+}
+
 // provided by Drew Sutherland, 2024
 static inline int atoii (int64_t v[], int n, char *s)
 {
-  while (isspace(*s)) s++;
+  while (isspace((unsigned char)*s)) s++;
   char c = *s;
-  if ( c == '[' || c == '(' || c == '{' ) { s++; while ( isspace(*s) ) s++; }
-  if ( *s != '-' && *s != '+' && ! isdigit(*s) ) return 0;
+  if ( c == '[' || c == '(' || c == '{' ) { s++; while ( isspace((unsigned char)*s) ) s++; }
+  if ( *s != '-' && *s != '+' && ! isdigit((unsigned char)*s) ) return 0;
   if ( !n ) return -1;
   int i = 0;
   while ( i < n ) {
-    v[i] = atoll(s); i++;
-    if (*s=='-') s++;
-    while ( isdigit(*s) ) s++;
-    if ( *s=='.') { s++; while ( isdigit(*s) ) s++; }
-    while ( isspace(*s) ) s++;
+    if(!parse_int64_token(&s, v+i))
+      return -1;
+    i++;
+    while ( isspace((unsigned char)*s) ) s++;
     if (*s != ',') break;
-    s++; while (isspace(*s)) s++;
-    if ( *s != '-' && *s != '+' && ! isdigit(*s) ) return -1;
+    s++; while (isspace((unsigned char)*s)) s++;
+    if ( *s != '-' && *s != '+' && ! isdigit((unsigned char)*s) ) return -1;
   }
   if ( c == '[' && *s != ']' ) return -1;
   if ( c == '(' && *s != ')' ) return -1;
@@ -82,19 +132,19 @@ static inline int atoiii (int64_t v[], int d[], int m, int n, char *s) // d has 
   char *t;
   int i;
 
-  while (isspace(*s)) s++;
+  while (isspace((unsigned char)*s)) s++;
   if ( *s++ != '[' ) return 0;
-  while (isspace(*s)) s++;
+  while (isspace((unsigned char)*s)) s++;
   if ( *s != '[' ) return 0;
   if (!m) return -1;
   d[0] = atoii(v,n,s);
   if ( d[0] < 0 ) return -1;
   for ( i = 1 ; i < m && (t = strchr(s,']')) ; i++ ) {
     s = t+1;
-    while (isspace(*s)) s++;
+    while (isspace((unsigned char)*s)) s++;
     if ( *s == ']' ) break;
     if ( *s++ != ',' ) return -1;
-    while (isspace(*s)) s++;
+    while (isspace((unsigned char)*s)) s++;
     if ( *s != '[' ) return -1;
     d[i] = atoii(v+i*n, n, s);
     if ( d[i] < 0 ) return -1;
@@ -104,21 +154,20 @@ static inline int atoiii (int64_t v[], int d[], int m, int n, char *s) // d has 
 
 static inline int atoff (double v[], int n, char *s)
 {
-  while (isspace(*s)) s++;
+  while (isspace((unsigned char)*s)) s++;
   char c = *s;
-  if ( c == '[' || c == '(' || c == '{' ) { s++; while ( isspace(*s) ) s++; }
-  if ( *s != '-' && *s != '+' && ! isdigit(*s) ) return 0;
+  if ( c == '[' || c == '(' || c == '{' ) { s++; while ( isspace((unsigned char)*s) ) s++; }
+  if ( *s != '-' && *s != '+' && ! isdigit((unsigned char)*s) ) return 0;
   if ( !n ) return -1;
   int i = 0;
   while ( i < n ) {
-    v[i] = atof(s); i++;
-    if (*s=='-') s++;
-    while ( isdigit(*s) ) s++;
-    if ( *s=='.') { s++; while ( isdigit(*s) ) s++; }
-    while ( isspace(*s) ) s++;
+    if(!parse_double_token(&s, v+i))
+      return -1;
+    i++;
+    while ( isspace((unsigned char)*s) ) s++;
     if (*s != ',') break;
-    s++; while (isspace(*s)) s++;
-    if ( *s != '-' && *s != '+' && ! isdigit(*s) ) return -1;
+    s++; while (isspace((unsigned char)*s)) s++;
+    if ( *s != '-' && *s != '+' && ! isdigit((unsigned char)*s) ) return -1;
   }
   if ( c == '[' && *s != ']' ) return -1;
   if ( c == '(' && *s != ')' ) return -1;
@@ -280,19 +329,30 @@ int Lfunc_rational_set_s(Lfunc_rational_t L, char *s) {
     strncpy(L->label, tokens[0], label_len);
     // printf("label = %s\n", L->label);
 
-    // printf("label = %s %d\n", tokens[1], strlen(tokens[1]));
-    L->degree = atol(tokens[1]);
-    // printf("degree = %d\n", L->degree);
-    L->conductor = atol(tokens[2]);
-    // printf("conductor = %ld\n", L->conductor);
-    L->weight = atol(tokens[3]);
-    // printf("weight = %d\n", L->weight);
-    if(L->degree <= 0 || L->conductor <= 0)
+    int64_t degree64 = 0, conductor64 = 0, weight64 = 0;
+    if(!parse_int64_field(tokens[1], &degree64) ||
+       !parse_int64_field(tokens[2], &conductor64) ||
+       !parse_int64_field(tokens[3], &weight64) ||
+       degree64 <= 0 || degree64 > MAX_DEGREE ||
+       conductor64 <= 0 ||
+       weight64 < INT_MIN || weight64 > INT_MAX) {
       status = -1;
+    }
+    else {
+      L->degree = (int)degree64;
+      L->conductor = conductor64;
+      L->weight = (int)weight64;
+    }
   }
 
   if(status != -1) {
-    L->mus = (double *)malloc(L->degree*sizeof(double));
+    size_t bytes = 0;
+    if(!checked_mul_size((size_t)L->degree, sizeof(double), &bytes)) {
+      status = -1;
+    }
+    else {
+      L->mus = (double *)malloc(bytes);
+    }
     if(!L->mus) {
       L->ecode |= ERR_OOM;
       status = -1;
@@ -310,34 +370,47 @@ int Lfunc_rational_set_s(Lfunc_rational_t L, char *s) {
     // assuming a matrix as input
     // this just counts commas
     size_t entries = replace_char(tokens[5], ',', ',') + 1;
-    if(entries % (L->degree + 1) != 0) {
+    size_t width = (size_t)L->degree + 1;
+    if(entries % width != 0) {
       status = -1;
     }
     else {
-      L->size_euler_factors = entries/(L->degree + 1);
-      if(L->size_euler_factors == 0)
+      L->size_euler_factors = entries/width;
+      if(L->size_euler_factors == 0 || L->size_euler_factors > (size_t)INT_MAX)
         status = -1;
     }
   }
 
   if(status != -1) {
-    int* d;
-    d = (int *)malloc(L->size_euler_factors * sizeof(int));
+    int* d = NULL;
+    size_t width = (size_t)L->degree + 1;
+    size_t entries = 0, bytes = 0;
+    if(!checked_mul_size(L->size_euler_factors, sizeof(int), &bytes)) {
+      status = -1;
+    }
+    if(status != -1)
+      d = (int *)malloc(bytes);
     if(!d) {
       L->ecode |= ERR_OOM;
       status = -1;
     }
     if(status != -1) {
       for(size_t i = 0; i < L->size_euler_factors; ++i)
-        d[i] = L->degree + 1;
-      L->euler_factors = (int64_t *) malloc( L->size_euler_factors * (L->degree + 1) * sizeof(int64_t));
+        d[i] = (int)width;
+      if(!checked_mul_size(L->size_euler_factors, width, &entries) ||
+         !checked_mul_size(entries, sizeof(int64_t), &bytes)) {
+        status = -1;
+      }
+    }
+    if(status != -1) {
+      L->euler_factors = (int64_t *) malloc(bytes);
       if(!L->euler_factors) {
         L->ecode |= ERR_OOM;
         status = -1;
       }
     }
     if(status != -1) {
-      status = atoiii(L->euler_factors, d, L->size_euler_factors, L->degree + 1, tokens[5]);
+      status = atoiii(L->euler_factors, d, (int)L->size_euler_factors, (int)width, tokens[5]);
       if(status <= 0 || (size_t)status != L->size_euler_factors) {
         L->size_euler_factors = status > 0 ? (size_t)status : 0;
         status = -1;
@@ -424,6 +497,10 @@ int main(int argc, char** argv) {
       Lfunc_rational_clear(L);
       rc = 1;
       break;
+    }
+    if(L->ecode != ERR_SUCCESS) {
+      fprintf(stderr, "Warnings for %s:\n", L->label);
+      fprint_errors(stderr, L->ecode);
     }
     printf("Rank = %" PRIu64 "\n", Lfunc_rank(L->L));
     printf("Epsilon = ");acb_printd(Lfunc_sign(L->L),20);printf("\n");

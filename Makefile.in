@@ -112,6 +112,14 @@ check: all
 	  else rc=$$?; printf 'FAIL %s (rc=%s)\n' "$$t" "$$rc"; cat $$t.log; rm -f $$t.log; fail=1; fi; \
 	  rm -f g_[0-9]*; \
 	done; \
+	tmpin=build/test/rational-short.in; tmpout=build/test/rational-short.out; log=build/test/rational-short.log; \
+	printf 'RUN  build/examples/rational.exe (short-supply smoke)\n'; \
+	printf '%s\n' '11a2:2:11:1:[0,1]:[[1,2,2],[1,1,3],[1,-1,5],[1,2,7]]' > $$tmpin; \
+	if ./build/examples/rational.exe $$tmpin $$tmpout >$$log 2>&1 \
+	    && grep -q "Don't appear to have enough Euler factors / Dirichlet coefficients." $$log; then \
+	  printf 'PASS build/examples/rational.exe (short-supply smoke)\n'; rm -f $$tmpin $$tmpout $$log; \
+	else rc=$$?; printf 'FAIL build/examples/rational.exe (short-supply smoke) (rc=%s)\n' "$$rc"; cat $$log; rm -f $$tmpin $$tmpout $$log; fail=1; fi; \
+	rm -f g_[0-9]*; \
 	if [ $$fail -ne 0 ]; then echo 'CHECK FAILED'; exit 1; fi; \
 	echo 'CHECK PASSED'
 

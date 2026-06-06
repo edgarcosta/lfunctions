@@ -12,6 +12,8 @@
 */
 #include <assert.h>
 #include <inttypes.h>
+#include <limits.h>
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <flint/acb.h>
@@ -22,6 +24,15 @@
 #include <flint/fmpz_vec.h>
 #include "glfunc.h"
 #include "glfunc_internals.h"
+
+static void *xmalloc(size_t n) {
+  void *p = malloc(n);
+  if (!p) {
+    fprintf(stderr, "batch_supply_test: out of memory allocating %zu bytes\n", n);
+    abort();
+  }
+  return p;
+}
 
 // --- the object: L(s,chi5)*L(s,chi7) ----------------------------------------
 // quadratic character mod 5: chi5(n) = (n/5); mod 7: chi7(n) = (n/7).
@@ -44,6 +55,11 @@ static void factor_acb(acb_poly_t f, uint64_t p) {
   acb_poly_set_coeff_si(f, 0, 1);
   acb_poly_set_coeff_si(f, 1, c1);
   acb_poly_set_coeff_si(f, 2, c2);
+}
+static void character_factor_acb(acb_poly_t f, int chi) {
+  acb_poly_zero(f);
+  acb_poly_set_coeff_si(f, 0, 1);
+  acb_poly_set_coeff_si(f, 1, -chi);
 }
 static void factor_fmpz(fmpz_poly_t f, uint64_t p) {
   long c1, c2; factor_coeffs(p, &c1, &c2);
@@ -85,9 +101,9 @@ static Lfunc_t run_lpolys_acb(Lerror_t *ec) {
   Lfunc_t L = Lfunc_init(2, 5 * 7, 0.0, mus, ec);
   if (fatal_error(*ec)) return L;
   uint64_t nmax = Lfunc_nmax(L);
-  uint64_t *primes = (uint64_t *)malloc(sizeof(uint64_t) * (nmax + 1));
+  uint64_t *primes = (uint64_t *)xmalloc(sizeof(uint64_t) * (nmax + 1));
   uint64_t np = primes_upto(nmax, primes);
-  acb_poly_struct *f = (acb_poly_struct *)malloc(sizeof(acb_poly_struct) * np);
+  acb_poly_struct *f = (acb_poly_struct *)xmalloc(sizeof(acb_poly_struct) * np);
   for (uint64_t k = 0; k < np; k++) { acb_poly_init(&f[k]); factor_acb(&f[k], primes[k]); }
   *ec |= Lfunc_use_lpolys_acb(L, f, np);
   for (uint64_t k = 0; k < np; k++) acb_poly_clear(&f[k]);
@@ -102,9 +118,9 @@ static Lfunc_t run_lpolys_fmpz(Lerror_t *ec) {
   Lfunc_t L = Lfunc_init(2, 5 * 7, 0.0, mus, ec);
   if (fatal_error(*ec)) return L;
   uint64_t nmax = Lfunc_nmax(L);
-  uint64_t *primes = (uint64_t *)malloc(sizeof(uint64_t) * (nmax + 1));
+  uint64_t *primes = (uint64_t *)xmalloc(sizeof(uint64_t) * (nmax + 1));
   uint64_t np = primes_upto(nmax, primes);
-  fmpz_poly_struct *f = (fmpz_poly_struct *)malloc(sizeof(fmpz_poly_struct) * np);
+  fmpz_poly_struct *f = (fmpz_poly_struct *)xmalloc(sizeof(fmpz_poly_struct) * np);
   for (uint64_t k = 0; k < np; k++) { fmpz_poly_init(&f[k]); factor_fmpz(&f[k], primes[k]); }
   *ec |= Lfunc_use_lpolys_fmpz(L, f, np);
   for (uint64_t k = 0; k < np; k++) fmpz_poly_clear(&f[k]);
@@ -130,7 +146,7 @@ static Lfunc_t run_raw_fmpz(Lerror_t *ec) {
   uint64_t nmax = Lfunc_nmax(L);
   fmpz *a = _fmpz_vec_init(nmax);
   for (uint64_t n = 1; n <= nmax; n++) fmpz_set_si(a + (n - 1), an(n));
-  *ec |= Lfunc_use_dirichlet_coeffs_fmpz(L, a, nmax, ALGEBRAIC_NORM); // norm 0: no shift
+  *ec |= Lfunc_use_dirichlet_coeffs_fmpz(L, a, nmax, LFUNC_ALGEBRAIC_NORM); // norm 0: no shift
   _fmpz_vec_clear(a, nmax);
   if (fatal_error(*ec)) return L;
   *ec |= Lfunc_compute(L);
@@ -144,7 +160,7 @@ static Lfunc_t run_raw_acb(Lerror_t *ec) {
   uint64_t nmax = Lfunc_nmax(L);
   acb_ptr a = _acb_vec_init(nmax);
   for (uint64_t n = 1; n <= nmax; n++) acb_set_si(a + (n - 1), an(n));
-  *ec |= Lfunc_use_dirichlet_coeffs_acb(L, a, nmax, ALGEBRAIC_NORM);
+  *ec |= Lfunc_use_dirichlet_coeffs_acb(L, a, nmax, LFUNC_ALGEBRAIC_NORM);
   _acb_vec_clear(a, nmax);
   if (fatal_error(*ec)) return L;
   *ec |= Lfunc_compute(L);
@@ -154,8 +170,8 @@ static Lfunc_t run_raw_acb(Lerror_t *ec) {
 // Same analytic object as run_callback (conductor 35, analytic mus [0,1],
 // analytic a_n = b_n) but parametrised with normalisation 0.5, mus [-0.5,0.5]
 // (the [0,1],0.5 == [0.5,1.5],0 invariant). Supplying the algebraic numbers
-// b_n * n^{0.5} under ALGEBRAIC_NORM must reproduce analytic b_n, agreeing with
-// supplying b_n directly under ANALYTIC_NORM.
+// b_n * n^{0.5} under LFUNC_ALGEBRAIC_NORM must reproduce analytic b_n, agreeing with
+// supplying b_n directly under LFUNC_ANALYTIC_NORM.
 static Lfunc_t run_shift_algebraic(Lerror_t *ec) {
   double mus[] = {-0.5, 0.5};
   Lfunc_t L = Lfunc_init(2, 5 * 7, 0.5, mus, ec);
@@ -169,7 +185,7 @@ static Lfunc_t run_shift_algebraic(Lerror_t *ec) {
     acb_set_arb(a + (n - 1), rt);
   }
   arb_clear(rt);
-  *ec |= Lfunc_use_dirichlet_coeffs_acb(L, a, nmax, ALGEBRAIC_NORM); // shift by n^{-0.5}
+  *ec |= Lfunc_use_dirichlet_coeffs_acb(L, a, nmax, LFUNC_ALGEBRAIC_NORM); // shift by n^{-0.5}
   _acb_vec_clear(a, nmax);
   if (fatal_error(*ec)) return L;
   *ec |= Lfunc_compute(L);
@@ -182,7 +198,7 @@ static Lfunc_t run_shift_analytic(Lerror_t *ec) {
   uint64_t nmax = Lfunc_nmax(L);
   acb_ptr a = _acb_vec_init(nmax);
   for (uint64_t n = 1; n <= nmax; n++) acb_set_si(a + (n - 1), an(n)); // analytic b_n
-  *ec |= Lfunc_use_dirichlet_coeffs_acb(L, a, nmax, ANALYTIC_NORM);    // no shift
+  *ec |= Lfunc_use_dirichlet_coeffs_acb(L, a, nmax, LFUNC_ANALYTIC_NORM);    // no shift
   _acb_vec_clear(a, nmax);
   if (fatal_error(*ec)) return L;
   *ec |= Lfunc_compute(L);
@@ -255,8 +271,8 @@ static void test_acb_vs_fmpz_coeffs(void) {
   Lfunc_clear(F); Lfunc_clear(G);
 }
 
-// ALGEBRAIC_NORM with a nonzero normalisation (the library applies n^{-0.5})
-// equals the same coefficients pre-shifted and supplied ANALYTIC_NORM, and both
+// LFUNC_ALGEBRAIC_NORM with a nonzero normalisation (the library applies n^{-0.5})
+// equals the same coefficients pre-shifted and supplied LFUNC_ANALYTIC_NORM, and both
 // equal the canonical normalisation-0 run.
 static void test_normalisation_flag(void) {
   Lerror_t ep = ERR_SUCCESS, eq = ERR_SUCCESS, ea = ERR_SUCCESS;
@@ -285,7 +301,7 @@ static void test_guard_a1_fmpz(void) {
   uint64_t nmax = Lfunc_nmax(L);
   fmpz *a = make_an_fmpz(nmax);
   fmpz_set_si(a + 0, 2); // a_1 = 2
-  Lerror_t e = Lfunc_use_dirichlet_coeffs_fmpz(L, a, nmax, ALGEBRAIC_NORM);
+  Lerror_t e = Lfunc_use_dirichlet_coeffs_fmpz(L, a, nmax, LFUNC_ALGEBRAIC_NORM);
   assert((e & ERR_A1_NOT_ONE) && fatal_error(e));
   _fmpz_vec_clear(a, nmax);
   Lfunc_clear(L);
@@ -299,7 +315,7 @@ static void test_guard_a1_acb(void) {
   acb_ptr a = _acb_vec_init(nmax);
   for (uint64_t n = 1; n <= nmax; n++) acb_set_si(a + (n - 1), an(n));
   acb_set_si(a + 0, 2); // a_1 = 2 exactly: does not contain 1
-  Lerror_t e = Lfunc_use_dirichlet_coeffs_acb(L, a, nmax, ALGEBRAIC_NORM);
+  Lerror_t e = Lfunc_use_dirichlet_coeffs_acb(L, a, nmax, LFUNC_ALGEBRAIC_NORM);
   assert((e & ERR_A1_NOT_ONE) && fatal_error(e));
   _acb_vec_clear(a, nmax);
   Lfunc_clear(L);
@@ -311,14 +327,14 @@ static void test_guard_zero_len_raw(void) {
   {
     Lerror_t ec = ERR_SUCCESS;
     Lfunc_t L = Lfunc_init(2, 35, 0.0, mus, &ec); assert(!fatal_error(ec));
-    Lerror_t e = Lfunc_use_dirichlet_coeffs_fmpz(L, NULL, 0, ALGEBRAIC_NORM);
+    Lerror_t e = Lfunc_use_dirichlet_coeffs_fmpz(L, NULL, 0, LFUNC_ALGEBRAIC_NORM);
     assert((e & ERR_A1_NOT_ONE) && fatal_error(e));
     Lfunc_clear(L);
   }
   {
     Lerror_t ec = ERR_SUCCESS;
     Lfunc_t L = Lfunc_init(2, 35, 0.0, mus, &ec); assert(!fatal_error(ec));
-    Lerror_t e = Lfunc_use_dirichlet_coeffs_acb(L, NULL, 0, ALGEBRAIC_NORM);
+    Lerror_t e = Lfunc_use_dirichlet_coeffs_acb(L, NULL, 0, LFUNC_ALGEBRAIC_NORM);
     assert((e & ERR_A1_NOT_ONE) && fatal_error(e));
     Lfunc_clear(L);
   }
@@ -332,14 +348,14 @@ static void test_guard_null_supply_len_positive(void) {
   {
     Lerror_t ec = ERR_SUCCESS;
     Lfunc_t L = Lfunc_init(2, 35, 0.0, mus, &ec); assert(!fatal_error(ec));
-    Lerror_t e = Lfunc_use_dirichlet_coeffs_fmpz(L, NULL, 1, ALGEBRAIC_NORM);
+    Lerror_t e = Lfunc_use_dirichlet_coeffs_fmpz(L, NULL, 1, LFUNC_ALGEBRAIC_NORM);
     assert((e & ERR_BAD_SUPPLY) && fatal_error(e));
     Lfunc_clear(L);
   }
   {
     Lerror_t ec = ERR_SUCCESS;
     Lfunc_t L = Lfunc_init(2, 35, 0.0, mus, &ec); assert(!fatal_error(ec));
-    Lerror_t e = Lfunc_use_dirichlet_coeffs_acb(L, NULL, 1, ALGEBRAIC_NORM);
+    Lerror_t e = Lfunc_use_dirichlet_coeffs_acb(L, NULL, 1, LFUNC_ALGEBRAIC_NORM);
     assert((e & ERR_BAD_SUPPLY) && fatal_error(e));
     Lfunc_clear(L);
   }
@@ -355,6 +371,199 @@ static void test_guard_null_supply_len_positive(void) {
     Lfunc_t L = Lfunc_init(2, 35, 0.0, mus, &ec); assert(!fatal_error(ec));
     Lerror_t e = Lfunc_use_lpolys_fmpz(L, NULL, 1);
     assert((e & ERR_BAD_SUPPLY) && fatal_error(e));
+    Lfunc_clear(L);
+  }
+}
+
+// Lfunc_use_lpoly is a void route, so invalid push arguments are recorded and
+// surfaced by Lfunc_compute rather than returned directly.
+static void test_guard_bad_lpoly_push(void) {
+  double mus[] = {0, 1};
+  {
+    Lerror_t ec = ERR_SUCCESS;
+    Lfunc_t L = Lfunc_init(2, 35, 0.0, mus, &ec); assert(!fatal_error(ec));
+    acb_poly_t f; acb_poly_init(f); factor_acb(f, 2);
+    Lfunc_use_lpoly(L, 0, f);
+    Lerror_t e = Lfunc_compute(L);
+    assert((e & ERR_BAD_SUPPLY) && fatal_error(e));
+    acb_poly_clear(f);
+    Lfunc_clear(L);
+  }
+  {
+    Lerror_t ec = ERR_SUCCESS;
+    Lfunc_t L = Lfunc_init(2, 35, 0.0, mus, &ec); assert(!fatal_error(ec));
+    acb_poly_t f; acb_poly_init(f); factor_acb(f, 2);
+    Lfunc_use_lpoly(L, 4, f);
+    Lerror_t e = Lfunc_compute(L);
+    assert((e & ERR_BAD_SUPPLY) && fatal_error(e));
+    acb_poly_clear(f);
+    Lfunc_clear(L);
+  }
+  {
+    Lerror_t ec = ERR_SUCCESS;
+    Lfunc_t L = Lfunc_init(2, 35, 0.0, mus, &ec); assert(!fatal_error(ec));
+    acb_poly_t f; acb_poly_init(f); factor_acb(f, 2);
+    Lfunc_use_lpoly(L, 1, f);
+    Lerror_t e = Lfunc_compute(L);
+    assert((e & ERR_BAD_SUPPLY) && fatal_error(e));
+    acb_poly_clear(f);
+    Lfunc_clear(L);
+  }
+  {
+    Lerror_t ec = ERR_SUCCESS;
+    Lfunc_t L = Lfunc_init(2, 35, 0.0, mus, &ec); assert(!fatal_error(ec));
+    Lfunc_use_lpoly(L, 2, NULL);
+    Lerror_t e = Lfunc_compute(L);
+    assert((e & ERR_BAD_SUPPLY) && fatal_error(e));
+    Lfunc_clear(L);
+  }
+  {
+    Lerror_t ec = ERR_SUCCESS;
+    Lfunc_t L = Lfunc_init(2, 35, 0.0, mus, &ec); assert(!fatal_error(ec));
+    acb_poly_t f; acb_poly_init(f);
+    acb_poly_zero(f);
+    Lfunc_use_lpoly(L, 2, f);
+    Lerror_t e = Lfunc_compute(L);
+    assert((e & ERR_BAD_SUPPLY) && fatal_error(e));
+    acb_poly_clear(f);
+    Lfunc_clear(L);
+  }
+  {
+    Lerror_t ec = ERR_SUCCESS;
+    Lfunc_t L = Lfunc_init(2, 35, 0.0, mus, &ec); assert(!fatal_error(ec));
+    acb_poly_t f; acb_poly_init(f);
+    acb_poly_set_coeff_si(f, 0, 2);
+    acb_poly_set_coeff_si(f, 1, -1);
+    Lfunc_use_lpoly(L, 2, f);
+    Lerror_t e = Lfunc_compute(L);
+    assert((e & ERR_BAD_SUPPLY) && fatal_error(e));
+    acb_poly_clear(f);
+    Lfunc_clear(L);
+  }
+  {
+    Lerror_t ec = ERR_SUCCESS;
+    Lfunc_t L = Lfunc_init(2, 35, 0.0, mus, &ec); assert(!fatal_error(ec));
+    acb_poly_t f; acb_poly_init(f);
+    factor_acb(f, 2);
+    acb_poly_set_coeff_si(f, 3, 1);
+    Lfunc_use_lpoly(L, 2, f);
+    Lerror_t e = Lfunc_compute(L);
+    assert((e & ERR_BAD_SUPPLY) && fatal_error(e));
+    acb_poly_clear(f);
+    Lfunc_clear(L);
+  }
+  {
+    Lerror_t ec = ERR_SUCCESS;
+    Lfunc_t L = Lfunc_init(2, 35, 0.0, mus, &ec); assert(!fatal_error(ec));
+    acb_poly_t f; acb_poly_init(f); factor_acb(f, 2);
+    Lfunc_use_lpoly(L, 2, f);
+    Lfunc_use_lpoly(L, 2, f);
+    Lerror_t e = Lfunc_compute(L);
+    assert((e & ERR_SUPPLY_CONFLICT) && fatal_error(e));
+    acb_poly_clear(f);
+    Lfunc_clear(L);
+  }
+  {
+    Lerror_t ec = ERR_SUCCESS;
+    Lfunc_t L = Lfunc_init(2, 35, 0.0, mus, &ec); assert(!fatal_error(ec));
+    acb_poly_t f; acb_poly_init(f); factor_acb(f, 3);
+    Lfunc_use_lpoly(L, 3, f);
+    factor_acb(f, 2);
+    Lfunc_use_lpoly(L, 2, f);
+    Lerror_t e = Lfunc_compute(L);
+    assert((e & ERR_SUPPLY_CONFLICT) && fatal_error(e));
+    acb_poly_clear(f);
+    Lfunc_clear(L);
+  }
+}
+
+static void test_guard_null_callback(void) {
+  double mus[] = {0, 1}; Lerror_t ec = ERR_SUCCESS;
+  Lfunc_t L = Lfunc_init(2, 35, 0.0, mus, &ec); assert(!fatal_error(ec));
+  Lerror_t e = Lfunc_use_all_lpolys(L, NULL, NULL);
+  assert((e & ERR_BAD_SUPPLY) && fatal_error(e));
+  e = Lfunc_compute(L);
+  assert((e & ERR_BAD_SUPPLY) && fatal_error(e));
+  Lfunc_clear(L);
+}
+
+static void test_guard_duplicate_factor_array(void) {
+  double mus[] = {0, 1}; Lerror_t ec = ERR_SUCCESS;
+  Lfunc_t L = Lfunc_init(2, 35, 0.0, mus, &ec); assert(!fatal_error(ec));
+  uint64_t nmax = Lfunc_nmax(L);
+  uint64_t *primes = (uint64_t *)xmalloc(sizeof(uint64_t) * (nmax + 1));
+  uint64_t np = primes_upto(nmax, primes);
+  acb_poly_struct *f5 = (acb_poly_struct *)xmalloc(sizeof(acb_poly_struct) * np);
+  acb_poly_struct *f7 = (acb_poly_struct *)xmalloc(sizeof(acb_poly_struct) * np);
+  for (uint64_t k = 0; k < np; k++) {
+    acb_poly_init(&f5[k]);
+    acb_poly_init(&f7[k]);
+    character_factor_acb(&f5[k], chi5(primes[k]));
+    character_factor_acb(&f7[k], chi7(primes[k]));
+  }
+  ec |= Lfunc_use_lpolys_acb(L, f5, np);
+  assert(!fatal_error(ec));
+  Lerror_t e = Lfunc_use_lpolys_acb(L, f7, np);
+  assert((e & ERR_SUPPLY_CONFLICT) && fatal_error(e));
+  e = Lfunc_compute(L);
+  assert((e & ERR_SUPPLY_CONFLICT) && fatal_error(e));
+  for (uint64_t k = 0; k < np; k++) {
+    acb_poly_clear(&f5[k]);
+    acb_poly_clear(&f7[k]);
+  }
+  free(f7); free(f5); free(primes);
+  Lfunc_clear(L);
+}
+
+static void test_guard_factor_route_mixing(void) {
+  double mus[] = {0, 1};
+  {
+    Lerror_t ec = ERR_SUCCESS;
+    Lfunc_t L = Lfunc_init(2, 35, 0.0, mus, &ec); assert(!fatal_error(ec));
+    acb_poly_t f; acb_poly_init(f); factor_acb(f, 2);
+    Lfunc_use_lpoly(L, 2, f);
+    Lerror_t e = Lfunc_use_all_lpolys(L, cb, NULL);
+    assert((e & ERR_SUPPLY_CONFLICT) && fatal_error(e));
+    e = Lfunc_compute(L);
+    assert((e & ERR_SUPPLY_CONFLICT) && fatal_error(e));
+    acb_poly_clear(f);
+    Lfunc_clear(L);
+  }
+  {
+    Lerror_t ec = ERR_SUCCESS;
+    Lfunc_t L = Lfunc_init(2, 35, 0.0, mus, &ec); assert(!fatal_error(ec));
+    ec |= Lfunc_use_all_lpolys(L, cb, NULL);
+    assert(!fatal_error(ec));
+    uint64_t nmax = Lfunc_nmax(L);
+    uint64_t *primes = (uint64_t *)xmalloc(sizeof(uint64_t) * (nmax + 1));
+    uint64_t np = primes_upto(nmax, primes);
+    acb_poly_struct *f = (acb_poly_struct *)xmalloc(sizeof(acb_poly_struct) * np);
+    for (uint64_t k = 0; k < np; k++) { acb_poly_init(&f[k]); factor_acb(&f[k], primes[k]); }
+    Lerror_t e = Lfunc_use_lpolys_acb(L, f, np);
+    assert((e & ERR_SUPPLY_CONFLICT) && fatal_error(e));
+    e = Lfunc_compute(L);
+    assert((e & ERR_SUPPLY_CONFLICT) && fatal_error(e));
+    for (uint64_t k = 0; k < np; k++) acb_poly_clear(&f[k]);
+    free(f); free(primes);
+    Lfunc_clear(L);
+  }
+  {
+    Lerror_t ec = ERR_SUCCESS;
+    Lfunc_t L = Lfunc_init(2, 35, 0.0, mus, &ec); assert(!fatal_error(ec));
+    uint64_t nmax = Lfunc_nmax(L);
+    uint64_t *primes = (uint64_t *)xmalloc(sizeof(uint64_t) * (nmax + 1));
+    uint64_t np = primes_upto(nmax, primes);
+    acb_poly_struct *f = (acb_poly_struct *)xmalloc(sizeof(acb_poly_struct) * np);
+    for (uint64_t k = 0; k < np; k++) { acb_poly_init(&f[k]); factor_acb(&f[k], primes[k]); }
+    ec |= Lfunc_use_lpolys_acb(L, f, np);
+    assert(!fatal_error(ec));
+    acb_poly_t push; acb_poly_init(push); factor_acb(push, 2);
+    Lfunc_use_lpoly(L, 2, push);
+    Lerror_t e = Lfunc_compute(L);
+    assert((e & ERR_SUPPLY_CONFLICT) && fatal_error(e));
+    acb_poly_clear(push);
+    for (uint64_t k = 0; k < np; k++) acb_poly_clear(&f[k]);
+    free(f); free(primes);
     Lfunc_clear(L);
   }
 }
@@ -379,16 +588,16 @@ static void test_guard_conflicts(void) {
     Lerror_t ec = ERR_SUCCESS;
     Lfunc_t L = Lfunc_init(2, 35, 0.0, mus, &ec); assert(!fatal_error(ec));
     uint64_t nmax = Lfunc_nmax(L);
-    uint64_t *primes = (uint64_t *)malloc(sizeof(uint64_t) * (nmax + 1));
+    uint64_t *primes = (uint64_t *)xmalloc(sizeof(uint64_t) * (nmax + 1));
     uint64_t np = primes_upto(nmax, primes);
-    acb_poly_struct *f = (acb_poly_struct *)malloc(sizeof(acb_poly_struct) * np);
+    acb_poly_struct *f = (acb_poly_struct *)xmalloc(sizeof(acb_poly_struct) * np);
     for (uint64_t k = 0; k < np; k++) { acb_poly_init(&f[k]); factor_acb(&f[k], primes[k]); }
     ec |= Lfunc_use_lpolys_acb(L, f, np);
     assert(!fatal_error(ec));
     for (uint64_t k = 0; k < np; k++) acb_poly_clear(&f[k]);
     free(f); free(primes);
     fmpz *a = make_an_fmpz(nmax);
-    Lerror_t e = Lfunc_use_dirichlet_coeffs_fmpz(L, a, nmax, ALGEBRAIC_NORM);
+    Lerror_t e = Lfunc_use_dirichlet_coeffs_fmpz(L, a, nmax, LFUNC_ALGEBRAIC_NORM);
     assert((e & ERR_SUPPLY_CONFLICT) && fatal_error(e));
     _fmpz_vec_clear(a, nmax);
     Lfunc_clear(L);
@@ -399,12 +608,12 @@ static void test_guard_conflicts(void) {
     Lfunc_t L = Lfunc_init(2, 35, 0.0, mus, &ec); assert(!fatal_error(ec));
     uint64_t nmax = Lfunc_nmax(L);
     fmpz *a = make_an_fmpz(nmax);
-    ec |= Lfunc_use_dirichlet_coeffs_fmpz(L, a, nmax, ALGEBRAIC_NORM);
+    ec |= Lfunc_use_dirichlet_coeffs_fmpz(L, a, nmax, LFUNC_ALGEBRAIC_NORM);
     assert(!fatal_error(ec));
     _fmpz_vec_clear(a, nmax);
-    uint64_t *primes = (uint64_t *)malloc(sizeof(uint64_t) * (nmax + 1));
+    uint64_t *primes = (uint64_t *)xmalloc(sizeof(uint64_t) * (nmax + 1));
     uint64_t np = primes_upto(nmax, primes);
-    acb_poly_struct *f = (acb_poly_struct *)malloc(sizeof(acb_poly_struct) * np);
+    acb_poly_struct *f = (acb_poly_struct *)xmalloc(sizeof(acb_poly_struct) * np);
     for (uint64_t k = 0; k < np; k++) { acb_poly_init(&f[k]); factor_acb(&f[k], primes[k]); }
     Lerror_t e = Lfunc_use_lpolys_acb(L, f, np);
     assert((e & ERR_SUPPLY_CONFLICT) && fatal_error(e));
@@ -418,9 +627,9 @@ static void test_guard_conflicts(void) {
     Lfunc_t L = Lfunc_init(2, 35, 0.0, mus, &ec); assert(!fatal_error(ec));
     uint64_t nmax = Lfunc_nmax(L);
     fmpz *a = make_an_fmpz(nmax);
-    ec |= Lfunc_use_dirichlet_coeffs_fmpz(L, a, nmax, ALGEBRAIC_NORM);
+    ec |= Lfunc_use_dirichlet_coeffs_fmpz(L, a, nmax, LFUNC_ALGEBRAIC_NORM);
     assert(!fatal_error(ec));
-    Lerror_t e = Lfunc_use_dirichlet_coeffs_fmpz(L, a, nmax, ALGEBRAIC_NORM);
+    Lerror_t e = Lfunc_use_dirichlet_coeffs_fmpz(L, a, nmax, LFUNC_ALGEBRAIC_NORM);
     assert((e & ERR_SUPPLY_CONFLICT) && fatal_error(e));
     _fmpz_vec_clear(a, nmax);
     Lfunc_clear(L);
@@ -432,7 +641,7 @@ static void test_guard_conflicts(void) {
     Lfunc_t L = Lfunc_init(2, 35, 0.0, mus, &ec); assert(!fatal_error(ec));
     uint64_t nmax = Lfunc_nmax(L);
     fmpz *a = make_an_fmpz(nmax);
-    ec |= Lfunc_use_dirichlet_coeffs_fmpz(L, a, nmax, ALGEBRAIC_NORM);
+    ec |= Lfunc_use_dirichlet_coeffs_fmpz(L, a, nmax, LFUNC_ALGEBRAIC_NORM);
     assert(!fatal_error(ec));
     _fmpz_vec_clear(a, nmax);
     acb_poly_t f; acb_poly_init(f); factor_acb(f, 2);
@@ -456,10 +665,28 @@ static void test_guard_violated_bound(void) {
   assert(nmax >= 2);
   fmpz *a = make_an_fmpz(nmax); // genuine coefficients all satisfy |a_n| <= n
   fmpz_set_si(a + 1, 1000);     // a_2 = 1000 > C*2 = 2: a definite violation
-  Lerror_t e = Lfunc_use_dirichlet_coeffs_fmpz(L, a, nmax, ALGEBRAIC_NORM);
+  Lerror_t e = Lfunc_use_dirichlet_coeffs_fmpz(L, a, nmax, LFUNC_ALGEBRAIC_NORM);
   assert((e & ERR_COEFF_BOUND) && fatal_error(e));
   _fmpz_vec_clear(a, nmax);
   Lfunc_clear(L);
+}
+
+static void assert_bad_mus(double mus[2]) {
+  Lerror_t ec = ERR_SUCCESS;
+  Lfunc_t L = Lfunc_init(2, 35, 0.0, mus, &ec);
+  assert(L == NULL);
+  assert((ec & ERR_MU_HALF) && fatal_error(ec));
+}
+
+static void test_guard_invalid_mus(void) {
+  double nonhalf[] = {0.25, 1.0};
+  double infmu[] = {INFINITY, 1.0};
+  double nanmu[] = {NAN, 1.0};
+  double too_large[] = {ldexp(1.0, (int)(sizeof(long) * CHAR_BIT - 2)), 1.0};
+  assert_bad_mus(nonhalf);
+  assert_bad_mus(infmu);
+  assert_bad_mus(nanmu);
+  assert_bad_mus(too_large);
 }
 
 // --- isolated white-box regression (internal M/M0 bookkeeping) --------------
@@ -474,7 +701,7 @@ static void test_short_supply_clamps_M0(void) {
   assert(LL->M0 > 2);
   fmpz *a = _fmpz_vec_init(1);
   fmpz_one(a);
-  Lerror_t e = Lfunc_use_dirichlet_coeffs_fmpz(L, a, 1, ALGEBRAIC_NORM);
+  Lerror_t e = Lfunc_use_dirichlet_coeffs_fmpz(L, a, 1, LFUNC_ALGEBRAIC_NORM);
   assert((e & ERR_INSUFF_EULER) && !fatal_error(e));
   assert(LL->M == 1 && LL->M0 == 2);
   _fmpz_vec_clear(a, 1);
@@ -547,10 +774,10 @@ static Lfunc_t run_lpolys_acb_short(uint64_t nfac, Lerror_t *ec) {
   Lfunc_t L = Lfunc_init(2, 5 * 7, 0.0, mus, ec);
   if (fatal_error(*ec)) return L;
   uint64_t nmax = Lfunc_nmax(L);
-  uint64_t *primes = (uint64_t *)malloc(sizeof(uint64_t) * (nmax + 1));
+  uint64_t *primes = (uint64_t *)xmalloc(sizeof(uint64_t) * (nmax + 1));
   uint64_t np = primes_upto(nmax, primes);
   assert(nfac < np); // genuinely short of pi(nmax)
-  acb_poly_struct *f = (acb_poly_struct *)malloc(sizeof(acb_poly_struct) * nfac);
+  acb_poly_struct *f = (acb_poly_struct *)xmalloc(sizeof(acb_poly_struct) * nfac);
   for (uint64_t k = 0; k < nfac; k++) { acb_poly_init(&f[k]); factor_acb(&f[k], primes[k]); }
   *ec |= Lfunc_use_lpolys_acb(L, f, nfac);
   for (uint64_t k = 0; k < nfac; k++) acb_poly_clear(&f[k]);
@@ -567,7 +794,7 @@ static Lfunc_t run_raw_fmpz_short(uint64_t rlen, Lerror_t *ec) {
   assert(rlen < nmax); // genuinely short
   fmpz *a = _fmpz_vec_init(rlen);
   for (uint64_t n = 1; n <= rlen; n++) fmpz_set_si(a + (n - 1), an(n));
-  *ec |= Lfunc_use_dirichlet_coeffs_fmpz(L, a, rlen, ALGEBRAIC_NORM);
+  *ec |= Lfunc_use_dirichlet_coeffs_fmpz(L, a, rlen, LFUNC_ALGEBRAIC_NORM);
   _fmpz_vec_clear(a, rlen);
   if (fatal_error(*ec)) return L;
   *ec |= Lfunc_compute(L);
@@ -599,20 +826,26 @@ static void test_insufficient_supply(void) {
   Lfunc_t R = run_raw_fmpz_short(cut - 1, &er);
   Lfunc_t Cc2 = run_callback_cut(cut, &ecb2);
   assert(!fatal_error(er) && !fatal_error(ecb2));
-  assert((er & ERR_INSUFF_EULER) && (er & ERR_RH_UNAVAILABLE));
+  assert(er & ERR_INSUFF_EULER);
   assert_outputs_overlap(R, Cc2);
   Lfunc_clear(R); Lfunc_clear(Cc2);
 }
 
-// raw a_n have no per-prime factors, so the RH check is skipped and flagged
-// (warning, not fatal); a factor-supplied run does not flag it.
-static void test_rh_unavailable(void) {
+// In the default TURING build, raw a_n still have enough data for the Turing RH
+// check; only Buthe-only builds lack the per-prime data needed for RH checking.
+static void test_raw_coeffs_turing_rh_check(void) {
   Lerror_t er = ERR_SUCCESS, ef = ERR_SUCCESS;
   Lfunc_t R = run_raw_fmpz(&er);
   Lfunc_t F = run_callback(&ef);
   assert(!fatal_error(er) && !fatal_error(ef));
-  assert(er & ERR_RH_UNAVAILABLE);      // raw a_n run: RH not attempted
-  assert(!(ef & ERR_RH_UNAVAILABLE));   // factor run: RH attempted
+#ifdef TURING
+  assert(!(er & ERR_RH_UNAVAILABLE));   // raw a_n run: Turing RH check ran
+  assert(!(er & ERR_RH_ERROR));         // and succeeded on this degree-2 object
+#else
+  assert(er & ERR_RH_UNAVAILABLE);
+#endif
+  assert(!(ef & ERR_RH_UNAVAILABLE));   // factor run: Turing RH check ran
+  assert(!(ef & ERR_RH_ERROR));
   Lfunc_clear(R); Lfunc_clear(F);
 }
 
@@ -625,13 +858,18 @@ int main(void) {
   test_guard_a1_acb();
   test_guard_zero_len_raw();
   test_guard_null_supply_len_positive();
+  test_guard_bad_lpoly_push();
+  test_guard_null_callback();
+  test_guard_duplicate_factor_array();
+  test_guard_factor_route_mixing();
   test_guard_bad_norm();
   test_guard_conflicts();
   test_guard_violated_bound();
+  test_guard_invalid_mus();
   test_short_supply_clamps_M0();
   test_lpoly_before_explicit_nmax();
   test_insufficient_supply();
-  test_rh_unavailable();
+  test_raw_coeffs_turing_rh_check();
   printf("batch_supply_test: all tests passed\n");
   return 0;
 }
