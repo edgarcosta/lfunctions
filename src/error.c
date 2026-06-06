@@ -78,10 +78,8 @@ void abs_gamma_r(arb_t res, acb_t s, Lfunc *L, uint64_t prec)
 // returns \prod |Gamma_R(s + u_j)|
 void abs_gamma(arb_t res, acb_t s, Lfunc *L, int64_t prec)
 {
-  acb_t tmp1,tmp2,tmp3;
+  acb_t tmp1;
   acb_init(tmp1);
-  acb_init(tmp2);
-  acb_init(tmp3);
   arb_t tmp;
   arb_init(tmp);
 
@@ -95,8 +93,6 @@ void abs_gamma(arb_t res, acb_t s, Lfunc *L, int64_t prec)
   }
   //printf("abs_gamma returning ");arb_printd(res,10);printf("\n");
   acb_clear(tmp1);
-  acb_clear(tmp2);
-  acb_clear(tmp3);
   arb_clear(tmp);
 }
 

@@ -151,7 +151,12 @@ void do_convolves(Lfunc *L)
     arb_set(acb_realref(L->G[n1]),L->Gs[0][n2]);
     //arb_zero(acb_imagref(L->G[n1]));
   }
-  acb_convolve(L->res,L->skm[0],L->G,L->fft_N,L->w,prec);
+  // Cyclic convolution via FLINT's rad2 DFT (replaces the hand-rolled acb_convolve).
+  // acb_dft_convol_rad2 applies the 1/n normalisation exactly once; the precomputed
+  // plan_N (roots at wprec+DFT_PLAN_EXTRA_PREC) keeps it as tight as the old FFT. It
+  // is non-destructive, unlike acb_convolve which FFT'd skm[]/G in place.
+  acb_dft_convol_rad2_precomp((acb_ptr)L->res, (acb_srcptr)L->skm[0], (acb_srcptr)L->G,
+                              L->fft_N, L->plan_N, prec);
   if ( verbose ) {
     printf("Convolve 1 out of %" PRId64 " completed.\n",L->max_K);
   }
@@ -163,7 +168,8 @@ void do_convolves(Lfunc *L)
       int64_t n1=n%L->fft_N;
       arb_set(acb_realref(L->G[n1]),L->Gs[k][n2]);
     }
-    acb_convolve(L->kres,L->skm[k],L->G,L->fft_N,L->w,prec);
+    acb_dft_convol_rad2_precomp((acb_ptr)L->kres, (acb_srcptr)L->skm[k], (acb_srcptr)L->G,
+                                L->fft_N, L->plan_N, prec);
     if(verbose)
       printf("Convolve %" PRIu64 " out of %" PRId64 " completed.\n",k+1,L->max_K);
 
@@ -266,7 +272,13 @@ void final_ifft(Lfunc *L)
       printf("\n");
     }
   }
-  acb_ifft(L->res,L->fft_NN,L->ww,prec);
+  // The old "acb_ifft" was the *unnormalised inverse* DFT (forward FFT then index-
+  // reverse, kernel e(+jk/n)); FLINT's forward transform uses the opposite-sign kernel
+  // e(-jk/n). They are not the same transform in general, but do_pre_iFFT_errors made
+  // L->res Hermitian (res[NN-k]=conj(res[k])), and on Hermitian data the forward and
+  // inverse DFTs coincide and are real-valued -- so this is an exact drop-in. No 1/n
+  // here; the only 1/n in the pipeline lives inside the convolutions above.
+  acb_dft_rad2_precomp_inplace((acb_ptr)L->res, L->plan_NN, prec);
   if(verbose){printf("iFFT done.\n");fflush(stdout);}
 
   for(uint64_t n=0;n<L->fft_NN;n++)

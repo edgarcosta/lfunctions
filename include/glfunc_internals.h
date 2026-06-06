@@ -3,6 +3,7 @@
 
 #include "inttypes.h"
 #include <flint/acb.h>
+#include <flint/acb_dft.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <math.h>
@@ -12,6 +13,14 @@
 #define OUTPUT_RATIO (8) // we will analyse 1/this of B
 #define TURING_RATIO (16) // and use a further 1/this for Turing
 #define EXTRA_BITS (35) // extra bits of precision for convolves etc.
+// Build the acb_dft rad2 plans (their roots of unity) at wprec + this many bits.
+// FLINT's rad2 root table accumulates ~log2(n) bits of error; computed once and
+// kept tighter than the wprec butterfly arithmetic, the rigorous output balls stay
+// as tight as the old direct-twiddle FFT. Without it FLINT is ~1000x looser at
+// fft_NN=2^16. 32 >> log2(fft_NN/2)=15, with comfortable headroom; cost is one-time.
+// Upstream issue (still present in FLINT 3.6.0): flintlib/flint#2709 -- revisit/shrink
+// this margin if/when the rad2 root table is computed at boosted precision upstream.
+#define DFT_PLAN_EXTRA_PREC (32)
 #define verbose (false) // compile-time toggle for all diagnostic printf
 #define BAD_64 (1LL<<62) // sentinel: an arb value did not pin to a unique integer
 
@@ -74,8 +83,8 @@ extern "C"{
     arb_t one_over_A; // 1/A as a ball; the t-grid spacing (sample i has imag part i/A)
     arf_t arf_one_over_A; // 1/A as an arf_t; unused
     acb_t *G; // length-fft_N acb scratch staging one Gs[k] column per convolution
-    acb_t *w; // twiddle factors for length fft_N
-    acb_t *ww; // ditto for fft_NN
+    acb_dft_rad2_t plan_N; // FLINT rad2 DFT plan, length fft_N (convolutions)
+    acb_dft_rad2_t plan_NN; // FLINT rad2 DFT plan, length fft_NN (final iFFT)
     arb_t *zeros[2]; // zero ordinates t on the critical line; [0]=L, [1]=dual L
     double eta; // contour-tilt knob in delta=(1-eta)*pi/2; =0, only feeds delta
     arb_t delta; // contour offset (1-eta)*pi/2 = pi/2; only feeds (unused) exp_delta
@@ -138,14 +147,6 @@ extern "C"{
 
   // from glfunc_g.c
   Lerror_t compute_g(Lfunc *);
-
-  // from acb_fft.c
-  void acb_initfft(acb_t *w, uint64_t n, uint64_t prec);
-  void acb_fft(acb_t *x, uint64_t n, acb_t *w, uint64_t prec);
-  void acb_ifft(acb_t *x, uint64_t n, acb_t *w, uint64_t prec);
-  void acb_convolve(acb_t *res, acb_t *x, acb_t *y, uint64_t n, acb_t *w, uint64_t prec);
-  void acb_convolve1(acb_t *res, acb_t *x, acb_t *y, uint64_t n, acb_t *w, uint64_t prec);
-  void acb_convolve2(acb_t *res, acb_t *x, acb_t *y, uint64_t n, acb_t *w, uint64_t prec);
 
   // from error.c
   void abs_gamma(arb_t res, acb_t s, Lfunc *L, int64_t prec);

@@ -265,28 +265,12 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
   arb_neg(tmp, L->delta);
   arb_exp(L->exp_delta, tmp, L->wprec);
 
-  L->w =
-      (acb_t *)malloc(sizeof(acb_t) * L->fft_N / 2); // twiddles for little FFT
-  if (!L->w) {
-    arb_clear(tmp);
-    ecode[0] |= ERR_OOM;
-    return (Lfunc_t)NULL;
-  }
-
-  for (i = 0; i < L->fft_N / 2; i++)
-    acb_init(L->w[i]);
-  acb_initfft(L->w, L->fft_N, L->wprec); // set twiddles for little FFT
-
-  L->ww =
-      (acb_t *)malloc(sizeof(acb_t) * L->fft_NN / 2); // twiddles for big FFT
-  if (!L->ww) {
-    arb_clear(tmp);
-    ecode[0] |= ERR_OOM;
-    return (Lfunc_t)NULL;
-  }
-  for (i = 0; i < L->fft_NN / 2; i++)
-    acb_init(L->ww[i]);
-  acb_initfft(L->ww, L->fft_NN, L->wprec); // set twiddles for big FFT
+  // FLINT rad2 DFT plans: plan_N drives the convolutions (length fft_N), plan_NN
+  // the final iFFT (length fft_NN). Built once at wprec + DFT_PLAN_EXTRA_PREC so the
+  // precomputed roots stay tighter than the wprec butterfly arithmetic, keeping the
+  // rigorous output balls as tight as the old direct-twiddle FFT.
+  acb_dft_rad2_init(L->plan_N, __builtin_ctzll(L->fft_N), L->wprec + DFT_PLAN_EXTRA_PREC);
+  acb_dft_rad2_init(L->plan_NN, __builtin_ctzll(L->fft_NN), L->wprec + DFT_PLAN_EXTRA_PREC);
 
   // space for the zeros once we isolate them
   L->zeros[0] = (arb_t *)malloc(sizeof(arb_t) * MAX_ZEROS);
