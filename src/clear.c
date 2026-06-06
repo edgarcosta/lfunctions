@@ -150,6 +150,14 @@ extern "C"{
           acb_poly_clear(&L->retained_f[i]);
         free(L->retained_f);
       }
+    if(L->retained_fmpz)
+      {
+        for(uint64_t i=0;i<L->n_retained;i++)
+          if(L->retained_is_exact && L->retained_is_exact[i])
+            fmpz_poly_clear(&L->retained_fmpz[i]);
+        free(L->retained_fmpz);
+      }
+    free(L->retained_is_exact);
     free(L->retained_p);
     if(L->cert_roots)
       {

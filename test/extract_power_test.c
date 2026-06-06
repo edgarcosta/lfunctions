@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <flint/acb.h>
 #include <flint/acb_poly.h>
+#include <flint/fmpz_poly.h>
 #include "glfunc.h"
 
 // 37.a1 Euler polynomials L_p(T) = 1 + c1*T + p*T^2, stored as {p, c1, p};
@@ -38,6 +39,20 @@ static void Ep(acb_poly_t poly, uint64_t p) // E_p(T) for 37.a1, degree 2 (or 1 
   // unknown prime: leave zero -> Lfunc_use_all_lpolys short-circuits (fine; see plan)
 }
 
+static void Ep_z(fmpz_poly_t poly, uint64_t p) // exact E_p(T)
+{
+  fmpz_poly_zero(poly);
+  if (p == 37) { fmpz_poly_set_coeff_ui(poly,0,1); fmpz_poly_set_coeff_ui(poly,1,1); return; }
+  for (size_t i = 0; i < sizeof(ap37)/sizeof(ap37[0]); i++)
+    if ((uint64_t)ap37[i][0] == p) {
+      fmpz_poly_set_coeff_ui(poly,0,1);
+      fmpz_poly_set_coeff_si(poly,1,ap37[i][1]);
+      fmpz_poly_set_coeff_ui(poly,2,(ulong)ap37[i][2]);
+      return;
+    }
+  // unknown prime: leave zero -> Lfunc_use_all_lpolys_fmpz short-circuits
+}
+
 // callback for L = E^k: supply (E_p)^k
 static void lk_callback(acb_poly_t poly, uint64_t p, int d, int64_t prec, void *param)
 {
@@ -47,6 +62,25 @@ static void lk_callback(acb_poly_t poly, uint64_t p, int d, int64_t prec, void *
   if (acb_poly_is_zero(ep)) { acb_poly_zero(poly); acb_poly_clear(ep); return; }
   acb_poly_pow_ui(poly, ep, (ulong)k_param, prec);
   acb_poly_clear(ep);
+}
+
+// exact callback for L = E^k: supply (E_p)^k through fmpz provenance
+static void lk_callback_z(fmpz_poly_t poly, uint64_t p, int d, void *param)
+{
+  (void)d; (void)param;
+  fmpz_poly_t ep; fmpz_poly_init(ep);
+  Ep_z(ep, p);
+  if (fmpz_poly_is_zero(ep)) { fmpz_poly_zero(poly); fmpz_poly_clear(ep); return; }
+  fmpz_poly_pow(poly, ep, (ulong)k_param);
+  fmpz_poly_clear(ep);
+}
+
+static void lk_first_prime_only_callback_z(fmpz_poly_t poly, uint64_t p, int d, void *param)
+{
+  if (p == 2)
+    lk_callback_z(poly, p, d, param);
+  else
+    fmpz_poly_zero(poly);
 }
 
 // callback for E itself: supply E_p
@@ -66,20 +100,14 @@ static void lk_inexact_callback(acb_poly_t poly, uint64_t p, int d, int64_t prec
     arb_add_error_2exp_si(acb_realref(acb_poly_get_coeff_ptr(poly, 0)), -150);
 }
 
-// callback for C1: like lk_callback (E^2) but OVERRIDES the bad prime 37 with a
-// non-square degree-2 factor 1 - 3T + T^2. Every GOOD factor is a genuine square,
-// but the bad factor is not, so L = M^2 is false and extraction must be refused.
-// Pre-fix (good-prime-only certificate) the uncertified bad factor was k-th-rooted
-// blindly and L extracted (n_factors=1); the exact-integer certificate over ALL
-// factors must now reject with ERR_POWER.
-static void lk_badprime_callback(acb_poly_t poly, uint64_t p, int d, int64_t prec, void *param)
+static void lk_badprime_callback_z(fmpz_poly_t poly, uint64_t p, int d, void *param)
 {
-  lk_callback(poly, p, d, prec, param);
-  if (p == 37) {                       // overwrite the bad factor with a non-square
-    acb_poly_zero(poly);
-    acb_poly_set_coeff_si(poly, 0, 1);
-    acb_poly_set_coeff_si(poly, 1, -3);
-    acb_poly_set_coeff_si(poly, 2, 1); // 1 - 3T + T^2 (discriminant 5, not a square)
+  lk_callback_z(poly, p, d, param);
+  if (p == 37) {
+    fmpz_poly_zero(poly);
+    fmpz_poly_set_coeff_ui(poly, 0, 1);
+    fmpz_poly_set_coeff_si(poly, 1, -3);
+    fmpz_poly_set_coeff_ui(poly, 2, 1);
   }
 }
 
@@ -101,6 +129,31 @@ static void lk_complex_callback(acb_poly_t poly, uint64_t p, int d, int64_t prec
   acb_clear(c1);
   acb_poly_pow_ui(poly, mp, 2, prec);   // L_p = M_p^2 (complex)
   acb_poly_clear(mp);
+}
+
+static Lerror_t use_power_factor_fmpz(Lfunc_t L, uint64_t p, ulong k)
+{
+  fmpz_poly_t ep, fp;
+  fmpz_poly_init(ep);
+  fmpz_poly_init(fp);
+  Ep_z(ep, p);
+  fmpz_poly_pow(fp, ep, k);
+  Lerror_t e = Lfunc_use_lpoly_fmpz(L, p, fp);
+  fmpz_poly_clear(fp);
+  fmpz_poly_clear(ep);
+  return e;
+}
+
+static void use_power_factor_acb(Lfunc_t L, uint64_t p, ulong k)
+{
+  acb_poly_t ep, fp;
+  acb_poly_init(ep);
+  acb_poly_init(fp);
+  Ep(ep, p);
+  acb_poly_pow_ui(fp, ep, k, 100);
+  Lfunc_use_lpoly(L, p, fp);
+  acb_poly_clear(fp);
+  acb_poly_clear(ep);
 }
 
 int main(void)
@@ -148,7 +201,7 @@ int main(void)
   Lerror_t e2 = ERR_SUCCESS;
   Lfunc_t L2 = Lfunc_init_advanced(&Lp2, &e2);
   assert(!fatal_error(e2));
-  e2 |= Lfunc_use_all_lpolys(L2, lk_callback, NULL);
+  e2 |= Lfunc_use_all_lpolys_fmpz(L2, lk_callback_z, NULL);
   e2 |= Lfunc_compute(L2);
   assert(!fatal_error(e2));
 
@@ -191,7 +244,68 @@ int main(void)
 
   printf("extract_power_test: Task 3 OK\n");
 
-  // ---- E^3 (degree 6, odd k) ----
+  // Exact-looking factors supplied only through the acb API are not exact
+  // provenance for extraction. The guard still detects the square, but
+  // power_extract_prepare must refuse to certify it.
+  Lp2.extract_powers = YES;
+  Lerror_t eA = ERR_SUCCESS;
+  Lfunc_t LA = Lfunc_init_advanced(&Lp2, &eA);
+  assert(!fatal_error(eA));
+  eA |= Lfunc_use_all_lpolys(LA, lk_callback, NULL);
+  eA |= Lfunc_compute(LA);
+  assert(eA & ERR_POWER);
+  Lfunc_t *fA = NULL; uint64_t *mA = NULL;
+  assert(Lfunc_factors(LA, &fA, &mA) == 0);
+	  Lfunc_clear(LA);
+
+	  printf("extract_power_test: acb-only extraction refused OK\n");
+
+	  // fmpz callback zero sentinel: first missing exact factor stops supply and
+	  // reports ERR_INSUFF_EULER.
+	  {
+	    Lerror_t eS = ERR_SUCCESS;
+	    Lfunc_t LS = Lfunc_init_advanced(&Lp2, &eS);
+	    assert(!fatal_error(eS));
+	    eS |= Lfunc_use_all_lpolys_fmpz(LS, lk_first_prime_only_callback_z, NULL);
+	    assert(eS & ERR_INSUFF_EULER);
+	    assert(!fatal_error(eS));
+	    eS |= Lfunc_compute(LS);
+	    assert(eS & ERR_INSUFF_EULER);
+	    Lfunc_clear(LS);
+	  }
+
+	  printf("extract_power_test: fmpz callback sentinel OK\n");
+
+	  // Mixed provenance must not extract: every retained factor must have exact
+	  // fmpz provenance, regardless of supply order.
+	  {
+	    Lerror_t eMix1 = ERR_SUCCESS;
+	    Lfunc_t LMix1 = Lfunc_init_advanced(&Lp2, &eMix1);
+	    assert(!fatal_error(eMix1));
+	    (void)Lfunc_nmax(LMix1);
+	    eMix1 |= use_power_factor_fmpz(LMix1, 2, 2);
+	    use_power_factor_acb(LMix1, 3, 2);
+	    eMix1 |= Lfunc_compute(LMix1);
+	    assert(eMix1 & ERR_POWER);
+	    Lfunc_t *fm = NULL; uint64_t *mm = NULL;
+	    assert(Lfunc_factors(LMix1, &fm, &mm) == 0);
+	    Lfunc_clear(LMix1);
+
+	    Lerror_t eMix2 = ERR_SUCCESS;
+	    Lfunc_t LMix2 = Lfunc_init_advanced(&Lp2, &eMix2);
+	    assert(!fatal_error(eMix2));
+	    (void)Lfunc_nmax(LMix2);
+	    use_power_factor_acb(LMix2, 2, 2);
+	    eMix2 |= use_power_factor_fmpz(LMix2, 3, 2);
+	    eMix2 |= Lfunc_compute(LMix2);
+	    assert(eMix2 & ERR_POWER);
+	    assert(Lfunc_factors(LMix2, &fm, &mm) == 0);
+	    Lfunc_clear(LMix2);
+	  }
+
+	  printf("extract_power_test: mixed provenance refused OK\n");
+
+	  // ---- E^3 (degree 6, odd k) ----
   k_param = 3;
   Lfunc_t Eref3 = Lfunc_init(2, 37, 0.5, mus, &ec);
   ec = ERR_SUCCESS;
@@ -206,7 +320,7 @@ int main(void)
   Lerror_t e3 = ERR_SUCCESS;
   Lfunc_t L3 = Lfunc_init_advanced(&Lp3, &e3);
   assert(!fatal_error(e3));
-  e3 |= Lfunc_use_all_lpolys(L3, lk_callback, NULL);
+  e3 |= Lfunc_use_all_lpolys_fmpz(L3, lk_callback_z, NULL);
   e3 |= Lfunc_compute(L3);
   assert(!fatal_error(e3));
 
@@ -246,7 +360,7 @@ int main(void)
   // prime <= nmax(M), regardless of position; a `break` at the first p > nmax(M)
   // would drop the trailing low primes and compute M (here 37.a, nmax 142) WITHOUT
   // its bad factor at 37 -> wrong zeros/Taylor. We reproduce that layout here:
-  // supply E^2's good primes ascending (incl. p=149 > 142) via Lfunc_use_lpoly, then
+  // supply E^2's good primes ascending (incl. p=149 > 142) via Lfunc_use_lpoly_fmpz, then
   // the bad prime 37 LAST.
   k_param = 2;
   Lfunc_t ErefO = Lfunc_init(2, 37, 0.5, mus, &ec);
@@ -261,30 +375,21 @@ int main(void)
                     .gprec = 0, .self_dual = YES, .rank = DK, .cache_dir = ".",
                     .extract_powers = YES };
   Lerror_t eO = ERR_SUCCESS;
-  Lfunc_t LO = Lfunc_init_advanced(&LpO, &eO);
-  assert(!fatal_error(eO));
-  {
-    acb_poly_t fp; acb_poly_init(fp);
-    uint64_t nmaxO = Lfunc_nmax(LO);
-    // good primes (everything in ap37 except the bad prime 37), ascending,
-    // each raised to k=2; this includes p=149 > nmax(37.a)=142.
-    for (size_t i = 0; i < sizeof(ap37)/sizeof(ap37[0]); i++) {
-      uint64_t p = (uint64_t)ap37[i][0];
-      if (p == 37 || p > nmaxO) continue;
-      acb_poly_t ep; acb_poly_init(ep); Ep(ep, p);
-      acb_poly_pow_ui(fp, ep, 2, 100);
-      Lfunc_use_lpoly(LO, p, fp);
-      acb_poly_clear(ep);
-    }
-    // bad prime 37 supplied LAST (out of order), (1+T)^2:
-    if (37 <= nmaxO) {
-      acb_poly_t ep; acb_poly_init(ep); Ep(ep, 37);
-      acb_poly_pow_ui(fp, ep, 2, 100);
-      Lfunc_use_lpoly(LO, 37, fp);
-      acb_poly_clear(ep);
-    }
-    acb_poly_clear(fp);
-  }
+	  Lfunc_t LO = Lfunc_init_advanced(&LpO, &eO);
+	  assert(!fatal_error(eO));
+	  {
+	    uint64_t nmaxO = Lfunc_nmax(LO);
+	    // good primes (everything in ap37 except the bad prime 37), ascending,
+	    // each raised to k=2; this includes p=149 > nmax(37.a)=142.
+	    for (size_t i = 0; i < sizeof(ap37)/sizeof(ap37[0]); i++) {
+	      uint64_t p = (uint64_t)ap37[i][0];
+	      if (p == 37 || p > nmaxO) continue;
+	      eO |= use_power_factor_fmpz(LO, p, 2);
+	    }
+	    // bad prime 37 supplied LAST (out of order), (1+T)^2:
+	    if (37 <= nmaxO)
+	      eO |= use_power_factor_fmpz(LO, 37, 2);
+	  }
   eO |= Lfunc_compute(LO);
   assert(!fatal_error(eO));
   Lfunc_t *fO = NULL; uint64_t *mO = NULL;
@@ -312,17 +417,16 @@ int main(void)
   Lerror_t eMu = ERR_SUCCESS;
   Lfunc_t LMu = Lfunc_init_advanced(&LpMu, &eMu);
   assert(!fatal_error(eMu));
-  eMu |= Lfunc_use_all_lpolys(LMu, lk_callback, NULL); // INSUFF_EULER warning is fine
+  eMu |= Lfunc_use_all_lpolys_fmpz(LMu, lk_callback_z, NULL); // INSUFF_EULER warning is fine
   eMu |= Lfunc_compute(LMu);
   assert(eMu & ERR_POWER);            // mus not k-divisible -> refuse to extract
   Lfunc_clear(LMu);
 
   printf("extract_power_test: I2 non-k-divisible mus OK\n");
 
-  // ---- I3: inexact (wide-ball) Euler factors must not be certified (rigor) ----
-  // E^2 with one coefficient carrying a tiny error ball. The certificate proves
-  // f = M_p^k by ball containment, which is meaningful only for exact factors; a
-  // wide-ball non-power can false-accept. Expect ERR_POWER (refuse to certify).
+  // ---- I3: inexact/acb Euler factors must not be certified (rigor) ----
+  // E^2 with one coefficient carrying a tiny error ball. acb supply still drives
+  // the guard, but it has no exact fmpz provenance, so extraction must be refused.
   k_param = 2;
   Lparams_t LpIn = { .degree = 4, .conductor = 37u*37u, .normalisation = 0.5,
                      .mus = (double[]){0,0,1,1}, .target_prec = 100, .wprec = 0,
@@ -351,16 +455,16 @@ int main(void)
   Lerror_t eBad = ERR_SUCCESS;
   Lfunc_t LBad = Lfunc_init_advanced(&LpBad, &eBad);
   assert(!fatal_error(eBad));
-  eBad |= Lfunc_use_all_lpolys(LBad, lk_badprime_callback, NULL); // INSUFF_EULER warning is fine
+  eBad |= Lfunc_use_all_lpolys_fmpz(LBad, lk_badprime_callback_z, NULL); // INSUFF_EULER warning is fine
   eBad |= Lfunc_compute(LBad);
   assert(eBad & ERR_POWER);            // bad factor not a square -> refuse to extract
   Lfunc_clear(LBad);
 
   printf("extract_power_test: C1 non-square bad factor OK\n");
 
-  // Complex (non-self-dual) boundary: extraction now supports algebraic exact roots
-  // (feat: lfunctions-5g6). A complex L = M^2, built so detection still finds k=2 and the perfect-square
-  // conductor, should be successfully extracted.
+  // Complex (non-self-dual) boundary: complex acb factors can still trigger the
+  // guard, but the exact fmpz certificate cannot be supplied for them. They must
+  // therefore be refused under extract_powers=YES.
   {
     Lparams_t LpC = { .degree=4, .conductor=37u*37u, .normalisation=0.5,
                       .mus=(double[]){0,0,1,1}, .target_prec=100, .wprec=0, .gprec=0,
@@ -370,12 +474,12 @@ int main(void)
     assert(!fatal_error(eC));
     eC |= Lfunc_use_all_lpolys(LC, lk_complex_callback, NULL);
     eC |= Lfunc_compute(LC);
-    assert(!fatal_error(eC));            // complex Euler factor -> exact certificate succeeds!
+    assert(eC & ERR_POWER);
     Lfunc_t *fc = NULL; uint64_t *mc = NULL;
-    assert(Lfunc_factors(LC, &fc, &mc) == 1 && mc[0] == 2);   // extracted successfully
+    assert(Lfunc_factors(LC, &fc, &mc) == 0);
     Lfunc_clear(LC);
   }
-  printf("extract_power_test: complex non-self-dual boundary OK (extracts)\n");
+  printf("extract_power_test: complex acb boundary refused OK\n");
 
   // ---- E^4 (degree 8, even k=4): multi-k candidate recovery (Fix C) ----
   // L = E^4 has conductor 37^4 (maximal perfect-power exponent E=4) and 2nd moment ~16,
@@ -398,7 +502,7 @@ int main(void)
   Lerror_t e4 = ERR_SUCCESS;
   Lfunc_t L4 = Lfunc_init_advanced(&Lp4, &e4);
   assert(!fatal_error(e4));
-  e4 |= Lfunc_use_all_lpolys(L4, lk_callback, NULL);
+  e4 |= Lfunc_use_all_lpolys_fmpz(L4, lk_callback_z, NULL);
   e4 |= Lfunc_compute(L4);
   assert(!fatal_error(e4));
 

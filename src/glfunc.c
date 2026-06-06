@@ -37,7 +37,7 @@ void fprint_errors(FILE *f, Lerror_t ecode) {
   if (ecode & ERR_POWER)
     fprintf(f, "L-function appears to be a perfect power or to have a repeated "
                "primitive factor (doubled zeros); set Lparams.extract_powers "
-               "= YES to extract and assemble.\n");
+               "= YES and supply exact fmpz Euler factors to extract and assemble.\n");
   // warnings
   if (ecode & ERR_INSUFF_EULER)
     fprintf(f, "Don't appear to have enough Euler factors.\n");
@@ -355,7 +355,9 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
   L->moment_count = 0;
   L->seen_sqfree_fulldeg = false;
   L->retained_p = NULL; L->retained_f = NULL;
+  L->retained_fmpz = NULL; L->retained_is_exact = NULL;
   L->n_retained = 0; L->retained_cap = 0;
+  L->retained_error = ERR_SUCCESS;
   L->cert_roots = NULL; L->n_cert_roots = 0;
   L->factors = NULL; L->factor_mults = NULL; L->n_factors = 0;
   acb_init(L->sign);
@@ -391,7 +393,7 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
 
 Lfunc_t Lfunc_init(uint64_t degree, uint64_t conductor, double normalisation,
                    const double *mus, Lerror_t *ecode) {
-  Lparams_t Lp;
+  Lparams_t Lp = {0};
   Lp.degree = degree;
   Lp.conductor = conductor;
   Lp.normalisation = normalisation;

@@ -283,7 +283,7 @@ void final_ifft(Lfunc *L)
 static Lerror_t extract_and_assemble(Lfunc *L, uint64_t k)
 {
   // ---- M's parameters: degree/k, cond^(1/k), mus every k-th ----
-  Lparams_t Mp;
+  Lparams_t Mp = {0};
   Mp.degree = L->degree / k;
   uint64_t cbase; conductor_kth_root(L->conductor, k, &cbase); // exact: certified in prepare
   Mp.conductor = cbase;
@@ -315,6 +315,18 @@ static Lerror_t extract_and_assemble(Lfunc *L, uint64_t k)
   // retained factor, same order). We feed M those EXACT acb_poly roots -- no re-extraction
   // -- so M sees the same point factors L did.
   uint64_t Mmax = Lfunc_nmax(Mt);
+  uint64_t retained_max = 0;
+  for (uint64_t i = 0; i < L->n_retained; i++)
+    if (L->retained_p[i] <= Mmax && L->retained_p[i] > retained_max)
+      retained_max = L->retained_p[i];
+  if (retained_max < Mmax) {
+    ec |= ERR_INSUFF_EULER;
+    if (retained_max == 0 || !Lfunc_reduce_nmax(Mt, retained_max)) {
+      Lfunc_clear(Mt);
+      return ec;
+    }
+    Mmax = retained_max;
+  }
   acb_poly_t Mp_poly; acb_poly_init(Mp_poly);
   for (uint64_t i = 0; i < L->n_retained; i++) {
     uint64_t p = L->retained_p[i];
@@ -404,6 +416,9 @@ Lerror_t Lfunc_compute(Lfunc_t Lf)
   }
 
   int64_t prec=L->wprec;
+
+  if (fatal_error(L->retained_error))
+    return L->retained_error;
 
   // Reject perfect powers / repeated-factor L-functions up front: their doubled
   // zeros break zero-finding (stat_point -> ERR_DBL_ZERO -> RH count mismatch).

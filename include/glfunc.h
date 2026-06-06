@@ -3,6 +3,7 @@
 
 #include <inttypes.h>
 #include <flint/acb_poly.h>
+#include <flint/fmpz_poly.h>
 #include <stdbool.h>
 
 #define DK (-1) // tri-state "don't know" (for self_dual / rank)
@@ -37,7 +38,7 @@
 #define ERR_BAD_DEGREE ((uint64_t) 1024) //fatal error when the degree is too low or too high
 #define ERR_SPEC_NZ ((uint64_t) 2048) // special value routine requires Im s >= 0.
 #define ERR_G_EXTENT ((uint64_t) 4096) // fatal: G grid does not extend low enough (conductor too large for the fixed grid floor, or a cached grid was reused)
-#define ERR_POWER ((uint64_t) 1<<13) // fatal: L is a perfect power / has a repeated primitive factor (doubled zeros); set Lparams.extract_powers to override
+#define ERR_POWER ((uint64_t) 1<<13) // fatal: L is a perfect power / has a repeated primitive factor (doubled zeros); set Lparams.extract_powers and supply exact fmpz factors to extract
 
 // warnings
 #define ERR_SOME_DATA ((uint64_t) 1<<32) // We had some sensible data, but not to end of Turing Zone
@@ -59,6 +60,8 @@ extern "C"{
   // keep details under wraps
   typedef void *Lfunc_t;
 
+  // Zero-initialize before field-by-field assignment; zero is the default for
+  // optional fields such as gprec/wprec and extract_powers.
   typedef struct{
     uint64_t degree;
     uint64_t conductor;
@@ -70,7 +73,7 @@ extern "C"{
     int self_dual; // -1 = DK, 0 = No, 1 = Yes
     int rank; // -1 = DK
     char *cache_dir;
-    int extract_powers; // if YES(1), extract & assemble a perfect power L=M^k (else reject with ERR_POWER); default NO(0)
+    int extract_powers; // if YES(1), extract & assemble a perfect power L=M^k only from exact fmpz Euler factors (else reject with ERR_POWER); default NO(0)
   } Lparams_t;
 
   typedef struct{
@@ -134,10 +137,25 @@ extern "C"{
   // see Lfunc_nmax). The first call here triggers Lfunc_nmax, computing and
   // freezing M if not already done. Setting poly to zero stops the iteration,
   // lowers M to p-1, and flags ERR_INSUFF_EULER.
+  //
+  // acb-supplied factors participate in the repeated-factor/power guard. They
+  // are not exact provenance for extract_powers=YES; a power detected from only
+  // acb factors is rejected with ERR_POWER rather than extracted.
   Lerror_t Lfunc_use_all_lpolys(Lfunc_t L, void (*lpoly_callback) (acb_poly_t lpoly, uint64_t p, int d, int64_t prec, void *parm), void *param);
 
-  // you provide one Euler polynomial at a time
+  // Exact integer-polynomial supply route. This mirrors Lfunc_use_all_lpolys,
+  // but the callback fills an fmpz_poly_t. Leaving it zero is the same
+  // insufficient-supply sentinel. When extract_powers=YES, only factors supplied
+  // through this exact path can certify extraction.
+  Lerror_t Lfunc_use_all_lpolys_fmpz(Lfunc_t L, void (*lpoly_callback)(fmpz_poly_t lpoly, uint64_t p, int d, void *parm), void *param);
+
+  // you provide one Euler polynomial at a time. acb-supplied factors are used for
+  // computation and the repeated-factor guard, but cannot certify extraction.
   void Lfunc_use_lpoly(Lfunc_t L, uint64_t p, const acb_poly_t poly);
+
+  // Exact integer-polynomial single-prime supply. The factor is also converted
+  // to acb internally for the existing computation path.
+  Lerror_t Lfunc_use_lpoly_fmpz(Lfunc_t L, uint64_t p, const fmpz_poly_t poly);
 
   // Once all polys have been provided, do the computation
   Lerror_t Lfunc_compute(Lfunc_t L);
@@ -178,9 +196,9 @@ extern "C"{
   // covering t=[0,max_t]
   // for L or conjugate L
   // returned as doubles in an Lplot_t structure
-  // NB: not meaningful for an L assembled from a power (extract_powers): such an
-  // L skips the sample-generating pipeline, so the plot buffers are empty. Obtain
-  // the primitive factor via Lfunc_factors and plot that instead.
+  // NB: returns NULL for an L assembled from a power (extract_powers): such an
+  // L skips the sample-generating pipeline. Obtain the primitive factor via
+  // Lfunc_factors and plot that instead.
   Lplot_t *Lfunc_plot_data(Lfunc_t L, uint64_t side, double max_t, uint64_t n_points);
 
   // reclaim memory from an Lplot_t structure

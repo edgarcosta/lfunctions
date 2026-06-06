@@ -95,7 +95,7 @@ int main(int argc, char **argv) {
   // Lp.mus, so the local vector suffices, and cache_dir outlives the Lfunc.
   Lerror_t ec = 0;
   char cache_dir[] = ".";
-  Lparams_t Lp;
+  Lparams_t Lp = {};
   Lp.degree = degree;
   Lp.conductor = conductor;
   Lp.normalisation = norm;
@@ -111,21 +111,22 @@ int main(int argc, char **argv) {
   if (fatal_error(ec)) { fprint_errors(stderr, ec); return 1; }
   uint64_t nmax = Lfunc_nmax(L);
 
-  acb_poly_t poly; acb_poly_init(poly);
-  fmpz_t z; fmpz_init(z);
-  acb_t c; acb_init(c);
-  uint64_t count = 0;
-  while (std::getline(in, line)) {
+	  acb_poly_t poly; acb_poly_init(poly);
+	  fmpz_poly_t zpoly; fmpz_poly_init(zpoly);
+	  fmpz_t z; fmpz_init(z);
+	  uint64_t count = 0;
+	  while (std::getline(in, line)) {
     if (line.empty()) continue;
     std::stringstream ss(line);
     uint64_t p; ss >> p;
     if (p > nmax) continue;
-    std::vector<std::string> toks; std::string tok;
-    while (ss >> tok) toks.push_back(tok);
-    acb_poly_zero(poly);
-    if (form_sympow && toks.size() == 1) {
-      // base a_p only: form the Sym^k good-prime factor here, exact fmpz -> acb
-      fmpz_set_str(z, toks[0].c_str(), 10);
+	    std::vector<std::string> toks; std::string tok;
+	    while (ss >> tok) toks.push_back(tok);
+	    acb_poly_zero(poly);
+	    fmpz_poly_zero(zpoly);
+	    if (form_sympow && toks.size() == 1) {
+	      // base a_p only: form the Sym^k good-prime factor here, exact fmpz
+	      fmpz_set_str(z, toks[0].c_str(), 10);
       // A base a_p must satisfy the Hasse bound a_p^2 <= 4p (checked in fmpz to
       // avoid overflow). A value outside it is not a trace (e.g. a mis-padded bad
       // factor whose leading coefficient landed on a one-token line), so fail
@@ -137,40 +138,36 @@ int main(int argc, char **argv) {
         fmpz_set_ui(fourp, p); fmpz_mul_ui(fourp, fourp, 4); // 4p
         const bool hasse_ok = (fmpz_cmp(aa, fourp) <= 0);
         fmpz_clear(aa); fmpz_clear(fourp);
-        if (!hasse_ok) {
-          fprintf(stderr, "sympow base a_p=%s violates the Hasse bound at p=%lu (corrupt input)\n",
-                  toks[0].c_str(), (unsigned long) p);
-          acb_poly_clear(poly); fmpz_clear(z); acb_clear(c); Lfunc_clear(L);
-          return 2;
-        }
-      }
-      fmpz_poly_t f; fmpz_poly_init(f);
-      sym_power_lpoly(f, fmpz_get_si(z), p, sym_k);
-      const slong d = fmpz_poly_degree(f);
-      for (slong j = 0; j <= d; j++) {
-        fmpz_poly_get_coeff_fmpz(z, f, j);
-        acb_set_fmpz(c, z);
-        acb_poly_set_coeff_acb(poly, j, c);
-      }
-      fmpz_poly_clear(f);
-    } else {
-      // explicit local-factor coefficients (ascending): good ec/genus2/cmf primes
-      // and all bad primes, including sympow's
-      for (uint64_t i = 0; i < toks.size(); i++) {
-        fmpz_set_str(z, toks[i].c_str(), 10);
-        acb_set_fmpz(c, z);
-        acb_poly_set_coeff_acb(poly, i, c);
-      }
-    }
-    Lfunc_use_lpoly(L, p, poly);
-    count++;
-  }
+	        if (!hasse_ok) {
+	          fprintf(stderr, "sympow base a_p=%s violates the Hasse bound at p=%lu (corrupt input)\n",
+	                  toks[0].c_str(), (unsigned long) p);
+	          fmpz_poly_clear(zpoly); acb_poly_clear(poly); fmpz_clear(z); Lfunc_clear(L);
+	          return 2;
+	        }
+	      }
+	      sym_power_lpoly(zpoly, fmpz_get_si(z), p, sym_k);
+	    } else {
+	      // explicit local-factor coefficients (ascending): good ec/genus2/cmf primes
+	      // and all bad primes, including sympow's
+	      for (uint64_t i = 0; i < toks.size(); i++) {
+	        fmpz_set_str(z, toks[i].c_str(), 10);
+	        fmpz_poly_set_coeff_fmpz(zpoly, i, z);
+	      }
+	    }
+	    if (extract_power) {
+	      ec |= Lfunc_use_lpoly_fmpz(L, p, zpoly);
+	    } else {
+	      acb_poly_set_fmpz_poly(poly, zpoly, Lfunc_wprec(L));
+	      Lfunc_use_lpoly(L, p, poly);
+	    }
+	    count++;
+	  }
 
-  if (count == 0) {  // nmax query
-    printf("nmax=%lu\n", nmax);
-    acb_poly_clear(poly); fmpz_clear(z); acb_clear(c); Lfunc_clear(L);
-    return 0;
-  }
+	  if (count == 0) {  // nmax query
+	    printf("nmax=%lu\n", nmax);
+	    fmpz_poly_clear(zpoly); acb_poly_clear(poly); fmpz_clear(z); Lfunc_clear(L);
+	    return 0;
+	  }
 
   ec |= Lfunc_compute(L);
   printf("degree=%lu conductor=%lu nmax=%lu primes=%lu\n", degree, conductor, nmax, count);
@@ -182,7 +179,7 @@ int main(int argc, char **argv) {
     check((ec & ERR_POWER) != 0, "power-rejected",
           "guard must reject this repeated-factor object with ERR_POWER");
     fprintf(stderr, "ecode: "); fprint_errors(stderr, ec);
-    acb_poly_clear(poly); fmpz_clear(z); acb_clear(c); Lfunc_clear(L);
+	    fmpz_poly_clear(zpoly); acb_poly_clear(poly); fmpz_clear(z); Lfunc_clear(L);
     return g_fail;
   }
 
@@ -233,6 +230,6 @@ int main(int argc, char **argv) {
   }
 
   fprintf(stderr, "ecode: "); fprint_errors(stderr, ec);
-  acb_poly_clear(poly); fmpz_clear(z); acb_clear(c); Lfunc_clear(L);
+	  fmpz_poly_clear(zpoly); acb_poly_clear(poly); fmpz_clear(z); Lfunc_clear(L);
   return g_fail;
 }

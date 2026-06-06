@@ -14,6 +14,7 @@
 #include <inttypes.h>
 #include <assert.h>
 #include <flint/acb_poly.h>
+#include <flint/fmpz_poly.h>
 #include "glfunc.h"
 
 // real (quadratic) Dirichlet characters, value in {-1,0,1}
@@ -25,6 +26,11 @@ static int chi7(uint64_t p){ uint64_t r=p%7; if(r==0) return 0; return (r==1||r=
 static void linear_factor(acb_poly_t f, int chi){
   acb_poly_one(f);
   if(chi!=0) acb_poly_set_coeff_si(f,1,-chi);
+}
+
+static void linear_factor_z(fmpz_poly_t f, int chi){
+  fmpz_poly_one(f);
+  if(chi!=0) fmpz_poly_set_coeff_si(f,1,-chi);
 }
 
 // complex (order-4) Dirichlet character mod 5: chi(2)=i (2 is a primitive root mod 5),
@@ -93,11 +99,33 @@ static void cb(acb_poly_t poly, uint64_t p, int d, int64_t prec, void *param){
   acb_poly_clear(a); acb_poly_clear(b);
 }
 
+static void cb_z(fmpz_poly_t poly, uint64_t p, int d, void *param){
+  (void)d;
+  int kind = *(int *)param;
+  fmpz_poly_t a;
+  fmpz_poly_init(a);
+  if(kind==1){
+    linear_factor_z(a, chi5(p));
+    fmpz_poly_mul(poly, a, a);                 // (1-chi5 T)^2
+  } else {
+    fmpz_poly_zero(poly);
+  }
+  fmpz_poly_clear(a);
+}
+
 // supply Euler factors and run the computation; return the accumulated error code
 static Lerror_t run(Lfunc_t L, int kind){
   Lerror_t ecode = ERR_SUCCESS;
   int k = kind;
   ecode |= Lfunc_use_all_lpolys(L, cb, &k);
+  ecode |= Lfunc_compute(L);
+  return ecode;
+}
+
+static Lerror_t run_z(Lfunc_t L, int kind){
+  Lerror_t ecode = ERR_SUCCESS;
+  int k = kind;
+  ecode |= Lfunc_use_all_lpolys_fmpz(L, cb_z, &k);
   ecode |= Lfunc_compute(L);
   return ecode;
 }
@@ -118,7 +146,7 @@ int main(void){
 
   // 2. same object, opted in: extraction attempted, M would be degree 1 -> ERR_BAD_DEGREE.
   //    The power IS recognised (not ERR_POWER), but the primitive factor is sub-degree-2.
-  Lparams_t Lp;
+  Lparams_t Lp = {0};
   Lp.degree = 2; Lp.conductor = 25; Lp.normalisation = 0.0; Lp.mus = mus2;
   Lp.target_prec = DEFAULT_TARGET_PREC; Lp.wprec = 0; Lp.gprec = 0;
   Lp.self_dual = DK; Lp.rank = DK; Lp.cache_dir = ".";
@@ -126,7 +154,7 @@ int main(void){
   ecode = ERR_SUCCESS;
   Lfunc_t L2 = Lfunc_init_advanced(&Lp, &ecode);
   assert(!fatal_error(ecode));
-  Lerror_t e2 = run(L2, 1);
+  Lerror_t e2 = run_z(L2, 1);
   Lfunc_clear(L2);
   assert(e2 & ERR_BAD_DEGREE);   // confirmed a power; M = degree 1 is unsupported
   assert(!(e2 & ERR_POWER));     // not guard-rejected; extraction was attempted
@@ -138,6 +166,7 @@ int main(void){
   Lerror_t e3 = run(L3, 2);
   Lfunc_clear(L3);
   assert(!(e3 & ERR_POWER));
+  assert(!fatal_error(e3));
 
   // 4. a 4th power at degree 4 -> rejected
   ecode = ERR_SUCCESS;
@@ -181,6 +210,7 @@ int main(void){
   Lerror_t e7 = run(L7, 6);
   Lfunc_clear(L7);
   assert(!(e7 & ERR_POWER));    // complex squarefree -> not flagged
+  assert(!fatal_error(e7));      // and no other fatal error was hidden by the control
 
   printf("power_guard_test: all assertions passed\n");
   return 0;

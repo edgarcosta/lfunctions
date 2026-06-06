@@ -6,6 +6,7 @@
 #include <flint/acb_poly.h>
 #include <flint/fmpz_poly.h>
 #include <flint/ulong_extras.h>
+#include <string.h>
 
 #ifdef __cplusplus
 extern "C"{
@@ -129,7 +130,7 @@ void use_inv_lpoly(Lfunc *L, uint64_t p, acb_poly_t c, acb_poly_t f, uint64_t pr
   #else
 void use_inv_lpoly(Lfunc *L, uint64_t p, acb_poly_t c, uint64_t prec)
 #endif  
-{
+  {
   acb_t tmp;
   acb_init(tmp);
   //if(p==2) {printf("p=%" PRIu64 " 1/poly=",p);acb_poly_printd(c,20);printf("\npoly=");acb_poly_printd(f,20);printf("\n");}
@@ -158,7 +159,70 @@ void use_inv_lpoly(Lfunc *L, uint64_t p, acb_poly_t c, uint64_t prec)
   acb_clear(tmp);
 }
 
-void use_lpoly(Lfunc *L, uint64_t p, const acb_poly_t f)
+static bool retained_reserve(Lfunc *L, uint64_t nc)
+{
+  uint64_t old_cap = L->retained_cap;
+  uint64_t *new_p = (uint64_t *) realloc(L->retained_p, sizeof(uint64_t)*nc);
+  if (!new_p) {
+    L->retained_error |= ERR_OOM;
+    return false;
+  }
+  L->retained_p = new_p;
+
+  acb_poly_struct *new_f = (acb_poly_struct *) realloc(L->retained_f, sizeof(acb_poly_struct)*nc);
+  if (!new_f) {
+    L->retained_error |= ERR_OOM;
+    return false;
+  }
+  L->retained_f = new_f;
+
+  fmpz_poly_struct *new_z = (fmpz_poly_struct *) realloc(L->retained_fmpz, sizeof(fmpz_poly_struct)*nc);
+  if (!new_z) {
+    L->retained_error |= ERR_OOM;
+    return false;
+  }
+  L->retained_fmpz = new_z;
+
+  bool *new_exact = (bool *) realloc(L->retained_is_exact, sizeof(bool)*nc);
+  if (!new_exact) {
+    L->retained_error |= ERR_OOM;
+    return false;
+  }
+  L->retained_is_exact = new_exact;
+  memset(L->retained_is_exact + old_cap, 0, sizeof(bool)*(nc - old_cap));
+  L->retained_cap = nc;
+  return true;
+}
+
+static bool retained_append(Lfunc *L, uint64_t p, const acb_poly_t f,
+                            const fmpz_poly_t fz, bool is_exact)
+{
+  if (L->extract_powers != YES)
+    return true;
+  if (fatal_error(L->retained_error))
+    return false;
+  if (L->n_retained == L->retained_cap) {
+    uint64_t nc = L->retained_cap ? 2*L->retained_cap : 256;
+    if (!retained_reserve(L, nc))
+      return false;
+  }
+
+  uint64_t i = L->n_retained;
+  L->retained_p[i] = p;
+  L->retained_is_exact[i] = false;
+  acb_poly_init(&L->retained_f[i]);
+  acb_poly_set(&L->retained_f[i], f);
+  if (is_exact) {
+    fmpz_poly_init(&L->retained_fmpz[i]);
+    fmpz_poly_set(&L->retained_fmpz[i], fz);
+    L->retained_is_exact[i] = true;
+  }
+  L->n_retained++;
+  return true;
+}
+
+static void use_lpoly_with_exact(Lfunc *L, uint64_t p, const acb_poly_t f,
+                                 const fmpz_poly_t fz, bool is_exact)
 {
   int64_t prec=L->wprec;
   acb_t tmp;
@@ -171,33 +235,7 @@ void use_lpoly(Lfunc *L, uint64_t p, const acb_poly_t f)
   acb_poly_init(n_poly);
   acb_poly_init(inv_poly);
   // w70.2: retain the raw Euler factor for later k-th-root extraction
-  if (L->extract_powers == YES) {
-    if (L->n_retained == L->retained_cap) {
-      uint64_t nc = L->retained_cap ? 2*L->retained_cap : 256;
-      uint64_t *new_p = (uint64_t *) realloc(L->retained_p, sizeof(uint64_t)*nc);
-      if (!new_p) {
-        L->extract_powers = NO;
-      } else {
-        acb_poly_struct *new_f = (acb_poly_struct *) realloc(L->retained_f, sizeof(acb_poly_struct)*nc);
-        if (!new_f) {
-          // Note: new_p doesn't strictly leak here since we realloc'd in-place or returned new pointer,
-          // but we assign it to retained_p so it gets freed on clear.
-          L->retained_p = new_p; 
-          L->extract_powers = NO;
-        } else {
-          L->retained_p = new_p;
-          L->retained_f = new_f;
-          L->retained_cap = nc;
-        }
-      }
-    }
-    if (L->extract_powers == YES) {
-      L->retained_p[L->n_retained] = p;
-      acb_poly_init(&L->retained_f[L->n_retained]);
-      acb_poly_set(&L->retained_f[L->n_retained], f);
-      L->n_retained++;
-    }
-  }
+  retained_append(L, p, f, fz, is_exact);
   //if(p<=2){printf("in use_lpoly pre-norm with p = %" PRIu64 "\n",p);acb_poly_printd(f,20);printf("\n");}
   arb_log_ui(logp,p,prec);
   // normalise by multiplying each term by p^(-m norm)
@@ -276,67 +314,61 @@ bool conductor_kth_root(uint64_t cond, uint64_t k, uint64_t *base)
   return rem == 0;
 }
 
-// Rigorously decide whether the EXACT integer Euler factor Lp is a perfect k-th
-// power of an algebraic polynomial. If so, set Mp to that algebraic root and return
-// true; else return false. EXACT: rounds the ball k-th root to algebraic integers and checks
-// Mp^k == Lp exactly over acb.
-bool poly_exact_kth_root(acb_poly_t Mp, const acb_poly_t Lp, uint64_t k, int64_t prec)
+static bool fmpz_poly_exact_kth_root(fmpz_poly_t Mz, const fmpz_poly_t Lz, uint64_t k)
 {
-  slong d = acb_poly_degree(Lp);
-  if (d < 0 || (d % (slong)k) != 0) return false;
+  if (k < 2)
+    return false;
+  slong d = fmpz_poly_degree(Lz);
+  if (d < 0 || (d % (slong)k) != 0)
+    return false;
 
-  // We require Lp to be exact
-  for (slong i = 0; i <= d; i++) {
-    acb_srcptr c = acb_poly_get_coeff_ptr(Lp, i);
-    if (c != NULL && !acb_is_exact(c)) return false;
+  fmpz_t c0;
+  fmpz_init(c0);
+  fmpz_poly_get_coeff_fmpz(c0, Lz, 0);
+  if (!fmpz_is_one(c0)) {
+    fmpz_clear(c0);
+    return false;
   }
+  fmpz_clear(c0);
 
-  acb_poly_t root; acb_poly_init(root);
-  acb_t e; acb_init(e); acb_set_ui(e, 1); acb_div_ui(e, e, k, prec);
-  acb_poly_pow_acb_series(root, Lp, e, d/(slong)k + 1, prec);
-  acb_clear(e);
+  slong md = d / (slong)k;
+  fmpz_poly_zero(Mz);
+  fmpz_poly_set_coeff_ui(Mz, 0, 1);
 
-  acb_poly_zero(Mp);
-  for (slong i = 0; i <= d/(slong)k; i++) {
-    acb_srcptr c = acb_poly_get_coeff_ptr(root, i);
-    acb_t z; acb_init(z);
-    if (c != NULL) {
-      fmpz_t r, im; fmpz_init(r); fmpz_init(im);
-      arf_get_fmpz(r, arb_midref(acb_realref(c)), ARF_RND_NEAR);
-      arf_get_fmpz(im, arb_midref(acb_imagref(c)), ARF_RND_NEAR);
-      arb_set_fmpz(acb_realref(z), r);
-      arb_set_fmpz(acb_imagref(z), im);
-      fmpz_clear(r); fmpz_clear(im);
-    }
-    acb_poly_set_coeff_acb(Mp, i, z);
-    acb_clear(z);
-  }
-  acb_poly_clear(root);
-
-  acb_poly_t chk; acb_poly_init(chk);
-  acb_poly_pow_ui(chk, Mp, (ulong)k, prec);
+  fmpz_poly_t cur, chk;
+  fmpz_poly_init(cur);
+  fmpz_poly_init(chk);
+  fmpz_t target, current, diff;
+  fmpz_init(target);
+  fmpz_init(current);
+  fmpz_init(diff);
 
   bool ok = true;
-  for (slong i = 0; i <= d && ok; i++) {
-    acb_srcptr c_L = acb_poly_get_coeff_ptr(Lp, i);
-    acb_srcptr c_chk = acb_poly_get_coeff_ptr(chk, i);
-    acb_t exact_chk; acb_init(exact_chk);
-    if (c_chk != NULL) {
-      fmpz_t r, im; fmpz_init(r); fmpz_init(im);
-      arf_get_fmpz(r, arb_midref(acb_realref(c_chk)), ARF_RND_NEAR);
-      arf_get_fmpz(im, arb_midref(acb_imagref(c_chk)), ARF_RND_NEAR);
-      arb_set_fmpz(acb_realref(exact_chk), r);
-      arb_set_fmpz(acb_imagref(exact_chk), im);
-      fmpz_clear(r); fmpz_clear(im);
+  for (slong n = 1; n <= md && ok; n++) {
+    fmpz_poly_pow(cur, Mz, (ulong)k);
+    fmpz_poly_get_coeff_fmpz(target, Lz, n);
+    fmpz_poly_get_coeff_fmpz(current, cur, n);
+    fmpz_sub(diff, target, current);
+    if (!fmpz_divisible_ui(diff, (ulong)k)) {
+      ok = false;
+      break;
     }
-    if (c_L == NULL) {
-      if (!acb_is_zero(exact_chk)) ok = false;
-    } else {
-      if (!acb_equal(c_L, exact_chk)) ok = false;
-    }
-    acb_clear(exact_chk);
+    fmpz_divexact_ui(diff, diff, (ulong)k);
+    fmpz_poly_set_coeff_fmpz(Mz, n, diff);
   }
-  acb_poly_clear(chk);
+
+  if (ok) {
+    fmpz_poly_pow(chk, Mz, (ulong)k);
+    ok = fmpz_poly_equal(chk, Lz);
+  }
+
+  fmpz_clear(diff);
+  fmpz_clear(current);
+  fmpz_clear(target);
+  fmpz_poly_clear(chk);
+  fmpz_poly_clear(cur);
+  if (!ok)
+    fmpz_poly_zero(Mz);
   return ok;
 }
 
@@ -354,8 +386,8 @@ static void cert_roots_reset(Lfunc *L)
 }
 
 // Run the full rigorous certificate for a fixed candidate k: EVERY retained factor
-// (good AND bad) must be an exact integer k-th power (certified over acb_poly), each
-// sorted block of k mus must be equal, and at least one full-degree (good) factor must
+// (good AND bad) must have exact fmpz provenance and be an exact integer k-th
+// power, each sorted block of k mus must be equal, and at least one full-degree factor must
 // be present. On success, the exact algebraic roots are kept in L->cert_roots (one per
 // retained factor, same order) for reuse when feeding M, and true is returned. On any
 // failure the partially-built store is freed and false is returned.
@@ -374,18 +406,28 @@ static bool power_certify_k(Lfunc *L, uint64_t k)
   if (L->n_retained) {
     L->cert_roots = (acb_poly_struct *) malloc(sizeof(acb_poly_struct)*L->n_retained);
     if (!L->cert_roots) {
+      L->retained_error |= ERR_OOM;
       return false;
     }
   }
   bool seen_full = false;
   for (uint64_t i = 0; i < L->n_retained; i++) {
-    if (acb_poly_degree(&L->retained_f[i]) == (slong)L->degree) seen_full = true;
-    acb_poly_init(&L->cert_roots[i]);
-    L->n_cert_roots = i + 1;
-    if (!poly_exact_kth_root(&L->cert_roots[i], &L->retained_f[i], k, L->wprec)) {
+    if (!L->retained_is_exact || !L->retained_is_exact[i]) {
       cert_roots_reset(L);
       return false;
     }
+    if (fmpz_poly_degree(&L->retained_fmpz[i]) == (slong)L->degree) seen_full = true;
+    fmpz_poly_t root_z;
+    fmpz_poly_init(root_z);
+    if (!fmpz_poly_exact_kth_root(root_z, &L->retained_fmpz[i], k)) {
+      fmpz_poly_clear(root_z);
+      cert_roots_reset(L);
+      return false;
+    }
+    acb_poly_init(&L->cert_roots[i]);
+    L->n_cert_roots = i + 1;
+    acb_poly_set_fmpz_poly(&L->cert_roots[i], root_z, L->wprec);
+    fmpz_poly_clear(root_z);
   }
   if (!seen_full) { cert_roots_reset(L); return false; }
   return true;
@@ -396,6 +438,8 @@ static bool power_certify_k(Lfunc *L, uint64_t k)
 // roots are cached in L->cert_roots for reuse by extract_and_assemble.
 Lerror_t power_extract_prepare(Lfunc *L, uint64_t *k_out)
 {
+  if (fatal_error(L->retained_error))
+    return L->retained_error;
   if (L->moment_count == 0) return ERR_POWER;
   
   // For L = M^k the true exponent k satisfies k | degree (M has degree/k Gamma factors)
@@ -412,6 +456,8 @@ Lerror_t power_extract_prepare(Lfunc *L, uint64_t *k_out)
     if ((L->degree % k) != 0) continue;   // M's degree = degree/k must be a positive integer
     if (!conductor_kth_root(L->conductor, k, &cbase)) continue; // cond not an exact k-th power
     if (power_certify_k(L, k)) { *k_out = k; return ERR_SUCCESS; }
+    if (fatal_error(L->retained_error))
+      return L->retained_error;
   }
   cert_roots_reset(L);
   return ERR_POWER;
@@ -462,7 +508,19 @@ void Lfunc_use_lpoly(Lfunc_t Lf, uint64_t p, const acb_poly_t poly)
 {
   Lfunc *L;
   L=(Lfunc *)Lf;
-  use_lpoly(L,p,poly);
+  use_lpoly_with_exact(L,p,poly,NULL,false);
+}
+
+Lerror_t Lfunc_use_lpoly_fmpz(Lfunc_t Lf, uint64_t p, const fmpz_poly_t poly)
+{
+  Lfunc *L;
+  L=(Lfunc *)Lf;
+  acb_poly_t apoly;
+  acb_poly_init(apoly);
+  acb_poly_set_fmpz_poly(apoly, poly, L->wprec);
+  use_lpoly_with_exact(L,p,apoly,poly,true);
+  acb_poly_clear(apoly);
+  return L->retained_error;
 }
 
 
@@ -498,7 +556,11 @@ Lerror_t Lfunc_use_all_lpolys(Lfunc_t Lf, void (*lpoly_callback) (acb_poly_t lpo
       ecode|=ERR_INSUFF_EULER;
       break;
     }
-    use_lpoly(L,p,lp);
+    use_lpoly_with_exact(L,p,lp,NULL,false);
+    if (fatal_error(L->retained_error)) {
+      ecode |= L->retained_error;
+      break;
+    }
   }
 
   //for(i=0;i<20;i++)
@@ -506,7 +568,53 @@ Lerror_t Lfunc_use_all_lpolys(Lfunc_t Lf, void (*lpoly_callback) (acb_poly_t lpo
 
   primesieve_free_iterator(&it);
   acb_poly_clear(lp);
-  return ecode;
+  return ecode | L->retained_error;
+}
+
+Lerror_t Lfunc_use_all_lpolys_fmpz(Lfunc_t Lf, void (*lpoly_callback)(fmpz_poly_t lpoly, uint64_t p, int d, void *parm), void *param)
+{
+  Lfunc *L;
+  L=(Lfunc *)Lf;
+  if(!L->nmax_called)
+  {
+    L->M=Lfunc_nmax(Lf);
+    L->nmax_called=true;
+  }
+
+  fmpz_poly_t lp;
+  acb_poly_t ap;
+  fmpz_poly_init(lp);
+  acb_poly_init(ap);
+  primesieve_iterator it;
+  primesieve_init(&it);
+  uint64_t p=0;
+  Lerror_t ecode=ERR_SUCCESS;
+  while((p=primesieve_next_prime(&it)) <= L->M)
+  {
+    fmpz_poly_zero(lp);
+    lpoly_callback(lp,p,L->degree,param);
+    if(fmpz_poly_is_zero(lp))
+    {
+      #ifdef BUTHE
+      if(p<L->buthe_M)
+        L->buthe_M=p-1;
+      #endif
+      L->M=p-1;
+      ecode|=ERR_INSUFF_EULER;
+      break;
+    }
+    acb_poly_set_fmpz_poly(ap, lp, L->wprec);
+    use_lpoly_with_exact(L,p,ap,lp,true);
+    if (fatal_error(L->retained_error)) {
+      ecode |= L->retained_error;
+      break;
+    }
+  }
+
+  primesieve_free_iterator(&it);
+  acb_poly_clear(ap);
+  fmpz_poly_clear(lp);
+  return ecode | L->retained_error;
 }
 
 bool Lfunc_reduce_nmax(Lfunc_t LL, uint64_t nmax)

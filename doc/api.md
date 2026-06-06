@@ -101,6 +101,7 @@ typedef struct {
   int      self_dual;     // DK / YES / NO
   int      rank;          // DK, or a known rank
   char    *cache_dir;     // directory for the cached G data
+  int      extract_powers; // YES to extract and assemble clean powers from exact fmpz supply
 } Lparams_t;
 ```
 
@@ -112,6 +113,7 @@ typedef struct {
 | {c:member}`self_dual <Lparams_t.self_dual>` | whether the L-function equals its dual | `DK`: the library decides |
 | {c:member}`rank <Lparams_t.rank>` | analytic rank, if already known | `DK`: the library determines it |
 | {c:member}`cache_dir <Lparams_t.cache_dir>` | where to read/write cached G data | current directory; see [The G-data cache](#g-data-cache) |
+| {c:member}`extract_powers <Lparams_t.extract_powers>` | opt in to computing a certified pure power `L = M^k` by extracting `M` from exact `fmpz_poly_t` Euler-factor supply and assembling the result | `NO`: reject powers with {c:macro}`ERR_POWER` |
 
 The tri-state fields use the macros {c:macro}`DK` (-1, "don't know"),
 {c:macro}`YES` (1), and {c:macro}`NO` (0). Setting `self_dual = YES` when you
@@ -119,6 +121,26 @@ know the L-function is self-dual (every elliptic curve over Q, for instance)
 lets the library skip computing the dual side. Supplying a known `rank` lets it
 skip the rank search; if the computed rank then disagrees with what you
 supplied, you get the {c:macro}`ERR_CONFLICT_RANK` warning.
+
+The power/repeated-factor guard is enabled by default. If the supplied
+L-function appears to be a perfect power, or to have repeated primitive factors,
+the default behavior is to stop with the fatal {c:macro}`ERR_POWER` flag rather
+than continue into a zero search with repeated zeros. Set
+{c:member}`extract_powers <Lparams_t.extract_powers>` to {c:macro}`YES` only
+when you want the library to certify a clean pure power `L = M^k`, compute the
+primitive factor `M`, and assemble the rank, zeros, sign, Taylor coefficient,
+and special values of `L` from it. The extracted factor is available through
+{c:func}`Lfunc_factors`. This is not a general factorisation API: a primitive
+object reports no factors, and an extracted pure power reports one primitive
+factor with its multiplicity.
+
+Extraction is certified only from exact integer-polynomial Euler factors supplied
+through {c:func}`Lfunc_use_lpoly_fmpz` or
+{c:func}`Lfunc_use_all_lpolys_fmpz`. Factors supplied through the `acb_poly_t`
+APIs are still used for computation and for the repeated-factor guard, but they
+do not carry exact provenance; if the guard detects a power from acb-only or
+mixed acb/fmpz supply under `extract_powers = YES`, computation stops with
+{c:macro}`ERR_POWER` rather than extracting.
 
 Leaving a numeric knob at 0 asks the library to choose it. There is no need to
 set `target_prec`, `wprec`, or `gprec` unless you have a specific reason;
@@ -131,8 +153,9 @@ Between creation and computation you hand the library the local L-factors of
 the L-series. The routes are described in detail in
 [Supplying Euler factors](#supplying-euler-factors). In brief: either let the
 library drive a callback over every prime it needs
-({c:func}`Lfunc_use_all_lpolys`), or push factors one prime at a time
-({c:func}`Lfunc_use_lpoly`).
+({c:func}`Lfunc_use_all_lpolys` or
+{c:func}`Lfunc_use_all_lpolys_fmpz`), or push factors one prime at a time
+({c:func}`Lfunc_use_lpoly` or {c:func}`Lfunc_use_lpoly_fmpz`).
 
 ### 3. Compute
 
@@ -201,15 +224,17 @@ the worked examples use `mus = [0, 1]` with the weight-derived
 
 ## Supplying Euler factors
 
-The library needs the local L-factor `L_p(T)` (an `acb_poly_t`, a polynomial in
-`T` with the constant term normalised to 1) for every prime `p` up to a bound
-fixed by the conductor and degree. {c:func}`Lfunc_nmax` returns that bound:
+The library needs the local L-factor `L_p(T)` (a polynomial in `T` with the
+constant term normalised to 1) for every prime `p` up to a bound fixed by the
+conductor and degree. You may supply it numerically as an `acb_poly_t`, or
+exactly as an integer `fmpz_poly_t`. {c:func}`Lfunc_nmax` returns that bound:
 
 ```c
 uint64_t nmax = Lfunc_nmax(L);   // largest prime p for which a factor is expected
 ```
 
-There are two ways to deliver the factors.
+There are acb and exact-fmpz variants of the callback and one-prime-at-a-time
+routes.
 
 ### Driven by the library: `Lfunc_use_all_lpolys`
 
@@ -248,18 +273,36 @@ void lpoly_callback(acb_poly_t poly, uint64_t p, int d, int64_t prec, void *para
 }
 ```
 
+### Exact integer callback: `Lfunc_use_all_lpolys_fmpz`
+
+```c
+Lerror_t Lfunc_use_all_lpolys_fmpz(
+    Lfunc_t L,
+    void (*lpoly_callback)(fmpz_poly_t lpoly, uint64_t p, int d, void *parm),
+    void *param);
+```
+
+This is the same prime-driven interface, but the callback fills an exact
+integer polynomial. Leaving `lpoly` equal to zero is the same insufficient-supply
+sentinel. Use this route when you want `extract_powers = YES` to be able to
+certify and assemble a pure power.
+
 ### One prime at a time: `Lfunc_use_lpoly`
 
 ```c
 void Lfunc_use_lpoly(Lfunc_t L, uint64_t p, const acb_poly_t poly);
+Lerror_t Lfunc_use_lpoly_fmpz(Lfunc_t L, uint64_t p, const fmpz_poly_t poly);
 ```
 
 Push a single factor for the prime `p`. Use this when you already have the
 primes enumerated (for example from `primesieve`) and want to loop yourself.
-The library copies `poly`. The [worked example](#a-worked-end-to-end-example)
-on this page uses the callback form;
+The library copies `poly`; the fmpz variant also converts it internally to acb
+for the numerical computation while retaining the exact provenance needed for
+power extraction. `Lfunc_use_lpoly_fmpz` returns any fatal retention error
+immediately; callers should OR it into their accumulated `Lerror_t`. The
+[worked example](#a-worked-end-to-end-example) on this page uses the callback form;
 [`examples/rational.c`](https://github.com/edgarcosta/lfunctions/blob/main/examples/rational.c)
-uses this push form over a `primesieve`-generated prime list.
+uses the exact push form over a `primesieve`-generated prime list.
 
 ### Supplying fewer factors than `nmax`: `Lfunc_reduce_nmax`
 
@@ -272,7 +315,7 @@ to declare a smaller bound. **The library takes your word for it and does not
 check** that the reduced bound still yields a correct result, so use it only
 when you understand the consequence. Supplying too few factors (whether through
 this call, or by zero-terminating the callback early, or by simply pushing
-fewer with {c:func}`Lfunc_use_lpoly`) is reported after the computation as the
+fewer with {c:func}`Lfunc_use_lpoly` / {c:func}`Lfunc_use_lpoly_fmpz`) is reported after the computation as the
 {c:macro}`ERR_INSUFF_EULER` warning: the library expected more Euler factors
 than it received, so the results may be degraded or, in the worst case,
 meaningless.
@@ -282,8 +325,8 @@ meaningless.
 raw Dirichlet coefficients `a_n` (and the associated input-validation error
 codes) is being added in the batch-supply API. Those entry points are not part
 of the interface on `main` yet; this guide will document them once they land.
-For now the supply routes are the callback ({c:func}`Lfunc_use_all_lpolys`) and
-the single-prime push ({c:func}`Lfunc_use_lpoly`) described above.
+For now the supply routes are the callback and single-prime push APIs described
+above.
 ```
 
 ## Querying the results
@@ -325,6 +368,23 @@ normalisation (when the input is algebraic, `w` is the motivic weight). It
 carries the same rigour caveat as the rank: rigorous for rank 0 or 1. To
 evaluate the L-function exactly at the central point, use this rather than
 {c:func}`Lfunc_special_value`.
+
+### Extracted factors: `Lfunc_factors`
+
+```c
+uint64_t Lfunc_factors(Lfunc_t L, Lfunc_t **factors, uint64_t **mults);
+```
+
+For a primitive object, or for an object that was not produced through
+{c:member}`extract_powers <Lparams_t.extract_powers>`, this returns 0. For a
+successfully extracted pure power `L = M^k`, it returns 1, stores a borrowed
+pointer to `M` in `factors[0]`, and stores `k` in `mults[0]`. The returned
+arrays and factor objects are owned by `L`; do not clear them yourself, and do
+not use them after {c:func}`Lfunc_clear(L)`.
+
+The assembled object exposes the quantities that can be assembled from the
+factor: rank, sign, zeros, leading Taylor coefficient, and special values.
+Plot samples are the exception; see [Plot data](#plot-data-lfunc-plot-data-and-lfunc-clear-plot).
 
 ### Zeros: `Lfunc_zeros`
 
@@ -380,6 +440,13 @@ typedef struct {
 Free it with {c:func}`Lfunc_clear_plot` when done. Unlike the query accessors
 above, this struct is a separate allocation that you own.
 
+```{warning}
+Plot samples are not meaningful for an object assembled through
+{c:member}`extract_powers <Lparams_t.extract_powers>`, because that path skips
+the sample-generating pipeline. Use {c:func}`Lfunc_factors` to obtain the
+primitive factor and plot that factor instead.
+```
+
 ## Error handling
 
 Every API entry point that can fail returns an {c:type}`Lerror_t`, a 64-bit
@@ -425,6 +492,7 @@ flag to the given `FILE *`. {c:macro}`ERR_SUCCESS` (0) is the clean state.
 | {c:macro}`ERR_BAD_DEGREE` | degree below 2 or above {c:macro}`MAX_DEGREE` |
 | {c:macro}`ERR_SPEC_NZ` | special value requested with `Im(s) < 0` |
 | {c:macro}`ERR_G_EXTENT` | the G grid does not extend low enough (conductor too large for the fixed grid floor, or a stale cached grid was reused) |
+| {c:macro}`ERR_POWER` | the supplied L-function is a perfect power or has repeated primitive factors; set {c:member}`extract_powers <Lparams_t.extract_powers>` to {c:macro}`YES` and supply exact fmpz Euler factors to request certified extraction of a clean pure power |
 
 ### Warning codes
 
@@ -594,7 +662,7 @@ reading:
 - [`rational.c`](https://github.com/edgarcosta/lfunctions/blob/main/examples/rational.c):
   a generic command-line driver that parses
   `label:degree:conductor:weight:[mus]:[[euler_factors]]` lines and uses the
-  {c:func}`Lfunc_use_lpoly` push route over a `primesieve` prime list.
+  {c:func}`Lfunc_use_lpoly_fmpz` push route over a `primesieve` prime list.
 
 ## Full header reference
 

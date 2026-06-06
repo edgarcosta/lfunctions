@@ -52,7 +52,7 @@ static void cleanup_dir(const char *dir) {
 // exp(2 pi (hi_i + 1/2) / B) term directly.
 static uint64_t nmax_in(uint64_t degree, double normalisation,
                         const double *mus, const char *cache_dir) {
-  Lparams_t Lp;
+  Lparams_t Lp = {0};
   Lp.degree = degree;
   Lp.conductor = 1;
   Lp.normalisation = normalisation;

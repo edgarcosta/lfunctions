@@ -60,6 +60,9 @@ double normalised(Lfunc *L, uint64_t side, uint64_t ptr, double t)
 Lplot_t *Lfunc_plot_data(Lfunc_t LL, uint64_t side, double max_t, uint64_t n_points)
 {
   Lfunc *L=(Lfunc *) LL;
+  if(L->n_factors > 0)
+    return (Lplot_t *) NULL;
+
   Lplot_t *Lp;
   Lp=(Lplot_t *)malloc(sizeof(Lplot_t));
   if(!Lp)
