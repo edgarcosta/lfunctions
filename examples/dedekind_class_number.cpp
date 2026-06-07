@@ -1,16 +1,19 @@
-// Self-test examples for number-field quotients:
-// M_K(s) = zeta_K(s) / zeta(s), checked at s = 1 against the analytic
-// class number formula and against zeros.
+// Copyright Edgar Costa 2026
+// See LICENSE file for license details.
 //
-// The engine does not support the pole of zeta_K directly, so this example
-// verifies the Dedekind residue through the entire quotient M_K.
-// PARI's lfuncreate(polynomial) computes zeta_K, so zero goldens for M_K are
-// formed by omitting the Riemann-zeta zeros from the PARI list when they occur.
+// Embedded self-test examples for number-field quotients:
+//   M_K(s) = zeta_K(s) / zeta(s).
+//
+// The engine does not support the pole of zeta_K directly, so each row checks
+// the Dedekind residue through the quotient M_K(1), using the analytic class
+// number formula, and also pins leading zeros.  PARI's lfuncreate(polynomial)
+// computes zeta_K, so zero goldens for M_K are formed by omitting Riemann-zeta
+// zeros from the PARI list when they occur.
 #include <algorithm>
-#include <cassert>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <iostream>
 #include <map>
 #include <vector>
 
@@ -20,12 +23,32 @@
 #include <flint/mag.h>
 #include <flint/nmod_poly.h>
 #include <flint/nmod_poly_factor.h>
+#include <flint/ulong_extras.h>
 
 #include "glfunc.h"
+#include "examples_tools.h"
 
+using std::cerr;
+using std::cout;
+using std::endl;
 using std::map;
 using std::uint64_t;
 using std::vector;
+
+// ---------------------------------------------------------------------------
+// Embedded regression self-test.
+//
+// Each row builds M_K by supplying good-prime quotient Euler factors from the
+// defining polynomial and explicit bad-prime factors from LMFDB/PARI data, then
+// runs the normal Lfunc_init_advanced -> Lfunc_use_all_lpolys -> Lfunc_compute
+// path.  Coverage grows by adding rows to DEDEKIND_TESTS; the shared helpers
+// keep every row checking the same certified output: analytic rank, root number,
+// M_K(1) via the class-number formula, and leading zeros.
+// ---------------------------------------------------------------------------
+
+// Ball radius (2^-TEST_ERR_BITS) placed around every golden constant before the
+// overlap check, matching examples/artin.cpp.
+static const slong TEST_ERR_BITS = 50;
 
 static const size_t MAX_TEST_DEGREE = 8;
 static const size_t MAX_TEST_ZEROS = 9;
@@ -136,9 +159,9 @@ static void assert_lpoly_coeffs(const vector<slong>& degrees, const vector<long>
   fmpz_poly_init(pol);
   mk_lpoly_from_degrees(pol, degrees);
 
-  assert(fmpz_poly_length(pol) == slong(expected.size()));
+  assert_print(fmpz_poly_length(pol), ==, slong(expected.size()));
   for (size_t i = 0; i < expected.size(); ++i)
-    assert(fmpz_poly_get_coeff_si(pol, slong(i)) == expected[i]);
+    assert_print(fmpz_poly_get_coeff_si(pol, slong(i)), ==, expected[i]);
 
   fmpz_poly_clear(pol);
 }
@@ -217,7 +240,7 @@ static void assert_radius_below(arb_srcptr x, double tol)
   mag_t mtol;
   mag_init(mtol);
   mag_set_d(mtol, tol);
-  assert(mag_cmp(arb_radref(x), mtol) < 0);
+  assert_print(mag_cmp(arb_radref(x), mtol), <, 0);
   mag_clear(mtol);
 }
 
@@ -226,8 +249,8 @@ static void assert_arb_overlaps_str(arb_srcptr value, const char *s)
   arb_t ref;
   arb_init(ref);
   arb_set_str(ref, s, 300);
-  arb_add_error_2exp_si(ref, -50);
-  assert(arb_overlaps(value, ref));
+  arb_add_error_2exp_si(ref, -TEST_ERR_BITS);
+  assert_print(arb_overlaps(value, ref), !=, 0);
   arb_clear(ref);
 }
 
@@ -237,13 +260,19 @@ static void assert_acb_overlaps_str(acb_srcptr value, const char *re, const char
   acb_init(ref);
   arb_set_str(acb_realref(ref), re, 300);
   arb_set_str(acb_imagref(ref), im, 300);
-  arb_add_error_2exp_si(acb_realref(ref), -50);
-  arb_add_error_2exp_si(acb_imagref(ref), -50);
-  assert(acb_overlaps(value, ref));
+  arb_add_error_2exp_si(acb_realref(ref), -TEST_ERR_BITS);
+  arb_add_error_2exp_si(acb_imagref(ref), -TEST_ERR_BITS);
+  assert_print(acb_overlaps(value, ref), !=, 0);
   acb_clear(ref);
 }
 
-static void assert_sign(Lfunc_t L, const dedekind_testcase& c)
+static void assert_rank(Lfunc_t L, int64_t expected)
+{
+  assert_print(Lfunc_rank(L), ==, expected);
+}
+
+// |epsilon| = 1 for every unitary L-function.
+static void assert_epsilon_unit(Lfunc_t L)
 {
   const slong prec = 300;
   arb_t abs, one;
@@ -251,10 +280,14 @@ static void assert_sign(Lfunc_t L, const dedekind_testcase& c)
   arb_init(one);
   acb_abs(abs, Lfunc_sign(L), prec);
   arb_one(one);
-  assert(arb_overlaps(abs, one));
+  arb_add_error_2exp_si(one, -TEST_ERR_BITS);
+  assert_print(arb_overlaps(abs, one), !=, 0);
   arb_clear(abs);
   arb_clear(one);
+}
 
+static void assert_epsilon_overlaps(Lfunc_t L, const dedekind_testcase& c)
+{
   assert_acb_overlaps_str(Lfunc_sign(L), c.epsilon_re, c.epsilon_im);
 }
 
@@ -262,7 +295,7 @@ static void assert_zeros(Lfunc_t L, const dedekind_testcase& c)
 {
   arb_srcptr zeros = Lfunc_zeros(L, 0);
   for (size_t i = 0; i < MAX_TEST_ZEROS && c.zeros0[i] != NULL; ++i) {
-    assert(!arb_contains_zero(zeros + i));
+    assert_print(arb_contains_zero(zeros + i), ==, 0);
     assert_arb_overlaps_str(zeros + i, c.zeros0[i]);
   }
 }
@@ -273,13 +306,12 @@ static void print_zeros(Lfunc_t L, const dedekind_testcase& c)
     return;
 
   arb_srcptr zeros = Lfunc_zeros(L, 0);
-  printf("dedekind_class_number: zeros %s", c.label);
+  cout << "dedekind_class_number: zeros " << c.label;
   for (size_t i = 0; i < MAX_TEST_ZEROS && !arb_is_zero(zeros + i); ++i) {
-    printf(" ");
+    cout << " ";
     arb_printd(zeros + i, 30);
   }
-  printf("\n");
-  fflush(stdout);
+  cout << endl;
 }
 
 static Lfunc_t init_case(const dedekind_testcase& c, nf_ctx& ctx, Lerror_t& ecode)
@@ -305,26 +337,25 @@ static Lfunc_t init_case(const dedekind_testcase& c, nf_ctx& ctx, Lerror_t& ecod
   Lp.cache_dir = cache_dir;
 
   Lfunc_t L = Lfunc_init_advanced(&Lp, &ecode);
-  assert(!fatal_error(ecode));
+  assert_print(fatal_error(ecode), ==, false);
 
   ecode |= Lfunc_use_all_lpolys(L, mk_lpoly_callback, &ctx);
-  assert(!fatal_error(ecode));
+  assert_print(fatal_error(ecode), ==, false);
 
   ecode |= Lfunc_compute(L);
-  assert(!fatal_error(ecode));
-  assert(Lfunc_rank(L) == c.rank);
+  assert_print(fatal_error(ecode), ==, false);
   return L;
 }
 
 static void run_case(const dedekind_testcase& c)
 {
-  printf("dedekind_class_number: running %s\n", c.label);
-  fflush(stdout);
+  cout << "dedekind_class_number: running " << c.label << endl;
   nf_ctx ctx;
   Lerror_t ecode = 0;
   Lfunc_t L = init_case(c, ctx, ecode);
-  assert(Lfunc_rank(L) == c.rank);
-  assert_sign(L, c);
+  assert_rank(L, c.rank);
+  assert_epsilon_unit(L);
+  assert_epsilon_overlaps(L, c);
 
   acb_t MK1, rhs;
   acb_init(MK1);
@@ -333,23 +364,22 @@ static void run_case(const dedekind_testcase& c)
 
   const Lerror_t sv_error = Lfunc_special_value(MK1, L, 1.0, 0.0);
   ecode |= sv_error;
-  assert(!fatal_error(sv_error));
-  assert(!fatal_error(ecode));
-  assert((sv_error & ERR_SPEC_PREC) == 0);
+  assert_print(fatal_error(sv_error), ==, false);
+  assert_print(fatal_error(ecode), ==, false);
+  assert_print((sv_error & ERR_SPEC_PREC), ==, 0);
 
   if (!acb_overlaps(MK1, rhs)) {
-    printf("  M_K(1) = "); acb_printd(MK1, 40); printf("\n");
-    printf("  RHS    = "); acb_printd(rhs, 40); printf("\n");
-    fflush(stdout);
+    cout << "  M_K(1) = "; acb_printd(MK1, 40); cout << endl;
+    cout << "  RHS    = "; acb_printd(rhs, 40); cout << endl;
   }
-  assert(acb_overlaps(MK1, rhs));
+  assert_print(acb_overlaps(MK1, rhs), !=, 0);
   assert_radius_below(acb_realref(MK1), 1e-12);
   assert_radius_below(acb_imagref(MK1), 1e-12);
-  assert(arb_contains_zero(acb_imagref(MK1)));
+  assert_print(arb_contains_zero(acb_imagref(MK1)), !=, 0);
 
   print_zeros(L, c);
   assert_zeros(L, c);
-  printf("dedekind_class_number: %s OK\n", c.label);
+  cout << "dedekind_class_number: " << c.label << " OK" << endl;
 
   acb_clear(MK1);
   acb_clear(rhs);
@@ -671,7 +701,9 @@ static const dedekind_testcase DEDEKIND_TESTS[] = {
   },
 };
 
-int main()
+// Run every case and assert on certified output.  Returns 0 on success; asserts
+// otherwise.
+int self_test()
 {
   assert_lpoly_sanity_checks();
 
@@ -679,6 +711,18 @@ int main()
   for (size_t i = 0; i < ncases; ++i)
     run_case(DEDEKIND_TESTS[i]);
 
-  flint_cleanup();
   return 0;
+}
+
+int main(int argc, char **argv)
+{
+  if (argc != 1) {
+    cerr << "Usage:" << endl;
+    cerr << "  " << argv[0] << "   run the embedded Dedekind quotient self-test" << endl;
+    return 1;
+  }
+
+  int rc = self_test();
+  flint_cleanup();
+  return rc;
 }
