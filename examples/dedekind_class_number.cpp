@@ -128,11 +128,12 @@ static void factor_degrees_modp(vector<slong>& degrees,
 
 static void mk_lpoly_from_degrees(fmpz_poly_t out, const vector<slong>& degrees)
 {
-  fmpz_poly_t prod, factor, divisor, quotient;
+  fmpz_poly_t prod, factor, divisor, quotient, remainder;
   fmpz_poly_init(prod);
   fmpz_poly_init(factor);
   fmpz_poly_init(divisor);
   fmpz_poly_init(quotient);
+  fmpz_poly_init(remainder);
 
   fmpz_poly_one(prod);
   for (slong d : degrees) {
@@ -144,13 +145,15 @@ static void mk_lpoly_from_degrees(fmpz_poly_t out, const vector<slong>& degrees)
 
   fmpz_poly_set_coeff_si(divisor, 0, 1);
   fmpz_poly_set_coeff_si(divisor, 1, -1);
-  fmpz_poly_divexact(quotient, prod, divisor);
+  fmpz_poly_divrem(quotient, remainder, prod, divisor);
+  assert_print(fmpz_poly_is_zero(remainder), !=, 0);
   fmpz_poly_set(out, quotient);
 
   fmpz_poly_clear(prod);
   fmpz_poly_clear(factor);
   fmpz_poly_clear(divisor);
   fmpz_poly_clear(quotient);
+  fmpz_poly_clear(remainder);
 }
 
 static void assert_lpoly_coeffs(const vector<slong>& degrees, const vector<long>& expected)
