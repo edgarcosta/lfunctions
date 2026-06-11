@@ -349,7 +349,7 @@ static bool fmpz_poly_exact_kth_root(fmpz_poly_t Mz, const fmpz_poly_t Lz, uint6
     fmpz_poly_get_coeff_fmpz(target, Lz, n);
     fmpz_poly_get_coeff_fmpz(current, cur, n);
     fmpz_sub(diff, target, current);
-    if (!fmpz_divisible_ui(diff, (ulong)k)) {
+    if (fmpz_fdiv_ui(diff, (ulong)k) != 0) {
       ok = false;
       break;
     }
