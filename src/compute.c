@@ -325,8 +325,12 @@ static Lerror_t extract_and_assemble(Lfunc *L, uint64_t k)
   if (retained_max < Mmax) {
     ec |= ERR_INSUFF_EULER;
     if (retained_max == 0 || !Lfunc_reduce_nmax(Mt, retained_max)) {
+      // No usable factor for M at all: assembly is aborted with L's outputs
+      // (rank, zeros, sign, Taylor data) never populated. ERR_INSUFF_EULER alone
+      // is a warning, so returning it bare would read as success to fatal_error();
+      // make the abort fatal and keep the warning as the why.
       Lfunc_clear(Mt);
-      return ec;
+      return ec | ERR_POWER;
     }
     Mmax = retained_max;
   }

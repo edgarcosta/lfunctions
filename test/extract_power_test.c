@@ -442,6 +442,40 @@ int main(void)
 
   printf("extract_power_test: out-of-order supply OK\n");
 
+  // ---- sparse supply: an aborted assembly must be FATAL ----
+  // L = M^2 (degree 4, conductor 196 = 14^2, EC-squared mus) supplied with a
+  // SINGLE exact square factor at p = 1009, far above nmax(M) for the would-be
+  // factor M (degree 2, conductor 14, nmax ~ 100). Certification finds k = 2,
+  // but no retained prime is <= nmax(M), so assembly cannot proceed at all.
+  // That abort must surface as fatal ERR_POWER: a bare ERR_INSUFF_EULER warning
+  // would leave fatal_error() false while rank/zeros/Taylor were never set.
+  {
+    Lparams_t LpSp = { .degree = 4, .conductor = 196, .normalisation = 0.5,
+                       .mus = (double[]){0,0,1,1}, .target_prec = 100, .wprec = 0,
+                       .gprec = 0, .self_dual = YES, .rank = DK, .cache_dir = ".",
+                       .extract_powers = YES };
+    Lerror_t eSp = ERR_SUCCESS;
+    Lfunc_t LSp = Lfunc_init_advanced(&LpSp, &eSp);
+    assert(!fatal_error(eSp));
+    (void) Lfunc_nmax(LSp);
+    fmpz_poly_t rSp, fSp;
+    fmpz_poly_init(rSp); fmpz_poly_init(fSp);
+    fmpz_poly_set_coeff_ui(rSp, 0, 1);           // r = 1 - T + 1009*T^2
+    fmpz_poly_set_coeff_si(rSp, 1, -1);
+    fmpz_poly_set_coeff_ui(rSp, 2, 1009);
+    fmpz_poly_pow(fSp, rSp, 2);                  // F_1009 = r^2, full degree 4
+    eSp |= Lfunc_use_lpoly_fmpz(LSp, 1009, fSp);
+    fmpz_poly_clear(rSp); fmpz_poly_clear(fSp);
+    eSp |= Lfunc_compute(LSp);
+    assert(fatal_error(eSp));                    // the abort must be fatal...
+    assert(eSp & ERR_POWER);
+    assert(eSp & ERR_INSUFF_EULER);              // ...and keep the why
+    assert(Lfunc_factors(LSp, NULL, NULL) == 0); // nothing half-assembled
+    Lfunc_clear(LSp);
+  }
+
+  printf("extract_power_test: sparse-supply abort is fatal OK\n");
+
   // ---- I2: non-k-divisible mus must be rejected (soundness gate) ----
   // A degree-4 L with mus={0,0,0,1} has sorted blocks [0,0] and [0,1] (k=2),
   // which are unequal: L's gamma factors disagree with any pure square, so even
