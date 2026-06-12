@@ -144,7 +144,10 @@ through {c:func}`Lfunc_use_lpoly_fmpz` or
 APIs are still used for computation and for the repeated-factor guard, but they
 do not carry exact provenance; if the guard detects a power from acb-only or
 mixed acb/fmpz supply under `extract_powers = YES`, computation stops with
-{c:macro}`ERR_POWER` rather than extracting.
+{c:macro}`ERR_POWER` rather than extracting. The same applies when the exact
+supply is too sparse to compute `M` at all (no supplied prime falls within `M`'s
+coefficient range): computation stops with {c:macro}`ERR_POWER`, with the
+{c:macro}`ERR_INSUFF_EULER` warning set alongside to explain why.
 
 Leaving a numeric knob at 0 asks the library to choose it. There is no need to
 set `target_prec`, `wprec`, or `gprec` unless you have a specific reason;
