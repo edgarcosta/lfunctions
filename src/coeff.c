@@ -129,7 +129,7 @@ static bool poly_is_squarefree_certified(const acb_poly_t f, int64_t prec)
 void use_inv_lpoly(Lfunc *L, uint64_t p, acb_poly_t c, acb_poly_t f, uint64_t prec)
   #else
 void use_inv_lpoly(Lfunc *L, uint64_t p, acb_poly_t c, uint64_t prec)
-#endif  
+#endif
   {
   acb_t tmp;
   acb_init(tmp);
@@ -297,7 +297,9 @@ static void use_lpoly_with_exact(Lfunc *L, uint64_t p, const acb_poly_t f,
 // squarefree certificate) is what keeps the guard from false-rejecting such primitives.
 static bool conductor_is_perfect_power(uint64_t N)
 {
-  if(N < 4)            // 0,1,2,3 are not (nontrivial) perfect powers
+  if(N == 1)           // cond(M^k) = cond(M)^k also permits 1 = 1^k
+    return true;
+  if(N < 4)            // 0,2,3 are not nontrivial perfect powers
     return false;
   ulong root;
   return n_is_perfect_power(&root, (ulong) N) != 0;
@@ -378,7 +380,7 @@ static void cert_roots_reset(Lfunc *L)
 {
   if (L->cert_roots) {
     for (uint64_t i = 0; i < L->n_cert_roots; i++)
-      acb_poly_clear(&L->cert_roots[i]);
+      fmpz_poly_clear(&L->cert_roots[i]);
     free(L->cert_roots);
     L->cert_roots = NULL;
   }
@@ -401,10 +403,10 @@ static bool power_certify_k(Lfunc *L, uint64_t k)
       if (L->mus[i] != L->mus[i + j])
         return false;
   // rigorous per-prime gate: a single uncertified factor would make L = M^k false, so the
-  // k-th root fed to M would be unsound; reject. Keep each certified root for reuse.
+  // k-th root fed to M would be unsound; reject. Keep each certified integer root for reuse.
   cert_roots_reset(L);
   if (L->n_retained) {
-    L->cert_roots = (acb_poly_struct *) malloc(sizeof(acb_poly_struct)*L->n_retained);
+    L->cert_roots = (fmpz_poly_struct *) malloc(sizeof(fmpz_poly_struct)*L->n_retained);
     if (!L->cert_roots) {
       L->retained_error |= ERR_OOM;
       return false;
@@ -424,9 +426,9 @@ static bool power_certify_k(Lfunc *L, uint64_t k)
       cert_roots_reset(L);
       return false;
     }
-    acb_poly_init(&L->cert_roots[i]);
+    fmpz_poly_init(&L->cert_roots[i]);
     L->n_cert_roots = i + 1;
-    acb_poly_set_fmpz_poly(&L->cert_roots[i], root_z, L->wprec);
+    fmpz_poly_set(&L->cert_roots[i], root_z);
     fmpz_poly_clear(root_z);
   }
   if (!seen_full) { cert_roots_reset(L); return false; }
@@ -441,11 +443,11 @@ Lerror_t power_extract_prepare(Lfunc *L, uint64_t *k_out)
   if (fatal_error(L->retained_error))
     return L->retained_error;
   if (L->moment_count == 0) return ERR_POWER;
-  
+
   // For L = M^k the true exponent k satisfies k | degree (M has degree/k Gamma factors)
-  // and makes the conductor an exact k-th power (cond(M^k) = cond(M)^k). 
+  // and makes the conductor an exact k-th power (cond(M^k) = cond(M)^k).
   // We consider every k in [2, degree] with k | degree and cond an exact k-th power,
-  // preferring the LARGEST that passes the rigorous certificate. 
+  // preferring the LARGEST that passes the rigorous certificate.
   // (We test conductor-exactness per candidate via conductor_kth_root rather
   // than n_is_perfect_power, whose returned exponent is not necessarily maximal -- it gives
   // 2 for 37^4 = 1369^2.) The per-prime exact gate and the mus-block gate still run

@@ -6,7 +6,7 @@
  *
  * It supplies the exact local factors L_p(E, T)^3. The library's power guard
  * detects that the 2nd moment corresponds to a 3rd power and that the conductor
- * is a perfect cube, securely extracts the underlying E, computes it at 
+ * is a perfect cube, securely extracts the underlying E, computes it at
  * lower degree/conductor, and assembles the final result.
  */
 #define __STDC_FORMAT_MACROS
@@ -94,7 +94,7 @@ void lpoly_callback(fmpz_poly_t poly, uint64_t p, int d __attribute__((unused)),
     fmpz_poly_init(ep);
     for(size_t i = 0; i < it->second.size(); ++i)
       fmpz_poly_set_coeff_si(ep, i, it->second[i]);
-    
+
     fmpz_poly_pow(poly, ep, 3);
     fmpz_poly_clear(ep);
   }

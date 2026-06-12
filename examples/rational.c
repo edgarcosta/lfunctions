@@ -312,6 +312,7 @@ int main(int argc, char** argv) {
   FILE* output = fopen(argv[2], "w");
   if (output == NULL) {
     printf("Could not open file %s.\n", argv[2]);
+    fclose(input);
     return 1;
   }
 
@@ -332,11 +333,19 @@ int main(int argc, char** argv) {
     L->ecode |= populate_local_factors(L);
     if(fatal_error(L->ecode)) {
       fprint_errors(stderr, L->ecode);
+      Lfunc_rational_clear(L);
+      free(line);
+      fclose(output);
+      fclose(input);
       return -1;
     }
     L->ecode|=Lfunc_compute(L->L);
     if(fatal_error(L->ecode)) {
       fprint_errors(stderr, L->ecode);
+      Lfunc_rational_clear(L);
+      free(line);
+      fclose(output);
+      fclose(input);
       return -1;
     }
     printf("Rank = %" PRIu64 "\n", Lfunc_rank(L->L));
@@ -355,6 +364,8 @@ int main(int argc, char** argv) {
     // TODO write output to output
     Lfunc_rational_clear(L);
   }
+  free(line);
   fclose(input);
   fclose(output);
+  return 0;
 }

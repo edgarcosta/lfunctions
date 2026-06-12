@@ -61,7 +61,10 @@ extern "C"{
   typedef void *Lfunc_t;
 
   // Zero-initialize before field-by-field assignment; zero is the default for
-  // optional fields such as gprec/wprec and extract_powers.
+  // optional fields such as target_prec/gprec/wprec and extract_powers.
+  // Lparams_t is intentionally not a stable ABI/source-compatibility boundary:
+  // callers should rebuild against the matching header, and new fields may be
+  // added without preserving older struct layouts.
   typedef struct{
     uint64_t degree;
     uint64_t conductor;
@@ -181,9 +184,10 @@ extern "C"{
   int64_t Lfunc_rank(Lfunc_t L);
 
   // factor accessor: primitive factors of L with multiplicities.
-  // factors[i] is a borrowed Lfunc_t owned by L (do NOT clear it); mults[i] its
-  // multiplicity. Returns the count: 1 with (M, k) for a pure power L = M^k,
-  // 0 if L is primitive / was not produced by extraction.
+  // On return, *factors is a borrowed Lfunc_t array owned by L (do NOT clear
+  // entries), and *mults is the matching multiplicity array. Returns the count:
+  // 1 with (M, k) for a pure power L = M^k, 0 if L is primitive / was not
+  // produced by extraction.
   uint64_t Lfunc_factors(Lfunc_t L, Lfunc_t **factors, uint64_t **mults);
 
   // return the first non-zero Taylor coefficient
@@ -209,6 +213,7 @@ extern "C"{
   // from the critical line. Should return something sensible
   // for L(k) and L(0)
   // for re+i*im = (w + 1)/2, use Lfunc_Taylor
+  // For assembled powers, do_dash with lam_p=false returns ERR_SPEC_VALUE.
   Lerror_t Lfunc_special_value_choice(acb_t res, acb_t res_dash, Lfunc_t LL, double re, double im, bool lam_p, bool do_dash);
   Lerror_t Lfunc_special_value(acb_t res, Lfunc_t LL, double re, double im);
 

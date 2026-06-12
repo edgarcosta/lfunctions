@@ -176,8 +176,10 @@ int main(int argc, char **argv) {
     // This object has a repeated primitive factor (e.g. L = L(E)^2): the power
     // guard must reject it up front with ERR_POWER. Assert that and skip the value
     // checks (it is intentionally not computed). Positive guard regression.
-    check((ec & ERR_POWER) != 0, "power-rejected",
-          "guard must reject this repeated-factor object with ERR_POWER");
+    uint64_t fatal_bits = ec & 0xFFFFFFFFu;
+    { std::stringstream d; d << "fatal_bits=0x" << std::hex << fatal_bits;
+      check(fatal_bits == ERR_POWER, "power-rejected",
+            "guard must reject with exactly ERR_POWER; " + d.str()); }
     fprintf(stderr, "ecode: "); fprint_errors(stderr, ec);
 	    fmpz_poly_clear(zpoly); acb_poly_clear(poly); fmpz_clear(z); Lfunc_clear(L);
     return g_fail;

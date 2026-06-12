@@ -130,7 +130,7 @@ extern "C"{
     bool *retained_is_exact;       // exact fmpz provenance for retained_f[i]
     uint64_t n_retained, retained_cap; // count and capacity of the retained store
     Lerror_t retained_error;       // fatal error encountered while retaining factors
-    acb_poly_struct *cert_roots;   // exact algebraic k-th roots of retained_f, same order/count
+    fmpz_poly_struct *cert_roots;  // exact integer k-th roots of retained_fmpz, same order/count
     uint64_t n_cert_roots;         // populated by power_extract_prepare, consumed in assembly
     Lfunc_t *factors;              // owned primitive factors (length n_factors)
     uint64_t *factor_mults;        // their multiplicities

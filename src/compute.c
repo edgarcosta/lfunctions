@@ -306,14 +306,17 @@ static Lerror_t extract_and_assemble(Lfunc *L, uint64_t k)
   Lerror_t ec = ERR_SUCCESS;
   Lfunc_t Mt = Lfunc_init_advanced(&Mp, &ec);
   free(mmus);
-  if (fatal_error(ec)) return ec;         // e.g. ERR_BAD_DEGREE when M would be degree 1
+  if (fatal_error(ec)) {                  // e.g. ERR_BAD_DEGREE when M would be degree 1
+    if (Mt) Lfunc_clear(Mt);
+    return ec;
+  }
   Lfunc *M = (Lfunc *) Mt;
 
   // ---- supply M_p = retained_f^(1/k) for primes up to nmax(M) ----
   // EVERY supplied factor (good AND bad) was certified an exact k-th power by
-  // power_extract_prepare, which kept the exact algebraic roots in L->cert_roots (one per
-  // retained factor, same order). We feed M those EXACT acb_poly roots -- no re-extraction
-  // -- so M sees the same point factors L did.
+  // power_extract_prepare, which kept the exact integer roots in L->cert_roots (one per
+  // retained factor, same order). We feed M those exact integer roots through
+  // the fmpz API, so recursive extraction still has exact provenance.
   uint64_t Mmax = Lfunc_nmax(Mt);
   uint64_t retained_max = 0;
   for (uint64_t i = 0; i < L->n_retained; i++)
@@ -327,16 +330,18 @@ static Lerror_t extract_and_assemble(Lfunc *L, uint64_t k)
     }
     Mmax = retained_max;
   }
-  acb_poly_t Mp_poly; acb_poly_init(Mp_poly);
+  fmpz_poly_t Mp_poly; fmpz_poly_init(Mp_poly);
   for (uint64_t i = 0; i < L->n_retained; i++) {
     uint64_t p = L->retained_p[i];
     if (p > Mmax) continue;               // retention is in SUPPLY order, not prime
                                           // order (callers may append bad factors
                                           // last), so skip-and-continue, never break.
-    acb_poly_set(Mp_poly, &L->cert_roots[i]); // certified in prepare
-    Lfunc_use_lpoly(Mt, p, Mp_poly);
+    fmpz_poly_set(Mp_poly, &L->cert_roots[i]); // certified in prepare
+    ec |= Lfunc_use_lpoly_fmpz(Mt, p, Mp_poly);
+    if (fatal_error(ec)) break;
   }
-  acb_poly_clear(Mp_poly);
+  fmpz_poly_clear(Mp_poly);
+  if (fatal_error(ec)) { Lfunc_clear(Mt); return ec; }
 
   ec |= Lfunc_compute(Mt);
   if (fatal_error(ec)) { Lfunc_clear(Mt); return ec; }
@@ -357,7 +362,7 @@ static Lerror_t extract_and_assemble(Lfunc *L, uint64_t k)
   acb_pow_ui(L->sign, M->sign, k, L->wprec);          // eps^k
   acb_pow_ui(L->sqrt_sign, M->sqrt_sign, k, L->wprec); // sqrt_sign^k
   arb_pow_ui(L->L_d, M->L_d, k, L->wprec);            // leading Taylor coeff ^ k
-  
+
   // Initialize Lam_d (= Lambda^(rank)(1/2))
   arb_pow_ui(L->Lam_d, M->Lam_d, k, L->wprec);
   arb_t t_fac; arb_init(t_fac);
@@ -535,7 +540,7 @@ Lerror_t Lfunc_compute(Lfunc_t Lf)
 #ifdef TURING
   ecode|=turing_check_RH(L,prec);
 #endif
-  
+
 #endif
 
   return ecode;

@@ -111,6 +111,20 @@ static void lk_badprime_callback_z(fmpz_poly_t poly, uint64_t p, int d, void *pa
   }
 }
 
+// Conductor-1 exact square with zero T^1 coefficient: L_p = (1 + T^2)^2.
+// The power guard's moment signal is zero here, so extraction depends on treating
+// conductor 1 as an exact k-th-power conductor and then certifying the fmpz roots.
+static void conductor1_square_callback_z(fmpz_poly_t poly, uint64_t p, int d, void *param)
+{
+  (void)p; (void)d; (void)param;
+  fmpz_poly_t root;
+  fmpz_poly_init(root);
+  fmpz_poly_set_coeff_ui(root, 0, 1);
+  fmpz_poly_set_coeff_ui(root, 2, 1);
+  fmpz_poly_pow(poly, root, 2);
+  fmpz_poly_clear(root);
+}
+
 // callback for the complex (non-self-dual) boundary: build M with a COMPLEX linear
 // coefficient (i times E_p's), so L = M^2 has complex Euler factors but the same 2nd
 // moment and perfect-square conductor as E^2 (detection still finds k=2). The exact
@@ -303,9 +317,33 @@ int main(void)
 	    Lfunc_clear(LMix2);
 	  }
 
-	  printf("extract_power_test: mixed provenance refused OK\n");
+  printf("extract_power_test: mixed provenance refused OK\n");
 
-	  // ---- E^3 (degree 6, odd k) ----
+  // Conductor 1 is still an exact square conductor: exact supplied powers must
+  // enter extraction instead of falling through as an ordinary primitive object.
+  // A previous temporary reproducer for this path returned ERR_POWER=0 and
+  // n_factors=0; the factor assertion below catches that bypass directly.
+  {
+    Lparams_t LpOne = { .degree = 4, .conductor = 1, .normalisation = 0.0,
+                        .mus = (double[]){0,0,1,1}, .target_prec = 100,
+                        .wprec = 0, .gprec = 0, .self_dual = YES, .rank = DK,
+                        .cache_dir = ".", .extract_powers = YES };
+    Lerror_t eOne = ERR_SUCCESS;
+    Lfunc_t LOne = Lfunc_init_advanced(&LpOne, &eOne);
+    assert(!fatal_error(eOne));
+    eOne |= Lfunc_use_all_lpolys_fmpz(LOne, conductor1_square_callback_z, NULL);
+    eOne |= Lfunc_compute(LOne);
+    assert(!fatal_error(eOne));
+    Lfunc_t *fOne = NULL; uint64_t *mOne = NULL;
+    assert(Lfunc_factors(LOne, &fOne, &mOne) == 1);
+    assert(mOne[0] == 2);
+    assert(Lfunc_rank(LOne) == 2*Lfunc_rank(fOne[0]));
+    Lfunc_clear(LOne);
+  }
+
+  printf("extract_power_test: conductor-1 exact square extracted OK\n");
+
+  // ---- E^3 (degree 6, odd k) ----
   k_param = 3;
   Lfunc_t Eref3 = Lfunc_init(2, 37, 0.5, mus, &ec);
   ec = ERR_SUCCESS;

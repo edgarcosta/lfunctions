@@ -162,7 +162,7 @@ extern "C"{
     if(L->cert_roots)
       {
         for(uint64_t i=0;i<L->n_cert_roots;i++)
-          acb_poly_clear(&L->cert_roots[i]);
+          fmpz_poly_clear(&L->cert_roots[i]);
         free(L->cert_roots);
       }
     if(L->factors)

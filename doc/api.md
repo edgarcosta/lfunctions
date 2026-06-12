@@ -105,7 +105,11 @@ typedef struct {
 } Lparams_t;
 ```
 
-| Field | Meaning | Default when left as 0 / `DK` |
+`Lparams_t` is intentionally not a stable ABI or source-compatibility boundary.
+Compile callers against the matching header and zero-initialize the struct before
+setting fields; new fields may be added without preserving older struct layouts.
+
+| Field | Meaning | Default / zero behavior |
 | --- | --- | --- |
 | {c:member}`target_prec <Lparams_t.target_prec>` | precision the results are refined to | {c:macro}`DEFAULT_TARGET_PREC` (100 bits) |
 | {c:member}`wprec <Lparams_t.wprec>` | internal working precision | derived from `target_prec` |
@@ -377,10 +381,11 @@ uint64_t Lfunc_factors(Lfunc_t L, Lfunc_t **factors, uint64_t **mults);
 
 For a primitive object, or for an object that was not produced through
 {c:member}`extract_powers <Lparams_t.extract_powers>`, this returns 0. For a
-successfully extracted pure power `L = M^k`, it returns 1, stores a borrowed
-pointer to `M` in `factors[0]`, and stores `k` in `mults[0]`. The returned
-arrays and factor objects are owned by `L`; do not clear them yourself, and do
-not use them after {c:func}`Lfunc_clear(L)`.
+successfully extracted pure power `L = M^k`, it returns 1. If `factors` is
+non-NULL, `*factors` is set to a borrowed array whose first element points to
+`M`; if `mults` is non-NULL, `*mults` is set to an array whose first element is
+`k`. The returned arrays and factor objects are owned by `L`; do not clear them
+yourself, and do not use them after {c:func}`Lfunc_clear(L)`.
 
 The assembled object exposes the quantities that can be assembled from the
 factor: rank, sign, zeros, leading Taylor coefficient, and special values.
@@ -414,7 +419,9 @@ as `L(k)` and `L(0)` come out sensibly. The routine requires `im >= 0`;
 `im < 0` raises {c:macro}`ERR_SPEC_NZ`. For the central point use
 {c:func}`Lfunc_Taylor` instead. The lower-level
 {c:func}`Lfunc_special_value_choice` additionally returns the derivative and
-lets you choose between `L` and the completed `Lambda`.
+lets you choose between `L` and the completed `Lambda`. For an assembled power,
+`do_dash = true` is supported only for the completed function (`lam_p = true`);
+the non-completed derivative returns {c:macro}`ERR_SPEC_VALUE`.
 
 ### Plot data: `Lfunc_plot_data` and `Lfunc_clear_plot`
 

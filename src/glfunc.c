@@ -160,7 +160,7 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
   // we sort the mus so we can name G cache files canonically
   qsort(L->mus, L->degree, sizeof(double), double_comp);
 
-  L->target_prec = Lp->target_prec;
+  L->target_prec = (Lp->target_prec > 0) ? Lp->target_prec : DEFAULT_TARGET_PREC;
   arb_init(L->zero_prec);
   arb_set_ui(L->zero_prec, 1);
   arb_mul_2exp_si(L->zero_prec, L->zero_prec, -L->target_prec - 1);
