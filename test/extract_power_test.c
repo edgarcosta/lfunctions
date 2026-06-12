@@ -129,7 +129,8 @@ static void conductor1_square_callback_z(fmpz_poly_t poly, uint64_t p, int d, vo
 // coefficient (i times E_p's), so L = M^2 has complex Euler factors but the same 2nd
 // moment and perfect-square conductor as E^2 (detection still finds k=2). The exact
 // integer certificate requires real-integer coefficients, so it must refuse this with
-// ERR_POWER -- extraction supports rational-integer L-functions only (feat: lfunctions-5g6).
+// ERR_POWER -- extraction supports rational-integer L-functions only (complex
+// extraction is a tracked follow-up).
 static void lk_complex_callback(acb_poly_t poly, uint64_t p, int d, int64_t prec, void *param)
 {
   (void)d; (void)param;

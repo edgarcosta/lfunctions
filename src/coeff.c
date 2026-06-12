@@ -234,7 +234,7 @@ static void use_lpoly_with_exact(Lfunc *L, uint64_t p, const acb_poly_t f,
   arb_init(tmp2);
   acb_poly_init(n_poly);
   acb_poly_init(inv_poly);
-  // w70.2: retain the raw Euler factor for later k-th-root extraction
+  // retain the raw Euler factor for later k-th-root extraction
   retained_append(L, p, f, fz, is_exact);
   //if(p<=2){printf("in use_lpoly pre-norm with p = %" PRIu64 "\n",p);acb_poly_printd(f,20);printf("\n");}
   arb_log_ui(logp,p,prec);

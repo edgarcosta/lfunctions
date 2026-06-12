@@ -123,7 +123,7 @@ extern "C"{
     arb_t moment_sum;         // running sum of |a_p|^2 over full-degree (good) primes
     uint64_t moment_count;    // number of full-degree primes folded into moment_sum
 
-    // power extraction (w70.2)
+    // power extraction
     uint64_t *retained_p;          // supplied good/bad primes, in supply order
     acb_poly_struct *retained_f;   // the raw supplied Euler factors L_p
     fmpz_poly_struct *retained_fmpz; // exact raw integer Euler factors, initialized only where retained_is_exact[i]

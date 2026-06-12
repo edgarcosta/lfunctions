@@ -1,5 +1,5 @@
 /*
-  Regression test for the power / repeated-factor guard (ERR_POWER); bead lfunctions-w70.1.
+  Regression test for the power / repeated-factor guard (ERR_POWER).
   Asserts on the error bitfield, never on printed output.
 
     1. L(chi5)^2          (degree 2, cond 25):  genuine square     -> ERR_POWER by default.

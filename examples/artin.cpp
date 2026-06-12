@@ -676,7 +676,7 @@ istream & operator>>(istream & is, artin_rep &o)
           params.conductor = o.conductor;
           params.normalisation = 0.0;
           params.mus = o.mus;
-          params.target_prec = DEFAULT_TARGET_PREC; // bead lfunctions-54s: target_prec should be tunable
+          params.target_prec = DEFAULT_TARGET_PREC; // TODO: target_prec should be tunable
           params.wprec = 0;
           params.gprec = 0;
           params.self_dual = DK;
