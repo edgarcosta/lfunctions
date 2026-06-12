@@ -43,7 +43,8 @@ using std::vector;
 // runs the normal Lfunc_init_advanced -> Lfunc_use_all_lpolys -> Lfunc_compute
 // path.  Coverage grows by adding rows to DEDEKIND_TESTS; the shared helpers
 // keep every row checking the same certified output: analytic rank, root number,
-// M_K(1) via the class-number formula, and leading zeros.
+// M_K(1) via the class-number formula, and leading zeros (on both sides for
+// rows that leave self_dual = DK).
 // ---------------------------------------------------------------------------
 
 // Ball radius (2^-TEST_ERR_BITS) placed around every golden constant before the
@@ -72,6 +73,8 @@ struct dedekind_testcase {
   size_t nbad_factors;
   int degree;                    // degree of M_K = zeta_K / zeta
   uint64_t conductor;
+  int self_dual;                 // YES skips dual-side zero-finding; DK makes
+                                 // the engine detect duality and compute side 1
   const double mus[MAX_TEST_DEGREE];  // gamma shifts for M_K
   int r1, r2;
   uint64_t class_number;
@@ -294,9 +297,9 @@ static void assert_epsilon_overlaps(Lfunc_t L, const dedekind_testcase& c)
   assert_acb_overlaps_str(Lfunc_sign(L), c.epsilon_re, c.epsilon_im);
 }
 
-static void assert_zeros(Lfunc_t L, const dedekind_testcase& c)
+static void assert_zeros(Lfunc_t L, uint64_t side, const dedekind_testcase& c)
 {
-  arb_srcptr zeros = Lfunc_zeros(L, 0);
+  arb_srcptr zeros = Lfunc_zeros(L, side);
   for (size_t i = 0; i < MAX_TEST_ZEROS && c.zeros0[i] != NULL; ++i) {
     assert_print(arb_contains_zero(zeros + i), ==, 0);
     assert_arb_overlaps_str(zeros + i, c.zeros0[i]);
@@ -335,7 +338,7 @@ static Lfunc_t init_case(const dedekind_testcase& c, nf_ctx& ctx, Lerror_t& ecod
   Lp.target_prec = 160;
   Lp.wprec = 0;
   Lp.gprec = 0;
-  Lp.self_dual = YES;
+  Lp.self_dual = c.self_dual;
   Lp.rank = DK;
   Lp.cache_dir = cache_dir;
 
@@ -346,6 +349,9 @@ static Lfunc_t init_case(const dedekind_testcase& c, nf_ctx& ctx, Lerror_t& ecod
   assert_print(fatal_error(ecode), ==, false);
 
   ecode |= Lfunc_compute(L);
+  // Quotient degree >= 3 rows emit the known ERR_RH_ERROR Turing warning on
+  // stderr; it lives in the warning (upper 32) half of Lerror_t, so
+  // fatal_error() ignores it and the certified asserts still run.
   assert_print(fatal_error(ecode), ==, false);
   return L;
 }
@@ -381,7 +387,11 @@ static void run_case(const dedekind_testcase& c)
   assert_print(arb_contains_zero(acb_imagref(MK1)), !=, 0);
 
   print_zeros(L, c);
-  assert_zeros(L, c);
+  assert_zeros(L, 0, c);
+  // M_K has real coefficients, so when the engine computed the dual side
+  // (self_dual != YES) its zeros must reproduce the same goldens.
+  if (c.self_dual != YES)
+    assert_zeros(L, 1, c);
   cout << "dedekind_class_number: " << c.label << " OK" << endl;
 
   acb_clear(MK1);
@@ -455,11 +465,13 @@ static const dedekind_testcase DEDEKIND_TESTS[] = {
   // Cubic field 3.1.23.1.  The zero goldens come from PARI, with the
   // Riemann-zeta zero at 14.134725... removed:
   // lfunzeros(lfuncreate(x^3 - x - 1), 20).
+  // This row leaves self_dual = DK: the engine detects duality, computes the
+  // dual side, and run_case pins the side-1 zeros against the same goldens.
   {
     "3.1.23.1",
     POLY_3_1_23_1, 4,
     BAD_3_1_23_1, 1,
-    2, 23,
+    2, 23, DK,
     {0.0, 1.0, 0.0, 0.0},
     1, 1,
     1,
@@ -486,7 +498,7 @@ static const dedekind_testcase DEDEKIND_TESTS[] = {
     "3.1.283.1",
     POLY_3_1_283_1, 4,
     BAD_3_1_283_1, 1,
-    2, 283,
+    2, 283, YES,
     {0.0, 1.0, 0.0, 0.0},
     1, 1,
     2,
@@ -513,7 +525,7 @@ static const dedekind_testcase DEDEKIND_TESTS[] = {
     "4.0.117.1",
     POLY_4_0_117_1, 5,
     BAD_4_0_117_1, 2,
-    3, 117,
+    3, 117, YES,
     {0.0, 1.0, 1.0, 0.0},
     0, 2,
     1,
@@ -542,7 +554,7 @@ static const dedekind_testcase DEDEKIND_TESTS[] = {
     "4.0.229.1",
     POLY_4_0_229_1, 5,
     BAD_4_0_229_1, 1,
-    3, 229,
+    3, 229, YES,
     {0.0, 1.0, 1.0, 0.0},
     0, 2,
     1,
@@ -569,7 +581,7 @@ static const dedekind_testcase DEDEKIND_TESTS[] = {
     "4.0.1521.1",
     POLY_4_0_1521_1, 5,
     BAD_4_0_1521_1, 3,
-    3, 1521,
+    3, 1521, YES,
     {0.0, 1.0, 1.0, 0.0},
     0, 2,
     2,
@@ -597,7 +609,7 @@ static const dedekind_testcase DEDEKIND_TESTS[] = {
     "5.1.1609.1",
     POLY_5_1_1609_1, 6,
     BAD_5_1_1609_1, 1,
-    4, 1609,
+    4, 1609, YES,
     {0.0, 0.0, 1.0, 1.0, 0.0, 0.0},
     1, 2,
     1,
@@ -625,7 +637,7 @@ static const dedekind_testcase DEDEKIND_TESTS[] = {
     "6.0.14731.1",
     POLY_6_0_14731_1, 7,
     BAD_6_0_14731_1, 1,
-    5, 14731,
+    5, 14731, YES,
     {0.0, 0.0, 1.0, 1.0, 1.0, 0.0},
     0, 3,
     1,
@@ -653,7 +665,7 @@ static const dedekind_testcase DEDEKIND_TESTS[] = {
     "7.1.184607.1",
     POLY_7_1_184607_1, 8,
     BAD_7_1_184607_1, 1,
-    6, 184607,
+    6, 184607, YES,
     {0.0, 0.0, 0.0, 1.0, 1.0, 1.0},
     1, 3,
     1,
@@ -682,7 +694,7 @@ static const dedekind_testcase DEDEKIND_TESTS[] = {
     "8.0.1740113.1",
     POLY_8_0_1740113_1, 9,
     BAD_8_0_1740113_1, 1,
-    7, 1740113,
+    7, 1740113, YES,
     {0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 0.0},
     0, 4,
     1,
