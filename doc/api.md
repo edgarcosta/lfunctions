@@ -158,6 +158,12 @@ check {c:func}`fatal_error` before reading any result. After it returns,
 {c:func}`Lfunc_wprec` reports the working precision the computation actually
 used.
 
+It is **single-use**: it normalises the Dirichlet coefficients in place, so it
+must be called exactly once per object and only after at least one supply route
+has run. Calling it with no supply, calling it a second time, or supplying more
+factors/coefficients after it are all fatal {c:macro}`ERR_LIFECYCLE` (recorded
+on the object, so the flag sticks). Build a fresh {c:type}`Lfunc_t` to recompute.
+
 ### 4. Query
 
 Read back the rank, root number, leading Taylor coefficient, zeros, special
@@ -550,6 +556,7 @@ flag to the given `FILE *`. {c:macro}`ERR_SUCCESS` (0) is the clean state.
 | {c:macro}`ERR_COEFF_BOUND` | a supplied raw coefficient definitely exceeds the degree's Euler-product bound |
 | {c:macro}`ERR_BAD_NORM` | invalid `normalisation_of_input`; use {c:macro}`LFUNC_ALGEBRAIC_NORM` or {c:macro}`LFUNC_ANALYTIC_NORM` |
 | {c:macro}`ERR_BAD_SUPPLY` | invalid supply argument, including a positive-length `NULL` factor or coefficient array |
+| {c:macro}`ERR_LIFECYCLE` | lifecycle misuse: {c:func}`Lfunc_compute` with no supply, called twice, or a supply call after compute |
 
 ### Warning codes
 

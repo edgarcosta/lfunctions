@@ -120,6 +120,7 @@ extern "C"{
     int factor_route;     // 0 none, 1 push, 2 callback, 3 array; prevents overlapping factor routes
     uint64_t last_factor_p; // last prime accepted by the push route; pushes must be increasing
     Lerror_t supply_ecode; // fatal supply-time errors recorded out of a void context (e.g. Lfunc_use_lpoly after raw a_n); Lfunc_compute early-returns it before computing
+    bool compute_called;  // true once Lfunc_compute has begun: compute divides ans by sqrt(n) in place, so it is single-use; a second call (or a supply call after it) is fatal ERR_LIFECYCLE
 
     int64_t offset; // FFT bin index of a_1 = calc_m(1); used only for a bounds check
 

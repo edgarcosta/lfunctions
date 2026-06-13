@@ -50,6 +50,7 @@
 #define ERR_COEFF_BOUND ((uint64_t) 1<<15) // fatal: a supplied raw a_n exceeds the degree's Euler-product bound (|a_n| > C*n^alpha)
 #define ERR_BAD_NORM ((uint64_t) 1<<16) // fatal: invalid normalisation_of_input selector for raw a_n front-ends
 #define ERR_BAD_SUPPLY ((uint64_t) 1<<17) // fatal: invalid supply argument, e.g. a NULL array with positive length
+#define ERR_LIFECYCLE ((uint64_t) 1<<18) // fatal: API lifecycle misuse, e.g. Lfunc_compute with no supply, called twice, or supply after compute
 
 // warnings
 #define ERR_SOME_DATA ((uint64_t) 1<<32) // We had some sensible data, but not to end of Turing Zone
@@ -217,7 +218,13 @@ extern "C"{
   Lerror_t Lfunc_use_lpolys_acb(Lfunc_t L, const acb_poly_struct *f, uint64_t len);
   Lerror_t Lfunc_use_lpolys_fmpz(Lfunc_t L, const fmpz_poly_struct *f, uint64_t len);
 
-  // Once all supply data has been provided, do the computation
+  // Once all supply data has been provided, do the computation.
+  // Single-use lifecycle: this normalises the Dirichlet coefficients in place,
+  // so it must be called exactly once per object, after at least one supply
+  // route has run. Calling it with no supply, calling it a second time, or
+  // supplying more factors/coefficients after it are all fatal ERR_LIFECYCLE
+  // (recorded on the object, so the error is sticky). To recompute, build a
+  // fresh Lfunc_t.
   Lerror_t Lfunc_compute(Lfunc_t L);
 
   // what working precision did the computation use

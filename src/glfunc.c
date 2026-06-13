@@ -51,6 +51,9 @@ void fprint_errors(FILE *f, Lerror_t ecode) {
                "or LFUNC_ANALYTIC_NORM.\n");
   if (ecode & ERR_BAD_SUPPLY)
     fprintf(f, "Invalid coefficient or Euler-factor supply argument.\n");
+  if (ecode & ERR_LIFECYCLE)
+    fprintf(f, "L-function lifecycle misuse: compute with no supply, computed "
+               "twice, or supply after compute.\n");
   // warnings
   if (ecode & ERR_INSUFF_EULER)
     fprintf(f,
@@ -400,6 +403,7 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
   L->factor_route = 0;
   L->last_factor_p = 0;
   L->supply_ecode = ERR_SUCCESS;
+  L->compute_called = false; // Lfunc_compute is single-use (it mutates ans in place)
 
   arb_init(L->Lam_d);
   arb_init(L->L_d);

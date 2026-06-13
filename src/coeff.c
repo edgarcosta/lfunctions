@@ -213,6 +213,15 @@ static Lerror_t supply_conflict(Lfunc *L)
   return ERR_SUPPLY_CONFLICT;
 }
 
+// Supplying after Lfunc_compute is lifecycle misuse: compute already divided
+// ans by sqrt(n) in place, so a further push/array/raw write would operate on
+// normalised coefficients. Record it fatally (mirrors the Lfunc_compute guard).
+static Lerror_t lifecycle_misuse(Lfunc *L)
+{
+  L->supply_ecode|=ERR_LIFECYCLE;
+  return ERR_LIFECYCLE;
+}
+
 static Lerror_t validate_lpoly(Lfunc *L, const acb_poly_t poly, bool allow_zero)
 {
   if(!poly)
@@ -240,6 +249,11 @@ void Lfunc_use_lpoly(Lfunc_t Lf, uint64_t p, const acb_poly_t poly)
 {
   Lfunc *L;
   L=(Lfunc *)Lf;
+  if(L->compute_called) // pushing into already-normalised ans is incoherent
+  {
+    lifecycle_misuse(L); // void return: surfaced by Lfunc_compute
+    return;
+  }
   if(L->raw_supplied) // can't push factors into raw-a_n overwrite mode
   {
     supply_conflict(L); // void return: surfaced by Lfunc_compute
@@ -305,6 +319,8 @@ Lerror_t Lfunc_use_all_lpolys(Lfunc_t Lf, void (*lpoly_callback) (acb_poly_t lpo
   L=(Lfunc *)Lf;
   if(!lpoly_callback)
     return bad_supply(L);
+  if(L->compute_called)
+    return lifecycle_misuse(L);
   if(L->raw_supplied) // raw a_n overwrote ans; the callback would multiply into it
     return supply_conflict(L);
   if(L->factor_route!=0)
@@ -357,6 +373,8 @@ static Lerror_t use_lpolys_array(Lfunc *L, const acb_poly_struct *fa, const fmpz
 {
   if((fa && fz) || (!fa && !fz && len>0))
     return bad_supply(L);
+  if(L->compute_called)
+    return lifecycle_misuse(L);
   if(L->raw_supplied) // raw a_n overwrote ans; multiplying factors in is incoherent
     return supply_conflict(L);
   if(L->factor_route!=0)
@@ -441,6 +459,8 @@ static void apply_input_norm(acb_t z, uint64_t n, int norm_of_input, Lfunc *L)
 // ignores the return value.
 static Lerror_t raw_guard(Lfunc *L, uint64_t len, int norm_of_input, bool have_coeffs, bool a1_is_one)
 {
+  if(L->compute_called)
+    return lifecycle_misuse(L);
   if(L->factor_supplied || L->raw_supplied)
     return supply_conflict(L);
   if(norm_of_input!=LFUNC_ALGEBRAIC_NORM && norm_of_input!=LFUNC_ANALYTIC_NORM)

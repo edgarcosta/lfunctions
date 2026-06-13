@@ -300,6 +300,21 @@ Lerror_t Lfunc_compute(Lfunc_t Lf)
 
   if(fatal_error(L->supply_ecode)) // a supply call recorded a fatal error (e.g. a conflict)
     return L->supply_ecode;
+  // Lifecycle guard. Lfunc_compute divides L->ans by sqrt(n) in place (below),
+  // so it is single-use: a second call would re-divide and silently corrupt the
+  // result. With no supply at all, M/M0/dc were never set by Lfunc_nmax, so the
+  // pipeline would read uninitialised state. Reject both, fatally.
+  if(L->compute_called)
+  {
+    L->supply_ecode|=ERR_LIFECYCLE; // also sticky, so any later compute keeps failing
+    return ERR_LIFECYCLE;
+  }
+  if(!L->factor_supplied && !L->raw_supplied) // no Euler factors or coefficients supplied
+  {
+    L->supply_ecode|=ERR_LIFECYCLE;
+    return ERR_LIFECYCLE;
+  }
+  L->compute_called=true; // from here on ans gets mutated; never run this twice
   if(L->nmax_called && L->M0>0 && L->M0-1>L->M)
     return ERR_BAD_SUPPLY; // direct block would read coefficients past M
 
