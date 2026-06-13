@@ -18,7 +18,8 @@
  *     non-self-dual conductor-52 rep 2.52.6t5.b.a (the weight-1 level-52 newform
  *     52.1.j.a, complex root number, distinct side-0 and side-1 zeros); the
  *     self-dual symplectic conductor-2304 rep 2.2304.8t5.b.a (8T5, real root
- *     number -1 forcing analytic rank 1, central zero at height 0); and the
+ *     number -1 forcing odd analytic rank, here the golden rank 1, central zero
+ *     at height 0); and the
  *     self-dual dimension-3 conductor-229 rep 3.229.4t5.a.a (4T5 = S4, even, the
  *     first degree-3 case). Each row feeds its embedded input line through the
  *     exact same parse -> lpoly -> Lfunc_compute pipeline the tool mode uses, then
@@ -1048,7 +1049,9 @@ static const artin_testcase ARTIN_TESTS[] = {
   // 2.2304.8t5.b.a: dim 2, conductor 2304, self-dual, even, RANK 1. The 8T5
   // (order-16) symplectic rep (Frobenius-Schur indicator -1): self-dual with a
   // real root number that is forced to -1, which makes the sign of the functional
-  // equation odd and pins the analytic rank at 1, with a central zero at height 0.
+  // equation odd and so forces the analytic rank to be ODD (>= 1, with a central
+  // zero at height 0). That it is exactly 1 rather than 3, 5, ... is not implied
+  // by epsilon = -1 alone; it is asserted below as a golden value (rank field 1).
   // Lfunc_zeros(L, 0) returns the POSITIVE zeros (the central one is excluded), so
   // zeros0 below are 1.6126..., 2.6362..., ... and the rank-1 claim is asserted on
   // its own. epsilon = -1 is real, so eps_nonreal is false. The input line comes
@@ -1065,7 +1068,7 @@ static const artin_testcase ARTIN_TESTS[] = {
     "[[[4,4]],[[[[3,[-6015168,0,1]],[4,[-1672704,0,1]],[5,[-9331200,0,1]]],"
     "[[1],[8,7,6,5,4,3,2,1]]]]]",
     ERR_SUCCESS,                        // no process_line warning caveat expected
-    1,                                  // rank (sign -1 forces analytic rank 1)
+    1,                                  // rank: golden 1 (epsilon -1 forces only ODD rank >= 1)
     NULL, NULL,                         // L(1): not pinned (rank-1 row)
     {                                   // positive zeros, side 0 (central zero at 0 excluded)
       "1.6125769007629963859", "2.6361552143853642710",
