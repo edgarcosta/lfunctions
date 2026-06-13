@@ -121,6 +121,20 @@ extern "C"{
   // do the same but with more control. Lparams.conductor fixes the coefficient
   // range M implicitly, as in Lfunc_init (see Lfunc_nmax); no Lparams field sets
   // the prime/coefficient count directly.
+  //
+  // Most Lparams fields are copied verbatim; this entry point does NOT re-apply
+  // Lfunc_init's defaults, so a zeroed Lparams_t is not equivalent to Lfunc_init:
+  //   - target_prec: copied as-is. Pass DEFAULT_TARGET_PREC for the standard
+  //       100-bit target; a 0 here is taken literally (0-bit target).
+  //   - wprec: 0 means "derive from target_prec" (the only field with a 0-default).
+  //   - gprec: 0 means "derive from target_prec/wprec" (resolved later, in g.c).
+  //   - self_dual: copied as-is, so 0 is NO (not DK); pass DK to let the library
+  //       decide and YES only when you know the L-function is self-dual.
+  //   - rank: copied as-is, so 0 is the assertion "rank 0" (which can raise
+  //       ERR_CONFLICT_RANK); pass DK to let the library determine the rank.
+  //   - cache_dir: copied as-is; NULL disables the on-disk G cache entirely.
+  // Lfunc_init is exactly this function with target_prec=DEFAULT_TARGET_PREC,
+  // wprec=gprec=0, self_dual=rank=DK, and cache_dir=".".
   Lfunc_t Lfunc_init_advanced(Lparams_t *Lparams, Lerror_t *ecode);
 
   // Largest prime p (equivalently largest index M) for which an Euler factor /

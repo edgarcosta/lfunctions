@@ -107,14 +107,20 @@ typedef struct {
 } Lparams_t;
 ```
 
-| Field | Meaning | Default when left as 0 / `DK` |
+{c:func}`Lfunc_init_advanced` copies most of these fields verbatim: it does
+**not** re-apply {c:func}`Lfunc_init`'s defaults, so a zeroed
+{c:struct}`Lparams_t` is not equivalent to {c:func}`Lfunc_init`. Only `wprec`
+and `gprec` treat 0 as "derive a sensible value"; the other fields take their
+value literally.
+
+| Field | Meaning | Effect of the value you pass |
 | --- | --- | --- |
-| {c:member}`target_prec <Lparams_t.target_prec>` | precision the results are refined to | {c:macro}`DEFAULT_TARGET_PREC` (100 bits) |
-| {c:member}`wprec <Lparams_t.wprec>` | internal working precision | derived from `target_prec` |
-| {c:member}`gprec <Lparams_t.gprec>` | precision of the gamma-factor product | derived from the working precision |
-| {c:member}`self_dual <Lparams_t.self_dual>` | whether the L-function equals its dual | `DK`: the library decides |
-| {c:member}`rank <Lparams_t.rank>` | analytic rank, if already known | `DK`: the library determines it |
-| {c:member}`cache_dir <Lparams_t.cache_dir>` | where to read/write cached G data | current directory; see [The G-data cache](#g-data-cache) |
+| {c:member}`target_prec <Lparams_t.target_prec>` | precision the results are refined to | copied verbatim; pass {c:macro}`DEFAULT_TARGET_PREC` (100 bits) for the standard target. A literal 0 is a 0-bit target, not the default |
+| {c:member}`wprec <Lparams_t.wprec>` | internal working precision | 0 means derive it from `target_prec` (the one field with a 0-default) |
+| {c:member}`gprec <Lparams_t.gprec>` | precision of the gamma-factor product | 0 means derive it from the target/working precision |
+| {c:member}`self_dual <Lparams_t.self_dual>` | whether the L-function equals its dual | copied verbatim: `DK` lets the library decide, `YES` skips the dual side, and the literal 0 is `NO` |
+| {c:member}`rank <Lparams_t.rank>` | analytic rank, if already known | copied verbatim: `DK` lets the library determine it; a literal 0 asserts rank 0 (which can raise {c:macro}`ERR_CONFLICT_RANK`) |
+| {c:member}`cache_dir <Lparams_t.cache_dir>` | where to read/write cached G data | copied verbatim; `NULL` disables the on-disk cache. See [The G-data cache](#g-data-cache) |
 
 The tri-state fields use the macros {c:macro}`DK` (-1, "don't know"),
 {c:macro}`YES` (1), and {c:macro}`NO` (0). Setting `self_dual = YES` when you
@@ -123,10 +129,13 @@ lets the library skip computing the dual side. Supplying a known `rank` lets it
 skip the rank search; if the computed rank then disagrees with what you
 supplied, you get the {c:macro}`ERR_CONFLICT_RANK` warning.
 
-Leaving a numeric knob at 0 asks the library to choose it. There is no need to
-set `target_prec`, `wprec`, or `gprec` unless you have a specific reason;
-{c:func}`Lfunc_init` is exactly `Lfunc_init_advanced` with those left to their
-defaults, `self_dual = DK`, `rank = DK`, and no cache directory.
+Because the copy is verbatim, set `self_dual` and `rank` to {c:macro}`DK`
+unless you really mean `NO` / rank 0, and pass
+{c:macro}`DEFAULT_TARGET_PREC` for `target_prec` unless you have a specific
+reason to change it; you can still leave `wprec` and `gprec` at 0 to have them
+derived. {c:func}`Lfunc_init` is exactly `Lfunc_init_advanced` with
+`target_prec = DEFAULT_TARGET_PREC`, `wprec = gprec = 0`,
+`self_dual = DK`, `rank = DK`, and `cache_dir = "."`.
 
 ### 2. Supply factors or coefficients
 
