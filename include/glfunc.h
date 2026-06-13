@@ -150,6 +150,14 @@ extern "C"{
   // floor set by the degree; the conductor only sets how far down the grid is
   // read at compute time. A large enough conductor pushes that read below the
   // floor, and Lfunc_compute returns the recoverable ERR_G_EXTENT.
+  //
+  // Return value 0 signals FAILURE, not "no primes needed": it is returned only
+  // when deriving M hit a fatal internal error (e.g. ERR_M_ERROR for a
+  // pathological conductor, or ERR_OOM), which is recorded on the object so the
+  // next supply call / Lfunc_compute returns it. A healthy object always returns
+  // nmax >= 1. An nmax-only caller (one that queries the bound without then
+  // supplying and computing) must therefore treat a 0 return as an error and
+  // abort, rather than acting on it as a coefficient count.
   uint64_t Lfunc_nmax(Lfunc_t L);
   // If you can't get to nmax, declare the smaller trusted supply bound.
   // NB it takes your word for it and does not check. It calls Lfunc_nmax first

@@ -100,6 +100,19 @@ int main(int argc, char **argv) {
   Lfunc_t L = Lfunc_init_advanced(&Lp, &ec);
   if (fatal_error(ec)) { fprint_errors(stderr, ec); return 1; }
   uint64_t nmax = Lfunc_nmax(L);
+  // Lfunc_nmax returns 0 only on a fatal internal error (e.g. ERR_M_ERROR /
+  // ERR_OOM); a healthy object always has nmax >= 1. Printing nmax=0 and exiting
+  // 0 here would let gen.py size the Euler-factor request from a failed
+  // computation and silently corrupt the fixture, so treat it as fatal. (Any
+  // nmax-only caller must do the same: a 0 return is an error, not "no primes
+  // needed".) The fatal flag is recorded on the object and would also resurface
+  // at Lfunc_compute, but in nmax-query mode there is no compute, so we bail here.
+  if (nmax == 0) {
+    fprintf(stderr, "Lfunc_nmax returned 0: failed to derive the coefficient bound "
+                    "(conductor too large, or out of memory)\n");
+    Lfunc_clear(L);
+    return 1;
+  }
 
   // EXPECT line (optional — absent => nmax query)
   int exp_rank = -1, tolerate_rh = 0;

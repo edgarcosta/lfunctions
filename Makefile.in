@@ -120,6 +120,13 @@ check: all
 	  printf 'PASS build/examples/rational.exe (short-supply smoke)\n'; rm -f $$tmpin $$tmpout $$log; \
 	else rc=$$?; printf 'FAIL build/examples/rational.exe (short-supply smoke) (rc=%s)\n' "$$rc"; cat $$log; rm -f $$tmpin $$tmpout $$log; fail=1; fi; \
 	rm -f g_[0-9]*; \
+	hin=build/test/highdeg-nmax0.in; hlog=build/test/highdeg-nmax0.log; \
+	printf 'RUN  build/test/highdeg_check.exe (nmax=0 guard)\n'; \
+	printf '2 1152921504606846976 0.5 1\n0 1\n' > $$hin; \
+	if ./build/test/highdeg_check.exe $$hin >$$hlog 2>&1; then \
+	  printf 'FAIL build/test/highdeg_check.exe (nmax=0 guard): exited 0 on a failed Lfunc_nmax\n'; cat $$hlog; rm -f $$hin $$hlog; fail=1; \
+	else printf 'PASS build/test/highdeg_check.exe (nmax=0 guard)\n'; rm -f $$hin $$hlog; fi; \
+	rm -f g_[0-9]*; \
 	if [ $$fail -ne 0 ]; then echo 'CHECK FAILED'; exit 1; fi; \
 	echo 'CHECK PASSED'
 

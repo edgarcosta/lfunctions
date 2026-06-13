@@ -234,6 +234,15 @@ bound:
 uint64_t nmax = Lfunc_nmax(L);
 ```
 
+A return value of `0` signals **failure**, not "no primes needed":
+{c:func}`Lfunc_nmax` returns 0 only when deriving the bound hit a fatal internal
+error (for example {c:macro}`ERR_M_ERROR` for a pathological conductor, or
+{c:macro}`ERR_OOM`), which is recorded on the object and resurfaces at the next
+supply call or {c:func}`Lfunc_compute`. A healthy object always returns
+`nmax >= 1`. If you query the bound without immediately supplying and computing
+(an "nmax-only" use, such as sizing a factor request), treat a `0` return as an
+error and abort, rather than acting on it as a coefficient count.
+
 Euler-factor supply takes local L-polynomials `L_p(T)` (polynomials in `T`
 with constant term normalised to 1) in the **algebraic** normalisation. Raw
 Dirichlet-coefficient supply can take either algebraic or analytic
