@@ -548,6 +548,11 @@ bool Lfunc_reduce_nmax(Lfunc_t LL, uint64_t nmax)
   Lfunc *L=(Lfunc *)LL;
   uint64_t M;
   M=Lfunc_nmax(LL); // what is the current M
+  if(nmax==0) // M=0 leaves no coefficients and divides by zero in M_error
+  {
+    bad_supply(L); // record a fatal error so an ignored false return still bails
+    return false;
+  }
   if(nmax>=M) // I won't let you increase it
     return false;
   shrink_M(L,nmax,false); // trusted, explicit reduction: not a shortfall

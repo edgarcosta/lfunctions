@@ -395,9 +395,12 @@ coefficient routes, call it before the supply front-end if you want deliberate
 truncation without {c:macro}`ERR_INSUFF_EULER`; once a short supply call has
 already returned that warning, a later reduction cannot erase it. The function
 returns `true` only when it actually lowered the current bound (`nmax` strictly
-below the current `M`). **The library takes your word for it and does not
-check** that the reduced bound still yields a correct result, so use it only
-when you understand the consequence.
+below the current `M`). A `nmax` of 0 is rejected: it returns `false` and
+records a fatal supply error (so even if you ignore the return,
+{c:func}`Lfunc_compute` then bails), because a zero bound leaves no coefficients
+and would divide by zero in the tail error bound. **The library takes your word
+for it and does not check** that a (positive) reduced bound still yields a
+correct result, so use it only when you understand the consequence.
 
 ## Querying the results
 

@@ -153,7 +153,10 @@ extern "C"{
   // If you can't get to nmax, declare the smaller trusted supply bound.
   // NB it takes your word for it and does not check. It calls Lfunc_nmax first
   // (so it triggers and freezes the conductor-derived M), then lowers M to nmax;
-  // nmax must be strictly below the current M, else it returns false.
+  // nmax must be strictly below the current M, else it returns false. nmax == 0
+  // is rejected (returns false and records a fatal supply error, so an ignored
+  // return still aborts Lfunc_compute): a zero bound leaves no coefficients and
+  // would divide by zero in the M_error tail bound.
   bool Lfunc_reduce_nmax(Lfunc_t LL, uint64_t nmax);
 
   // lpoly_callback is called for each prime p <= M (the conductor-derived bound;
