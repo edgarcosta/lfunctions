@@ -237,9 +237,14 @@ int main(int argc, char **argv) {
   // rank > 1 row passes it but is a golden regression comparison, since Lfunc_rank
   // certifies only rank 0/1.
   check(!fatal_error(ec), "no-fatal", "");
+  // ERR_DBL_ZERO and ERR_SOME_DATA directly compromise zero completeness /
+  // reliability (an unresolved stationary point / a possible double zero, and
+  // data running out of precision before the end of the Turing zone), so they
+  // block a certified rank/zero claim exactly like the RH/short-supply bits.
+  // This is the full caveat set documented for Lfunc_rank / Lfunc_zeros.
   const Lerror_t cert_blockers =
       ERR_INSUFF_EULER | ERR_RH_ERROR | ERR_RH_UNAVAILABLE |
-      ERR_NO_RANK | ERR_CONFLICT_RANK;
+      ERR_NO_RANK | ERR_CONFLICT_RANK | ERR_DBL_ZERO | ERR_SOME_DATA;
   const Lerror_t tolerated = tolerate_rh ? ERR_RH_ERROR : ERR_SUCCESS;
   {
     std::stringstream d;

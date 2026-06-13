@@ -237,16 +237,20 @@ extern "C"{
   acb_srcptr Lfunc_sqrt_sign(Lfunc_t L);
 
   // return the zeros, side = 0,1 for L, conjugate L. If rank = 0 or 1 this list
-  // is complete only when the accumulated error code has none of ERR_INSUFF_EULER,
-  // ERR_RH_ERROR, ERR_RH_UNAVAILABLE, ERR_NO_RANK, or ERR_CONFLICT_RANK set.
-  // Otherwise zeros may be missing or the rank/zero certification is only a
-  // regression-quality numerical comparison.
+  // is complete only when the accumulated error code has none of these caveat
+  // bits set: ERR_INSUFF_EULER, ERR_RH_ERROR, ERR_RH_UNAVAILABLE, ERR_NO_RANK,
+  // ERR_CONFLICT_RANK, ERR_DBL_ZERO, or ERR_SOME_DATA. (The last two mean a
+  // stationary point did not resolve, i.e. a possible unresolved double zero,
+  // and that the data ran out of precision before the end of the Turing zone --
+  // both leave zeros possibly missing.) Otherwise zeros may be missing or the
+  // rank/zero certification is only a regression-quality numerical comparison.
   arb_srcptr Lfunc_zeros(Lfunc_t L, uint64_t side);
 
   // return rank
-  // rank=0,1 is rigorous only when the accumulated error code has none of
-  // ERR_INSUFF_EULER, ERR_RH_ERROR, ERR_RH_UNAVAILABLE, ERR_NO_RANK, or
-  // ERR_CONFLICT_RANK set. rank>1 is not certified by this accessor.
+  // rank=0,1 is rigorous only when the accumulated error code has none of the
+  // caveat bits ERR_INSUFF_EULER, ERR_RH_ERROR, ERR_RH_UNAVAILABLE, ERR_NO_RANK,
+  // ERR_CONFLICT_RANK, ERR_DBL_ZERO, or ERR_SOME_DATA set (the full set is the
+  // same as for Lfunc_zeros). rank>1 is not certified by this accessor.
   int64_t Lfunc_rank(Lfunc_t L);
 
   // return the first non-zero Taylor coefficient

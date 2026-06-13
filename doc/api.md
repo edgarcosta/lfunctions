@@ -419,13 +419,16 @@ them; copy out (`arb_set` / `acb_set`) anything you need to outlive the object.
 
 {c:func}`Lfunc_rank` returns the analytic rank (order of vanishing at the
 central point) as an `int64_t`. A returned rank of 0 or 1 is rigorous only when
-there was no short supply and the RH check ran and succeeded: there must be no
-{c:macro}`ERR_INSUFF_EULER`, {c:macro}`ERR_RH_ERROR`,
-{c:macro}`ERR_RH_UNAVAILABLE`, {c:macro}`ERR_NO_RANK`, or
-{c:macro}`ERR_CONFLICT_RANK` warning. A value greater than 1 is not certified.
-If the rank could not be determined you get {c:macro}`ERR_NO_RANK`; if it
-disagrees with a rank supplied through {c:struct}`Lparams_t` you get
-{c:macro}`ERR_CONFLICT_RANK`.
+there was no short supply, the zeros all resolved, and the RH check ran and
+succeeded: there must be no {c:macro}`ERR_INSUFF_EULER`,
+{c:macro}`ERR_RH_ERROR`, {c:macro}`ERR_RH_UNAVAILABLE`, {c:macro}`ERR_NO_RANK`,
+{c:macro}`ERR_CONFLICT_RANK`, {c:macro}`ERR_DBL_ZERO`, or
+{c:macro}`ERR_SOME_DATA` warning. The last two are zero-reliability caveats: a
+stationary point that did not resolve (a possible unresolved double zero) and
+the data running out of precision before the end of the Turing zone. A value
+greater than 1 is not certified. If the rank could not be determined you get
+{c:macro}`ERR_NO_RANK`; if it disagrees with a rank supplied through
+{c:struct}`Lparams_t` you get {c:macro}`ERR_CONFLICT_RANK`.
 
 ### Root number: `Lfunc_sign` and `Lfunc_sqrt_sign`
 
@@ -459,13 +462,18 @@ arb_srcptr Lfunc_zeros(Lfunc_t L, uint64_t side);
 Returns the array of imaginary parts of the zeros on the critical line, as
 borrowed `arb_t` balls. `side = 0` gives the zeros of `L`; `side = 1` gives
 those of the dual L-function (for a self-dual L-function the two agree). When
-the rank is 0 or 1, no short-supply/rank warning was raised, and the RH check
-ran and succeeded (no {c:macro}`ERR_INSUFF_EULER`,
-{c:macro}`ERR_RH_ERROR`, {c:macro}`ERR_RH_UNAVAILABLE`,
-{c:macro}`ERR_NO_RANK`, or {c:macro}`ERR_CONFLICT_RANK` warning), the list is
-complete up to the height reached; otherwise some zeros may be missing. At most
-{c:macro}`MAX_ZEROS` (256) zeros are stored per side. If the zeros could not be
-refined to the target precision you get the {c:macro}`ERR_ZERO_PREC` warning.
+the rank is 0 or 1, no short-supply/rank warning was raised, every zero
+resolved, and the RH check ran and succeeded (none of
+{c:macro}`ERR_INSUFF_EULER`, {c:macro}`ERR_RH_ERROR`,
+{c:macro}`ERR_RH_UNAVAILABLE`, {c:macro}`ERR_NO_RANK`,
+{c:macro}`ERR_CONFLICT_RANK`, {c:macro}`ERR_DBL_ZERO`, or
+{c:macro}`ERR_SOME_DATA`), the list is complete up to the height reached;
+otherwise some zeros may be missing. At most {c:macro}`MAX_ZEROS` (256) zeros
+are stored per side. {c:macro}`ERR_DBL_ZERO` flags a stationary point that did
+not resolve (a possible double zero) and {c:macro}`ERR_SOME_DATA` flags the data
+running out of precision before the end of the Turing zone; both can leave zeros
+missing. The separate {c:macro}`ERR_ZERO_PREC` warning means the zeros were
+found but not refined to the target precision.
 
 ### Special values: `Lfunc_special_value`
 
