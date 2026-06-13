@@ -10,11 +10,16 @@ add an object.
 ## Running the suite
 
 The suite checks the degree 2 to 9 objects in `test/highdeg/objects.yaml`
-against LMFDB and Pari golden values. Rows that do not tolerate `ERR_RH_ERROR`
-exercise the library's certification path; rows marked `xfail`/`tolerate_rh`
-are regression comparisons while the degree >= 3 Turing calibration is pending.
-Run it from the repository root after a build (`make check-highdeg` depends on
-`all`):
+against LMFDB and Pari golden values. The library certifies only rank 0 and
+rank 1 (see `Lfunc_rank` in `doc/api.md`), so a row is a genuine rank/zero
+certification only when its expected rank is 0 or 1 **and** it raises no caveat
+warning. The rank > 1 rows (degree-2 elliptic curves 389.a1, 5077.a1,
+234446.a1, 19047851.a1, ...) raise no warning and so pass the warning gate
+below, but their rank is above what `Lfunc_rank` certifies: they are golden
+regression comparisons of the rank/zero data against LMFDB, not certified rank
+claims. Rows marked `xfail`/`tolerate_rh` are likewise regression comparisons
+(the degree >= 3 Turing calibration is pending). Run it from the repository
+root after a build (`make check-highdeg` depends on `all`):
 
 ```
 make check-highdeg
@@ -152,12 +157,19 @@ The optional `sympow` marker on line 1 means the GOOD-prime lines carry only the
 factor. Without the marker every line is an explicit factor (ec / genus2 / cmf).
 
 ## C. driver assertions (`highdeg_check.cpp`) — exit nonzero on ANY failure
-1. `Lfunc_rank(L) == rank`
+These compare `Lfunc_*` output against the golden `EXPECT` values. For rank 0/1
+rows that raise no caveat warning this is the library's certification path; for
+rank > 1 rows (and `tolerate_rh` rows) it is a golden regression comparison, since
+`Lfunc_rank` certifies only rank 0/1 (see `doc/api.md`). Assertion 1 holds either
+way (the rank must equal the golden value); only the *interpretation* differs.
+1. `Lfunc_rank(L) == rank` (golden-value match; a certified claim only for rank 0/1)
 2. `acb_abs(Lfunc_sign(L))` overlaps 1  AND  `Lfunc_sign(L)` overlaps `(eps_re,eps_im)` widened by 1e-9
 3. `Lfunc_zeros(L,0)[0]` overlaps `[z1 +- z1_err]`
 4. `Lfunc_Taylor(L)` overlaps `[taylor +- taylor_err]`
 5. fatal_error(ecode) must be false; if `tolerate_rh==0` also require `(ecode & ERR_RH_ERROR)==0`;
    if `tolerate_rh==1`, ignore ERR_RH_ERROR but no OTHER warning may be treated as failure.
+   (Passing this warning gate is not by itself a rank certification: a rank > 1 row
+   can pass it, but rank > 1 is outside what `Lfunc_rank` certifies.)
 Set `((Lfunc*)L)->self_dual = YES` when self_dual==1 (glfunc_internals.h). Coeffs via fmpz (int64 overflows for Sym^5+). Scrub `g_*` before each run.
 
 ## D. good-factor backends (in `gen.py`)

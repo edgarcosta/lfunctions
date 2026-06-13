@@ -7,9 +7,18 @@
 # the rank-5 curve 19047851.a1 (absent from lfunc_search) were computed with Pari/GP via
 # Sage 10.8 (lfunsympow / lfuncreate, lfunorderzero, lfunzeros, lfunrootres/ellrootno).
 # Bad factors are stored already-Sym^k'd, ascending; the driver injects them verbatim.
+#
+# Certified vs golden-regression: the library certifies only rank 0 and rank 1
+# (see Lfunc_rank in doc/api.md). A row is a genuine rank/zero certification only
+# when its expected rank is 0 or 1 AND it raises no tolerated warning. The rank > 1
+# elliptic-curve rows below (389.a1 r2, 5077.a1 r3, 234446.a1 r4, 19047851.a1 r5)
+# carry tolerate_rh_error: false and so pass the driver's warning gate, but their
+# rank exceeds what Lfunc_rank certifies: they are golden regression comparisons of
+# the computed rank/zeros against LMFDB/Pari, not certified rank claims.
 
 objects:
-  # ---- (1) Six elliptic curves, ranks 0-5 (degree 2) ----
+  # ---- (1) Six elliptic curves, ranks 0-5 (degree 2); rank > 1 rows are golden
+  #          regression comparisons, not certified (Lfunc_rank certifies only 0/1) ----
   - label: "11.a1"
     kind: ec
     curve: "[0,-1,1,-10,-20]"

@@ -4,6 +4,13 @@
 // outputs against golden values (LMFDB for degree 2/4, Pari lfunsympow for the
 // symmetric powers). Exit code is the oracle: 0 = all assertions passed.
 //
+// Certified vs golden regression: the library certifies only rank 0/1 (see
+// Lfunc_rank). These asserts always demand the golden rank/zeros match, but that
+// is a certified claim only for a rank-0/1 row with no tolerated warning. A
+// rank > 1 row (or a tolerate_rh row) is a golden regression comparison: it must
+// still match LMFDB/Pari, but rank > 1 is outside what Lfunc_rank certifies, so
+// passing the warning gate below does not make it a certified rank claim.
+//
 // Input file (see test/highdeg/INTERFACES.md sec B):
 //   line 1: degree conductor normalisation self_dual
 //   line 2: mu_0 ... mu_{degree-1}
@@ -226,6 +233,9 @@ int main(int argc, char **argv) {
   printf("degree=%lu conductor=%lu nmax=%lu primes=%lu\n", degree, conductor, nmax, count);
 
   // (0) no fatal error; certification caveats only when explicitly tolerated.
+  // NB this is a warning gate (RH/zero reliability), not a rank-range gate: a
+  // rank > 1 row passes it but is a golden regression comparison, since Lfunc_rank
+  // certifies only rank 0/1.
   check(!fatal_error(ec), "no-fatal", "");
   const Lerror_t cert_blockers =
       ERR_INSUFF_EULER | ERR_RH_ERROR | ERR_RH_UNAVAILABLE |
