@@ -595,21 +595,41 @@ tables.)
 
 The gamma-factor product (the "G data") depends only on the degree, the gamma
 shifts, and the precision, not on the Euler factors. Computing it is expensive,
-so the library caches it to disk, keyed by the analytic normalisation, in a file
-named `g_<normalisation>` (for example `g_0.5`). On a subsequent run with a
-matching gamma factor the cache is read back instead of recomputed.
+so the library caches it to disk. The filename is built from the sorted analytic
+shifts (each `mus[i] + normalisation`), one `_<value>` field per shift formatted
+to one decimal place: a degree-2 object with analytic shifts `[0.5, 1.5]` is
+cached as `g_0.5_1.5`. The cache is only consulted in the default mode (you left
+`gprec` at 0, kept the {c:macro}`DEFAULT_TARGET_PREC` target, and set a
+`cache_dir`).
+
+Each cache file begins with a self-describing `GCACHE` header recording a format
+version, the degree, the `gprec` the grid was computed at, and the sorted shifts.
+On a subsequent run the library reads that header and **validates it against the
+current request**:
+
+- If the header matches (same version, degree, shifts) and the grid was computed
+  at sufficient precision, the body is read back and used as-is.
+- If it does not match, or was computed at too low a precision (a *stale* cache),
+  the library recomputes the G data and **overwrites** the file rather than
+  trusting or aborting on it. A foreign or older-format file at the same name is
+  handled the same way.
+- If the header is valid but the body cannot be parsed (a *corrupt* file), the
+  run fails with the fatal {c:macro}`ERR_G_INFILE`.
 
 {c:member}`cache_dir <Lparams_t.cache_dir>` (settable through
 {c:func}`Lfunc_init_advanced`) chooses the directory for these files; left
-unset, the current working directory is used.
+`NULL` the cache is disabled, and {c:func}`Lfunc_init` defaults it to the current
+working directory.
 
-```{warning}
-A stale or mismatched `g_<normalisation>` file in the cache directory can poison
-a run. For a hermetic computation, point {c:member}`cache_dir
-<Lparams_t.cache_dir>` at a clean directory, or remove any `g_*` files from the
-working directory first. A cache that cannot be read raises the fatal
-{c:macro}`ERR_G_INFILE`; a grid that does not extend far enough (which a stale
-cache can also cause) raises {c:macro}`ERR_G_EXTENT`.
+```{note}
+Because the filename encodes only the shifts (not the degree, precision, or
+version), two requests with the same analytic shifts map to the same filename;
+the `GCACHE` header is what actually distinguishes them and triggers a recompute
+on a mismatch. For a hermetic computation, still point {c:member}`cache_dir
+<Lparams_t.cache_dir>` at a clean directory or remove any `g_*` files first: the
+header validation prevents a *stale* cache from being trusted, but a clean
+directory avoids the recompute-and-overwrite churn entirely. A grid that does
+not extend far enough for the conductor raises {c:macro}`ERR_G_EXTENT`.
 ```
 
 ## A worked end-to-end example

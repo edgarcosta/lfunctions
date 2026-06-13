@@ -209,12 +209,15 @@ examples additionally use FLINT's C++ bindings.
   header and the library to the same prefix. (This commonly happens when a
   system copy and a Sage or local copy are both installed.)
 
-- **Stale `g_<...>` cache files poison results.** The G-function (the gamma
-  factor product) is cached to disk in the current working directory as files
-  named `g_<normalisation>` (for example `g_0.5`, `g_1.5`). A stale or
-  mismatched cache file sitting in the CWD is silently reused and can corrupt a
-  computation. `make check` and `make check-highdeg` scrub `g_[0-9]*` for you,
-  but for ad-hoc runs remove them first:
+- **Stale `g_<...>` cache files.** The G-function (the gamma factor product) is
+  cached to disk in the current working directory in files named from the sorted
+  analytic shifts (`g_<mu0>_<mu1>...`, for example `g_0.5_1.5` for an elliptic
+  curve). Each file carries a `GCACHE` header that is validated against the
+  request, so a stale, foreign, or under-precision file is recomputed and
+  overwritten rather than silently reused (only a valid-header file with an
+  unparsable body is fatal). `make check` and `make check-highdeg` scrub
+  `g_[0-9]*` for you; for ad-hoc runs, removing them first still gives the
+  cleanest, churn-free run:
 
   ```
   rm -f g_*
