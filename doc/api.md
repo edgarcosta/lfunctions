@@ -388,11 +388,11 @@ successfully extracted pure power `L = M^k`, it returns 1. If `factors` is
 non-NULL, `*factors` is set to a borrowed array whose first element points to
 `M`; if `mults` is non-NULL, `*mults` is set to an array whose first element is
 `k`. The returned arrays and factor objects are owned by `L`; do not clear them
-yourself, and do not use them after {c:func}`Lfunc_clear(L)`.
+yourself, and do not use them after {c:func}`Lfunc_clear`.
 
 The assembled object exposes the quantities that can be assembled from the
 factor: rank, sign, zeros, leading Taylor coefficient, and special values.
-Plot samples are the exception; see [Plot data](#plot-data-lfunc-plot-data-and-lfunc-clear-plot).
+Plot samples are the exception; see [Plot data](#plot-data-lfunc_plot_data-and-lfunc_clear_plot).
 
 ### Zeros: `Lfunc_zeros`
 
