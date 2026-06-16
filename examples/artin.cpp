@@ -18,15 +18,16 @@
  *     non-self-dual conductor-52 rep 2.52.6t5.b.a (the weight-1 level-52 newform
  *     52.1.j.a, complex root number, distinct side-0 and side-1 zeros); the
  *     self-dual symplectic conductor-2304 rep 2.2304.8t5.b.a (8T5, real root
- *     number -1 forcing analytic rank 1, central zero at height 0); and the
+ *     number -1 forcing odd analytic rank, here the golden rank 1, central zero
+ *     at height 0); and the
  *     self-dual dimension-3 conductor-229 rep 3.229.4t5.a.a (4T5 = S4, even, the
  *     first degree-3 case). Each row feeds its embedded input line through the
  *     exact same parse -> lpoly -> Lfunc_compute pipeline the tool mode uses, then
- *     asserts on certified output: rank, L(1), zeros, and |epsilon| = 1, plus the
- *     root number (real or complex) and, for the non-self-dual row, that it is
+ *     asserts rank, L(1), zeros, |epsilon| = 1, and root number against golden
+ *     values; for the non-self-dual row it also checks that the root number is
  *     genuinely complex and its dual zeros differ. Degree >= 3 rows emit the
- *     ERR_RH_ERROR Turing warning, which is non-fatal and tolerated. Exits 0 on
- *     success.
+ *     ERR_RH_ERROR Turing warning, so those rows are regression comparisons
+ *     rather than RH-certified zero/rank claims. Exits 0 on success.
  *   Any other argc prints a usage message and exits nonzero.
  */
 #define __STDC_FORMAT_MACROS
@@ -878,8 +879,8 @@ int process_line(const string &line, ostream &output, primesieve::iterator &ps, 
 //
 // Each case runs one Artin representation through the exact parse -> lpoly ->
 // Lfunc_compute pipeline that the tool mode uses (process_line), then asserts
-// on certified balls. Coverage grows by adding rows to ARTIN_TESTS; the shared
-// helpers keep every row checking the same way. Golden constants are
+// golden values against Arb/Acb balls. Coverage grows by adding rows to
+// ARTIN_TESTS; the shared helpers keep every row checking the same way. Golden constants are
 // cross-checked against independent sources (Magma for 2.47.5t2.a.a; independent
 // Pari lfunartin runs for 2.2304.8t5.b.a and 3.229.4t5.a.a, each validated by
 // reproducing the in-tree 2.47 first zero exactly; see the commit history), or
@@ -896,6 +897,7 @@ static const size_t MAX_TEST_ZEROS = 4;
 struct artin_testcase {
   const char *label;                   // diagnostic label (matches the line label)
   const char *line;                    // verbatim ':'-delimited input line (no spaces)
+  Lerror_t expected_process_warnings;  // warning mask expected from process_line, excluding ERR_SPEC_PREC
   int64_t rank;                        // expected analytic rank
   const char *l1_re, *l1_im;           // expected L(1); NULL re skips the check
   const char *zeros0[MAX_TEST_ZEROS];  // expected zeros on side 0, NULL-terminated
@@ -910,7 +912,7 @@ struct artin_testcase {
   const char *zeros1[MAX_TEST_ZEROS];  // expected zeros on side 1 (dual), NULL-terminated
 };
 
-// Certified-ball assertion helpers, factored out so every case checks the same
+// Ball-overlap assertion helpers, factored out so every case checks the same
 // way and the sibling object beads can reuse them.
 
 static void assert_rank(Lfunc_t L, int64_t expected) {
@@ -999,6 +1001,7 @@ static const artin_testcase ARTIN_TESTS[] = {
     "[[[1],[-2],[1]],[[1],[0],[-1]],[[1],[0,0,-1,-1],[1]],[[1],[1,0,1,1],[1]],[[1],[-1]]]:"
     "[[2,47],[3,5]]:[[[1,1,1,1,1],[1,2,2]],[1,2]]:"
     "[[[5]],[[[[4,[-47,1]],[3,[47,1]]],[2,3,4,5,1]]]]:[[],[]]",
+    ERR_SUCCESS,                        // no process_line warning caveat expected
     0,                                  // rank
     "0.45066022094739052973", "0",      // L(1)
     { "2.9874346957843450441", NULL, NULL, NULL },  // first zero, side 0
@@ -1028,6 +1031,7 @@ static const artin_testcase ARTIN_TESTS[] = {
     "[[[1,1,1,3],[3,3],[6]],[[[[5,[25,-8,1]],[6,[2,-2,1]]],[[1],[0,0,1]]],"
     "[[[3,[-2,1]],[4,[4,1]],[7,[5,2,1]]],[[1],[0,0,1]]],"
     "[[[8,[12,1,4,1]],[9,[12,14,4,1]]],[[1],[0,0,1]]]]]",
+    ERR_SUCCESS,                        // no process_line warning caveat expected
     0,                                  // rank
     "0.54595409306672615894", "-0.17759304200882023951",  // L(1), complex
     {                                   // zeros, side 0 (L = orbit a)
@@ -1045,7 +1049,9 @@ static const artin_testcase ARTIN_TESTS[] = {
   // 2.2304.8t5.b.a: dim 2, conductor 2304, self-dual, even, RANK 1. The 8T5
   // (order-16) symplectic rep (Frobenius-Schur indicator -1): self-dual with a
   // real root number that is forced to -1, which makes the sign of the functional
-  // equation odd and pins the analytic rank at 1, with a central zero at height 0.
+  // equation odd and so forces the analytic rank to be ODD (>= 1, with a central
+  // zero at height 0). That it is exactly 1 rather than 3, 5, ... is not implied
+  // by epsilon = -1 alone; it is asserted below as a golden value (rank field 1).
   // Lfunc_zeros(L, 0) returns the POSITIVE zeros (the central one is excluded), so
   // zeros0 below are 1.6126..., 2.6362..., ... and the rank-1 claim is asserted on
   // its own. epsilon = -1 is real, so eps_nonreal is false. The input line comes
@@ -1061,7 +1067,8 @@ static const artin_testcase ARTIN_TESTS[] = {
     "[[2,3],[6,6]]:[[[1,1,1,1,1,1,1,1],[2,2,2,2]],[1,2]]:[[],[]]:"
     "[[[4,4]],[[[[3,[-6015168,0,1]],[4,[-1672704,0,1]],[5,[-9331200,0,1]]],"
     "[[1],[8,7,6,5,4,3,2,1]]]]]",
-    1,                                  // rank (sign -1 forces analytic rank 1)
+    ERR_SUCCESS,                        // no process_line warning caveat expected
+    1,                                  // rank: golden 1 (epsilon -1 forces only ODD rank >= 1)
     NULL, NULL,                         // L(1): not pinned (rank-1 row)
     {                                   // positive zeros, side 0 (central zero at 0 excluded)
       "1.6125769007629963859", "2.6361552143853642710",
@@ -1091,6 +1098,7 @@ static const artin_testcase ARTIN_TESTS[] = {
     "[[[1],[-3],[3],[-1]],[[1],[1],[-1],[-1]],[[1],[-1],[-1],[1]],[[1],[0],[0],[-1]],"
     "[[1],[1],[1],[1]],[[1],[0],[-1]]]:"
     "[[229],[6]]:[[[1,1,1,1],[1,1,2],[1,3],[2,2],[4]],[1,3,4,2,5]]:[[],[]]:[[],[]]",
+    ERR_RH_ERROR,                       // expected warning caveat
     0,                                  // rank
     NULL, NULL,                         // L(1): not pinned
     {                                   // zeros, side 0
@@ -1106,7 +1114,7 @@ static const artin_testcase ARTIN_TESTS[] = {
   },
 };
 
-// Run every case through process_line and assert on its certified output.
+// Run every case through process_line and assert on its golden-value output.
 // Returns 0 on success; asserts otherwise.
 int self_test() {
   const size_t ncases = sizeof(ARTIN_TESTS) / sizeof(ARTIN_TESTS[0]);
@@ -1119,9 +1127,12 @@ int self_test() {
 
     // Exercise the output path too (into a stringstream rather than a file).
     stringstream record;
-    process_line(c.line, record, ps, AR);
+    const int rc = process_line(c.line, record, ps, AR);
+    const Lerror_t process_warnings = AR.ecode & ~ERR_SPEC_PREC;
+    assert(process_warnings == c.expected_process_warnings);
+    assert((rc != 0) == (c.expected_process_warnings != ERR_SUCCESS));
 
-    // --- certified asserts ---
+    // --- golden-value asserts ---
     assert_rank(L, c.rank);                                            // analytic rank
     if(c.l1_re != NULL)
       assert_acb_overlaps_str(&AR.special_values[0], c.l1_re, c.l1_im);  // L(1)

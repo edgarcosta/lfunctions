@@ -37,7 +37,7 @@ extern "C"{
   typedef struct{
     uint64_t degree; // degree r (number of Gamma_R factors), 2 <= r <= MAX_DEGREE
     uint64_t conductor; // arithmetic conductor N
-    double normalisation; // algebraic->analytic s-shift = (k-1)/2; only used to form mus
+    double normalisation; // algebraic->analytic s-shift; only used to form mus
     double *mus; // Gamma_R shifts (user mus + normalisation), sorted, non-neg half-ints
     int64_t target_prec; // target output precision in bits (default DEFAULT_TARGET_PREC=100)
     arb_t zero_prec; // intended zero half-width 2^(-target_prec-1); only feeds zero_error
@@ -108,11 +108,19 @@ extern "C"{
     acb_t sign; // root number eps in Lambda(s)=eps*Lambda(1-s); = sqrt_sign^2
     acb_t *ans; // Dirichlet coefficients: ans[n-1] = a_n (analytic norm), len allocated_M
     uint64_t M; // largest n with a_n used = floor(sqrt(N)*exp(2*pi*(hi_i+0.5)/B))
-    uint64_t M0; // split point ceil(sqrt(N)/100): n<M0 summed directly, n>=M0 via FFT
+    uint64_t M0; // split point ceil(sqrt(N)/100): n<M0 summed directly, n>=M0 via FFT; after any reduction M0-1 <= M
     uint64_t allocated_M; // allocated capacity of ans (slots); M0, M <= allocated_M
     double dc; // sqrt(conductor); log-scale center mapping coeff index to FFT bin
 
     bool nmax_called; // true if user/system has called Lfunc_nmax
+
+    // batch-supply bookkeeping (see coeff.c front-ends)
+    bool factor_supplied; // true once any factor route (push/callback/factor array) ran: blocks a later raw a_n supply
+    bool raw_supplied;    // true once a raw a_n array was supplied; blocks any further supply call
+    int factor_route;     // 0 none, 1 push, 2 callback, 3 array; prevents overlapping factor routes
+    uint64_t last_factor_p; // last prime accepted by the push route; pushes must be increasing
+    Lerror_t supply_ecode; // fatal supply-time errors recorded out of a void context (e.g. Lfunc_use_lpoly after raw a_n); Lfunc_compute early-returns it before computing
+    bool compute_called;  // true once Lfunc_compute has begun: compute divides ans by sqrt(n) in place, so it is single-use; a second call (or a supply call after it) is fatal ERR_LIFECYCLE
 
     int64_t offset; // FFT bin index of a_1 = calc_m(1); used only for a bounds check
 

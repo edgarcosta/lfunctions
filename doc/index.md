@@ -9,9 +9,9 @@ Sutherland (in preparation).
 
 The library exposes an opaque-pointer C interface in
 [`include/glfunc.h`](https://github.com/edgarcosta/lfunctions/blob/main/include/glfunc.h):
-create an `Lfunc_t`, supply the Euler factors, call `Lfunc_compute`, then query
-the results. See the [API reference](api.md) for the full lifecycle and every
-entry point.
+create an `Lfunc_t`, supply Euler factors or raw Dirichlet coefficients, call
+`Lfunc_compute`, then query the results. See the [API reference](api.md) for
+the full lifecycle and every entry point.
 
 ## Building
 

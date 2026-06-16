@@ -298,6 +298,26 @@ Lerror_t Lfunc_compute(Lfunc_t Lf)
 
   Lfunc *L=(Lfunc *) Lf;
 
+  if(fatal_error(L->supply_ecode)) // a supply call recorded a fatal error (e.g. a conflict)
+    return L->supply_ecode;
+  // Lifecycle guard. Lfunc_compute divides L->ans by sqrt(n) in place (below),
+  // so it is single-use: a second call would re-divide and silently corrupt the
+  // result. With no supply at all, M/M0/dc were never set by Lfunc_nmax, so the
+  // pipeline would read uninitialised state. Reject both, fatally.
+  if(L->compute_called)
+  {
+    L->supply_ecode|=ERR_LIFECYCLE; // also sticky, so any later compute keeps failing
+    return ERR_LIFECYCLE;
+  }
+  if(!L->factor_supplied && !L->raw_supplied) // no Euler factors or coefficients supplied
+  {
+    L->supply_ecode|=ERR_LIFECYCLE;
+    return ERR_LIFECYCLE;
+  }
+  L->compute_called=true; // from here on ans gets mutated; never run this twice
+  if(L->nmax_called && L->M0>0 && L->M0-1>L->M)
+    return ERR_BAD_SUPPLY; // direct block would read coefficients past M
+
   if(verbose) {
     for(int i = 0; i < 100; i++) {
       printf("a[%d] = ", i + 1);
@@ -355,6 +375,8 @@ Lerror_t Lfunc_compute(Lfunc_t Lf)
     //if( (m + 1) % 100 == 0){printf("sum_{n <= %ld |an/sqrt(n)|=",m+1);arb_printd(L->sum_ans,10);printf("\n");fflush(stdout);}
   }
   if(verbose){printf("sum_{n <= %"  PRIu64 " |an/sqrt(n)|=",L->M);arb_printd(L->sum_ans,10);printf("\n");fflush(stdout);}
+  // supply_ecode carries only fatal bits and was already consumed by the
+  // early-return guard at the top of this function, so it is 0 here.
   Lerror_t ecode=finalise_comp(L);
   if(fatal_error(ecode))
     return ecode;
@@ -401,11 +423,20 @@ Lerror_t Lfunc_compute(Lfunc_t Lf)
       return ecode;
   }
 #ifdef BUTHE
-  ecode|=buthe_check_RH(L);
+  if(!L->raw_supplied)
+    ecode|=buthe_check_RH(L);
+  #ifndef TURING
+  else
+    ecode|=ERR_RH_UNAVAILABLE; // raw a_n: no per-prime factors for Buthe's wf()
+  #endif
 #endif
 
 #ifdef TURING
   ecode|=turing_check_RH(L,prec);
+#endif
+
+#if !defined(BUTHE) && !defined(TURING)
+  ecode|=ERR_RH_UNAVAILABLE;
 #endif
   
 #endif

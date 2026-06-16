@@ -71,14 +71,14 @@ The main targets are:
  - `make lib`: build only the shared library `build/liblfun.so` (`.dylib` on macOS).
  - `make test` / `make executables`: *compile* the tests / examples into `build/test/*.exe` and `build/examples/*.exe` (they do not run them).
  - `make check`: build everything, then run the curated self-checking regression suite; it exits non-zero if any binary fails (the exit code is the oracle). It also scrubs stale `g_<...>` cache files before the suite and after each binary.
- - `make check-highdeg`: run the high-degree regression suite (certified degree 2 to 9 L-functions: elliptic curves, their symmetric powers, genus-2 curves, classical newforms) against LMFDB and Pari golden values. By default it runs purely from committed base fixtures, so it needs no external toolchain. See below.
+ - `make check-highdeg`: run the high-degree regression suite (degree 2 to 9 L-functions: elliptic curves, their symmetric powers, genus-2 curves, classical newforms) against LMFDB and Pari golden values. Only the rank-0/1 rows that raise no warning are certified rank/zero claims; rank > 1 rows, and the degree >= 3 rows that tolerate `ERR_RH_ERROR`, are golden regression comparisons rather than certified claims. By default it runs purely from committed base fixtures, so it needs no external toolchain. See below.
  - `make clean`: remove the `build/` directory (`rm -rf build`).
 
 To run a single test or example, execute its binary directly, e.g. `./build/test/dir_test.exe` or `./build/examples/ec_37.a1.exe`.
 
 ### High-degree regression suite
 
-`make check-highdeg` certifies the degree 2 to 9 objects listed in `test/highdeg/objects.yaml`. By default it runs from the committed base fixtures in `test/highdeg/fixtures/`, so it needs no `smalljac` or Sage; regenerating those fixtures, or running without them, needs `smalljac`'s `lpdata` (and, for the genus-2 objects, a genus-2 `lpdata` build passed as `LPDATA=.../lpdata2`). Its knobs (`FIXTURES`, `LABEL`, `BACKEND`, `LPDATA`), the `make highdeg-data` fixture-regeneration target, and how to add an object to `objects.yaml` are documented in **[test/highdeg/INTERFACES.md](test/highdeg/INTERFACES.md)**.
+`make check-highdeg` checks the degree 2 to 9 objects listed in `test/highdeg/objects.yaml` against trusted golden values. The library only certifies rank 0 and rank 1 (see `Lfunc_rank` in `doc/api.md`), so the rank-0/1 rows that raise no caveat warning are genuine rank/zero certifications, while the rank > 1 rows (and any row that tolerates `ERR_RH_ERROR`) are golden regression comparisons against LMFDB/Pari data rather than certified rank claims. By default it runs from the committed base fixtures in `test/highdeg/fixtures/`, so it needs no `smalljac` or Sage; regenerating those fixtures, or running without them, needs `smalljac`'s `lpdata` (and, for the genus-2 objects, a genus-2 `lpdata` build passed as `LPDATA=.../lpdata2`). Its knobs (`FIXTURES`, `LABEL`, `BACKEND`, `LPDATA`), the `make highdeg-data` fixture-regeneration target, and how to add an object to `objects.yaml` are documented in **[test/highdeg/INTERFACES.md](test/highdeg/INTERFACES.md)**.
 
 See [INSTALL.md](INSTALL.md) for the configure options, the SageMath shortcut, and troubleshooting (including scrubbing stale `g_*` cache files).
 
@@ -86,7 +86,11 @@ See [INSTALL.md](INSTALL.md) for the configure options, the SageMath shortcut, a
 
 The quickest way to compute an L-function without writing C is the `rational` command-line tool (`examples/rational.c`), which reads a one-line spec `label:degree:conductor:weight:[mus]:[[euler_factors]]` and prints the rank, root number, leading Taylor coefficient, and first zero. See [doc/rational.md](doc/rational.md) for the input grammar and a worked example.
 
+For C callers, the public API accepts Euler factors by callback, one-prime
+push, or consecutive-prime array, and also accepts raw Dirichlet coefficient
+arrays with an explicit `LFUNC_ALGEBRAIC_NORM` / `LFUNC_ANALYTIC_NORM` selector. See
+[doc/api.md](doc/api.md) for the supply contracts and edge-case warnings.
+
 ### Symmetric powers
 
-The library can compute symmetric-power L-functions `Sym^k(E)` of an elliptic curve. The good-prime Euler factors are formed from the curve's `a_p` by the helper `sym_power_lpoly` (`include/sym_power.h`); a worked example (Sym^2 and Sym^3 of `11.a1`, with certified assertions) is [`examples/ec_sym.cpp`](examples/ec_sym.cpp). See [doc/sympow.md](doc/sympow.md) for the assembly conventions (degree, normalisation, `mus`, `self_dual`) and the bad-factor caveats.
-
+The library can compute symmetric-power L-functions `Sym^k(E)` of an elliptic curve. The good-prime Euler factors are formed from the curve's `a_p` by the helper `sym_power_lpoly` (`include/sym_power.h`); a worked example (Sym^2 and Sym^3 of `11.a1`, with golden-value regression assertions and tolerated degree >= 3 RH warnings) is [`examples/ec_sym.cpp`](examples/ec_sym.cpp). See [doc/sympow.md](doc/sympow.md) for the assembly conventions (degree, normalisation, `mus`, `self_dual`) and the bad-factor caveats.

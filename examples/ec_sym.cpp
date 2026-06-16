@@ -4,8 +4,8 @@
  * Worked symmetric-power L-functions of the elliptic curve 11.a1 (bead lfunctions-cu2).
  *
  * Builds the Sym^2 (degree 3) and Sym^3 (degree 4) L-functions of
- * 11.a1 = [0,-1,1,-10,-20] and asserts their certified rank, root number, first
- * zero, and an off-central special value.
+ * 11.a1 = [0,-1,1,-10,-20] and asserts rank, root number, first zero, and an
+ * off-central special value against independent golden values.
  *
  *  - Good-prime Euler factors are formed in C from the curve's a_p by
  *    sym_power_lpoly (bead lfunctions-4q6).  The a_p are hardcoded (the library
@@ -22,7 +22,7 @@
  *    miscalibrated for degree >= 3 (bead lfunctions-0zo).  It is a warning, not a
  *    fatal error, so it is collected and reported, never asserted against.
  *
- * Goldens: Sym^2 rank / eps / first zero from the certified high-degree suite
+ * Goldens: Sym^2 rank / eps / first zero from the high-degree suite
  * (test/highdeg/objects.yaml); Sym^3 from Pari lfunsympow(E,3) via lfunorderzero
  * / lfunrootres / lfunzeros; both L(2.5) values from Pari lfun, in the algebraic
  * (arithmetic) normalisation that Lfunc_special_value and Pari lfun share.  The
@@ -172,8 +172,8 @@ static void sym_lpoly_callback(acb_poly_t poly, uint64_t p, int d __attribute__(
   fmpz_poly_clear(f);
 }
 
-// Build Sym^k of 11.a1 and assert its certified rank / |eps| = 1 / eps / first
-// zero, plus the off-central special value L(2.5) against its Pari golden.
+// Build Sym^k of 11.a1 and assert rank / |eps| = 1 / eps / first zero, plus the
+// off-central special value L(2.5) against its Pari golden.
 // Returns accumulated warnings (notably the tolerated ERR_RH_ERROR for degree
 // >= 3); a fatal error or a failed assertion aborts.
 static Lerror_t check_sym_power(int k, uint64_t conductor, double normalisation,

@@ -33,8 +33,11 @@ per-line results are reported on stdout); pass any writable path for it.
 
 Each result block printed to stdout contains the analytic rank, the root number
 (epsilon, a complex ball), the leading Taylor coefficient at the central point,
-and the first zero on the critical line, each as a certified ball (midpoint
-`+/-` radius).
+and the first zero on the critical line. Numeric values are printed as Arb/Acb
+balls (midpoint `+/-` radius). Certification of the rank and zero completeness
+still depends on the warning bits: inspect stderr for `fprint_errors` messages
+such as "Don't appear to have enough Euler factors / Dirichlet coefficients" or
+"Failed to confirm RH" before treating the output as rigorous.
 
 ## Input-line grammar
 
@@ -76,9 +79,11 @@ first), and must have exactly `degree + 1` entries:
 
 with the convention `c0 = 1`. The inner lists are matched to the primes
 `2, 3, 5, 7, 11, ...` **in order**: the first inner list is the factor at
-`p = 2`, the second at `p = 3`, and so on. You must supply at least as many
-factors as there are primes up to `Lfunc_nmax` (the tool asserts this); for an
-elliptic curve, a degree-2 factor is `[1, -a_p, p]` at a good prime `p`.
+`p = 2`, the second at `p = 3`, and so on. The tool passes this list to
+`Lfunc_use_lpolys_fmpz`; if the list is shorter than the library's computed
+`Lfunc_nmax`, the library reduces `nmax` to the first missing prime minus one
+and reports the corresponding short-supply warning on stderr. For an elliptic
+curve, a degree-2 factor is `[1, -a_p, p]` at a good prime `p`.
 
 Coefficients are parsed as 64-bit integers, so this tool is suited to objects
 whose local factors have integer coefficients that fit in `int64` (elliptic
@@ -147,6 +152,9 @@ prime-ordered form described above, and they must cover every prime up to
 `Lfunc_nmax`.
 
 > **Stale `g_*` cache files.** The library caches the gamma-factor product to
-> disk as `g_<normalisation>` files in the current directory. Remove any such
-> files (`rm -f g_*`) before a run; a stale one is silently reused and can
-> corrupt the result.
+> disk in the current directory, in files named from the sorted analytic shifts
+> (`g_<mu0>_<mu1>...`, for example `g_0.5_1.5` for an elliptic curve). Each file
+> carries a `GCACHE` header that is validated against the request, so a stale or
+> foreign file is recomputed and overwritten rather than silently reused (a
+> valid-header but corrupt body is fatal). Removing any such files (`rm -f g_*`)
+> before a run is still the simplest way to get a hermetic, churn-free run.

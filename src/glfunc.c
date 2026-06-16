@@ -3,6 +3,7 @@
 #include "glfunc_internals.h"
 #include "math.h"
 #include "stdlib.h"
+#include "limits.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -34,9 +35,30 @@ void fprint_errors(FILE *f, Lerror_t ecode) {
     fprintf(f, "Fatal error in stationary point routine.\n");
   if (ecode & ERR_SPEC_VALUE)
     fprintf(f, "Fatal error in special value routine.\n");
+  if (ecode & ERR_SUPPLY_CONFLICT)
+    fprintf(f, "Incompatible, duplicate, or out-of-order L-series supply "
+               "route/factor.\n");
+  if (ecode & ERR_A1_NOT_ONE)
+    fprintf(f,
+            "Supplied a_1 is not 1 (the leading Dirichlet coefficient must be "
+            "1).\n");
+  if (ecode & ERR_COEFF_BOUND)
+    fprintf(f, "A supplied Dirichlet coefficient exceeds the degree's "
+               "Euler-product bound |a_n| <= C*n^alpha (check "
+               "normalisation_of_input).\n");
+  if (ecode & ERR_BAD_NORM)
+    fprintf(f, "Invalid normalisation_of_input selector; use LFUNC_ALGEBRAIC_NORM "
+               "or LFUNC_ANALYTIC_NORM.\n");
+  if (ecode & ERR_BAD_SUPPLY)
+    fprintf(f, "Invalid coefficient or Euler-factor supply argument.\n");
+  if (ecode & ERR_LIFECYCLE)
+    fprintf(f, "L-function lifecycle misuse: compute with no supply, computed "
+               "twice, or supply after compute.\n");
   // warnings
   if (ecode & ERR_INSUFF_EULER)
-    fprintf(f, "Don't appear to have enough Euler factors.\n");
+    fprintf(f,
+            "Don't appear to have enough Euler factors / Dirichlet "
+            "coefficients.\n");
 
   if (ecode & ERR_SOME_DATA)
     fprintf(f, "Data became unusable after output region but before end of "
@@ -49,6 +71,8 @@ void fprint_errors(FILE *f, Lerror_t ecode) {
     fprintf(f, "Computed rank did not agree with what we were told.\n");
   if (ecode & ERR_RH_ERROR)
     fprintf(f, "Failed to confirm RH for zeros in output region.\n");
+  if (ecode & ERR_RH_UNAVAILABLE)
+    fprintf(f, "RH check skipped or unavailable for this build/supply route.\n");
   if (ecode & ERR_DBL_ZERO)
     fprintf(
         f,
@@ -103,8 +127,12 @@ uint64_t decay(Lfunc *L) {
 }
 
 bool is_half_int(double x) {
-  return (x >= 0.0) && ((2.0 * x) == ceil(2.0 * x)) &&
-         ((2.0 * x) == floor(2.0 * x));
+  if(!isfinite(x) || x < 0.0)
+    return false;
+  double y = 2.0 * x;
+  if(!isfinite(y) || (long double)y > (long double)LONG_MAX)
+    return false;
+  return isfinite(y) && y == ceil(y) && y == floor(y);
 }
 
 int double_comp(const void *a, const void *b) {
@@ -368,6 +396,14 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
   arb_init(L->X);
 #endif
   L->nmax_called = false; // noone has called nmax yet
+
+  // batch-supply state: no supply call has happened yet
+  L->factor_supplied = false;
+  L->raw_supplied = false;
+  L->factor_route = 0;
+  L->last_factor_p = 0;
+  L->supply_ecode = ERR_SUCCESS;
+  L->compute_called = false; // Lfunc_compute is single-use (it mutates ans in place)
 
   arb_init(L->Lam_d);
   arb_init(L->L_d);

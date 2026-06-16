@@ -3,11 +3,19 @@
 
 #include <inttypes.h>
 #include <flint/acb_poly.h>
+#include <flint/fmpz.h>
+#include <flint/fmpz_poly.h>
 #include <stdbool.h>
 
 #define DK (-1) // tri-state "don't know" (for self_dual / rank)
 #define YES (1) // tri-state "yes" (for self_dual / rank)
 #define NO (0) // tri-state "no" (for self_dual / rank)
+
+// normalisation_of_input selector for the raw Dirichlet-coefficient front-ends
+// (Lfunc_use_dirichlet_coeffs_*). No silent default: the caller states which
+// normalisation the supplied a_n are in so the contract is explicit.
+#define LFUNC_ALGEBRAIC_NORM (0) // supplied a_n are algebraic; library applies n^{-normalisation}
+#define LFUNC_ANALYTIC_NORM  (1) // supplied a_n already analytic; no shift applied
 
 //#define BUTHE // if defined, verify RH via Buthe's method (off by default)
 #define TURING // if defined, verify RH via Booker/Turing's method (default)
@@ -37,17 +45,24 @@
 #define ERR_BAD_DEGREE ((uint64_t) 1024) //fatal error when the degree is too low or too high
 #define ERR_SPEC_NZ ((uint64_t) 2048) // special value routine requires Im s >= 0.
 #define ERR_G_EXTENT ((uint64_t) 4096) // fatal: G grid does not extend low enough (conductor too large for the fixed grid floor, or a cached grid was reused)
+#define ERR_SUPPLY_CONFLICT ((uint64_t) 1<<13) // fatal: incompatible, duplicate, or out-of-order supply route/factor
+#define ERR_A1_NOT_ONE ((uint64_t) 1<<14) // fatal: supplied a_1 is not 1 (raw a_n front-ends)
+#define ERR_COEFF_BOUND ((uint64_t) 1<<15) // fatal: a supplied raw a_n exceeds the degree's Euler-product bound (|a_n| > C*n^alpha)
+#define ERR_BAD_NORM ((uint64_t) 1<<16) // fatal: invalid normalisation_of_input selector for raw a_n front-ends
+#define ERR_BAD_SUPPLY ((uint64_t) 1<<17) // fatal: invalid supply argument, e.g. a NULL array with positive length
+#define ERR_LIFECYCLE ((uint64_t) 1<<18) // fatal: API lifecycle misuse, e.g. Lfunc_compute with no supply, called twice, or supply after compute
 
 // warnings
 #define ERR_SOME_DATA ((uint64_t) 1<<32) // We had some sensible data, but not to end of Turing Zone
 #define ERR_ZERO_PREC ((uint64_t) 1<<33) // couldn't isolate zeros to target_prec
 #define ERR_RH_ERROR ((uint64_t) 1<<34) // RH check (using Buthe's or Turing's method) failed
-#define ERR_INSUFF_EULER ((uint64_t) 1<<35) // ran out of Euler factors before we expected to
+#define ERR_INSUFF_EULER ((uint64_t) 1<<35) // ran out of supplied factors/coefficients before the expected bound
 #define ERR_NO_RANK ((uint64_t) 1<<36) // could not determine rank of L
 #define ERR_CONFLICT_RANK ((uint64_t) 1<<37) // rank we computed did not agree with what we were told
 #define ERR_DBL_ZERO ((uint64_t) 1<<38) // stationary point failed to converge. Double zero?
 #define ERR_SPEC_PREC ((uint64_t) 1<<39) // could not achieve target error bound in special value
 #define ERR_G_OUTFILE ((uint64_t) 1<<40) // problem opening file to write g_data cache
+#define ERR_RH_UNAVAILABLE ((uint64_t) 1<<41) // warning: RH verification was skipped or unavailable for this build/supply route
 
 #ifdef __cplusplus
 extern "C"{
@@ -86,9 +101,9 @@ extern "C"{
    *  - conductor, the conductor of the L-function. There is no separate
    *      "number of primes/coefficients" parameter: the coefficient range M is
    *      derived from the conductor, computed lazily on the first Lfunc_nmax
-   *      call (triggered by Lfunc_use_all_lpolys / Lfunc_reduce_nmax) and then
-   *      frozen. See Lfunc_nmax for the formula and the ERR_G_EXTENT caveat.
-   *  - normalisation, the shift on s axis to go from the algebraic normalization to the analytic one, i.e., if an is the Dirichlet in the algebraic normalization, then an/n^{normalisation} is the Dirichlet coefficient of in the analytic normalization. Lambda(s)=eps Lambda(k-s) -> normalisation = (k-1)/2
+   *      call (also triggered by any supply front-end) and then frozen. See
+   *      Lfunc_nmax for the formula and the ERR_G_EXTENT caveat.
+   *  - normalisation, the shift on s axis to go from the algebraic normalization to the analytic one, i.e., if an is the Dirichlet in the algebraic normalization, then an/n^{normalisation} is the Dirichlet coefficient of in the analytic normalization. For motivic weight w, use normalisation = w/2; for a classical modular form of weight k, w=k-1.
    *  - mus, the shifts of Gamma_R, mu[i] + normalisation must be half integers
    *  - ecode, where we keep track of errors and warnings
    *
@@ -107,37 +122,117 @@ extern "C"{
   // do the same but with more control. Lparams.conductor fixes the coefficient
   // range M implicitly, as in Lfunc_init (see Lfunc_nmax); no Lparams field sets
   // the prime/coefficient count directly.
+  //
+  // Most Lparams fields are copied verbatim; this entry point does NOT re-apply
+  // Lfunc_init's defaults, so a zeroed Lparams_t is not equivalent to Lfunc_init:
+  //   - target_prec: copied as-is. Pass DEFAULT_TARGET_PREC for the standard
+  //       100-bit target; a 0 here is taken literally (0-bit target).
+  //   - wprec: 0 means "derive from target_prec" (the only field with a 0-default).
+  //   - gprec: 0 means "derive from target_prec/wprec" (resolved later, in g.c).
+  //   - self_dual: copied as-is, so 0 is NO (not DK); pass DK to let the library
+  //       decide and YES only when you know the L-function is self-dual.
+  //   - rank: copied as-is, so 0 is the assertion "rank 0" (which can raise
+  //       ERR_CONFLICT_RANK); pass DK to let the library determine the rank.
+  //   - cache_dir: copied as-is; NULL disables the on-disk G cache entirely.
+  // Lfunc_init is exactly this function with target_prec=DEFAULT_TARGET_PREC,
+  // wprec=gprec=0, self_dual=rank=DK, and cache_dir=".".
   Lfunc_t Lfunc_init_advanced(Lparams_t *Lparams, Lerror_t *ecode);
 
   // Largest prime p (equivalently largest index M) for which an Euler factor /
   // coefficient a_n is expected. M is derived from the conductor, not passed in:
   //   dc = sqrt(conductor);  M = floor(dc * exp(2*pi*(hi_i + 0.5) / B))
   // (hi_i and B are fixed by degree/mus/precision at init). It is computed on
-  // the first call and then frozen (the nmax_called flag); Lfunc_use_all_lpolys
-  // and Lfunc_reduce_nmax trigger that first call, so the range is set once any
-  // of them runs.
+  // the first call and then frozen (the nmax_called flag); the callback, batch,
+  // raw-coefficient front-ends, and Lfunc_reduce_nmax trigger that first call.
+  // Lfunc_use_lpoly does too on the first successful push.
   //
   // ERR_G_EXTENT: the G data (gamma grid, built at init) is conductor-blind, its
   // floor set by the degree; the conductor only sets how far down the grid is
   // read at compute time. A large enough conductor pushes that read below the
   // floor, and Lfunc_compute returns the recoverable ERR_G_EXTENT.
+  //
+  // Return value 0 signals FAILURE, not "no primes needed": it is returned only
+  // when deriving M hit a fatal internal error (e.g. ERR_M_ERROR for a
+  // pathological conductor, or ERR_OOM), which is recorded on the object so the
+  // next supply call / Lfunc_compute returns it. A healthy object always returns
+  // nmax >= 1. An nmax-only caller (one that queries the bound without then
+  // supplying and computing) must therefore treat a 0 return as an error and
+  // abort, rather than acting on it as a coefficient count.
   uint64_t Lfunc_nmax(Lfunc_t L);
-  // If you can't get to nmax, declare how many Euler factors will be provided.
+  // If you can't get to nmax, declare the smaller trusted supply bound.
   // NB it takes your word for it and does not check. It calls Lfunc_nmax first
   // (so it triggers and freezes the conductor-derived M), then lowers M to nmax;
-  // nmax must be strictly below the current M, else it returns false.
+  // nmax must be strictly below the current M, else it returns false. nmax == 0
+  // is rejected (returns false and records a fatal supply error, so an ignored
+  // return still aborts Lfunc_compute): a zero bound leaves no coefficients and
+  // would divide by zero in the M_error tail bound.
   bool Lfunc_reduce_nmax(Lfunc_t LL, uint64_t nmax);
 
   // lpoly_callback is called for each prime p <= M (the conductor-derived bound;
   // see Lfunc_nmax). The first call here triggers Lfunc_nmax, computing and
   // freezing M if not already done. Setting poly to zero stops the iteration,
   // lowers M to p-1, and flags ERR_INSUFF_EULER.
+  // A NULL callback is fatal ERR_BAD_SUPPLY.
   Lerror_t Lfunc_use_all_lpolys(Lfunc_t L, void (*lpoly_callback) (acb_poly_t lpoly, uint64_t p, int d, int64_t prec, void *parm), void *param);
 
-  // you provide one Euler polynomial at a time
+  // you provide one Euler polynomial at a time; the first successful push
+  // initializes the coefficient range if Lfunc_nmax has not already been called.
+  // Pushes must be for prime p >= 2 and strictly increasing; non-prime p is
+  // fatal ERR_BAD_SUPPLY, while duplicate or out-of-order pushes are fatal
+  // ERR_SUPPLY_CONFLICT. The factor must be nonzero, have exact constant term
+  // 1, and have degree at most the L-function degree.
+  // If an explicit push loop will stop early, call Lfunc_reduce_nmax before
+  // Lfunc_compute; this void route cannot infer that missing later pushes mean
+  // "end of supply".
   void Lfunc_use_lpoly(Lfunc_t L, uint64_t p, const acb_poly_t poly);
 
-  // Once all polys have been provided, do the computation
+  // ---- Batch / array supply front-ends (alongside the callback and push) -----
+
+  // Supply the Dirichlet coefficients a_n directly, indexed n = 1..len with
+  // a[0] = a_1 (which must be 1). normalisation_of_input is LFUNC_ALGEBRAIC_NORM (the
+  // library applies the n^{-normalisation} shift) or LFUNC_ANALYTIC_NORM (a_n already
+  // analytic; no shift); any other selector is fatal ERR_BAD_NORM. len must be
+  // positive, so a_1 is actually supplied; a NULL coefficient array with
+  // positive len is fatal ERR_BAD_SUPPLY. The library uses min(len,
+  // Lfunc_nmax(L)) of them; len <
+  // nmax reduces nmax and warns (ERR_INSUFF_EULER), surplus is ignored. Each
+  // supplied a_n is checked against the degree's Euler-product Ramanujan bound
+  // (|a_n| <= C*n^alpha, alpha = 1); a coefficient exceeding it is fatal
+  // ERR_COEFF_BOUND (catching e.g. a wrong normalisation_of_input). Overwrites the
+  // coefficient array, so it cannot be combined with any Euler-factor supply nor
+  // called twice (ERR_SUPPLY_CONFLICT). In the default TURING build the RH check
+  // can still run from raw coefficients; Buthe-only builds report
+  // ERR_RH_UNAVAILABLE because Buthe needs per-prime data. fmpz coefficients are
+  // exact; the acb form is the ball-valued route for certified callers and trusts
+  // the supplied balls (a_1's ball must contain 1).
+  Lerror_t Lfunc_use_dirichlet_coeffs_fmpz(Lfunc_t L, const fmpz *a, uint64_t len, int normalisation_of_input);
+  Lerror_t Lfunc_use_dirichlet_coeffs_acb(Lfunc_t L, acb_srcptr a, uint64_t len, int normalisation_of_input);
+
+  // Supply Euler factors as an array, one per consecutive prime: f[k] is the
+  // local factor at the k-th prime (f[0] at p=2). The library sieves the primes
+  // itself (the caller does not pass them) and consumes the k-th factor for the
+  // k-th prime, for primes <= Lfunc_nmax(L). Factors are in the algebraic
+  // normalisation, exactly like Lfunc_use_lpoly, which these route through. A
+  // short array (len < pi(nmax)) reduces nmax and warns (ERR_INSUFF_EULER);
+  // surplus is ignored. A NULL factor array is allowed only when len == 0; with
+  // positive len it is fatal ERR_BAD_SUPPLY. Each factor must be nonzero, have
+  // exact constant term 1, and have degree at most the L-function degree. Choose
+  // exactly one Euler-factor route: callback, push, or one factor-array call.
+  // Repeated arrays or route mixing are fatal ERR_SUPPLY_CONFLICT because
+  // separate same-prime factors cannot be multiplied after their local series
+  // have already been expanded. The fmpz_poly form is converted to acb_poly at working precision
+  // first; the acb_poly form is the ball-valued route for certified callers. For
+  // non-consecutive primes, use Lfunc_use_lpoly.
+  Lerror_t Lfunc_use_lpolys_acb(Lfunc_t L, const acb_poly_struct *f, uint64_t len);
+  Lerror_t Lfunc_use_lpolys_fmpz(Lfunc_t L, const fmpz_poly_struct *f, uint64_t len);
+
+  // Once all supply data has been provided, do the computation.
+  // Single-use lifecycle: this normalises the Dirichlet coefficients in place,
+  // so it must be called exactly once per object, after at least one supply
+  // route has run. Calling it with no supply, calling it a second time, or
+  // supplying more factors/coefficients after it are all fatal ERR_LIFECYCLE
+  // (recorded on the object, so the error is sticky). To recompute, build a
+  // fresh Lfunc_t.
   Lerror_t Lfunc_compute(Lfunc_t L);
 
   // what working precision did the computation use
@@ -149,15 +244,21 @@ extern "C"{
   // return the sqrt of sign (chosen to make Lambda(delta)>0
   acb_srcptr Lfunc_sqrt_sign(Lfunc_t L);
 
-  // return the zeros, side = 0,1 for L, conjugate L
-  // if rank =0,1 this list is complete, providing
-  // the error code did not have ERR_RH_ERROR set
-  // otherwise zeros may be missing
+  // return the zeros, side = 0,1 for L, conjugate L. If rank = 0 or 1 this list
+  // is complete only when the accumulated error code has none of these caveat
+  // bits set: ERR_INSUFF_EULER, ERR_RH_ERROR, ERR_RH_UNAVAILABLE, ERR_NO_RANK,
+  // ERR_CONFLICT_RANK, ERR_DBL_ZERO, or ERR_SOME_DATA. (The last two mean a
+  // stationary point did not resolve, i.e. a possible unresolved double zero,
+  // and that the data ran out of precision before the end of the Turing zone --
+  // both leave zeros possibly missing.) Otherwise zeros may be missing or the
+  // rank/zero certification is only a regression-quality numerical comparison.
   arb_srcptr Lfunc_zeros(Lfunc_t L, uint64_t side);
 
   // return rank
-  // rank=0,1 is rigorous.
-  // rank>1 isn't
+  // rank=0,1 is rigorous only when the accumulated error code has none of the
+  // caveat bits ERR_INSUFF_EULER, ERR_RH_ERROR, ERR_RH_UNAVAILABLE, ERR_NO_RANK,
+  // ERR_CONFLICT_RANK, ERR_DBL_ZERO, or ERR_SOME_DATA set (the full set is the
+  // same as for Lfunc_zeros). rank>1 is not certified by this accessor.
   int64_t Lfunc_rank(Lfunc_t L);
 
   // return the first non-zero Taylor coefficient

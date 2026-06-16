@@ -2,6 +2,10 @@
 #include "glfunc.h"
 #include "glfunc_internals.h"
 #include "primesieve.h"
+#include <math.h>
+#include <flint/ulong_extras.h>
+#include <stdint.h>
+#include <stdlib.h>
 
 #ifdef __cplusplus
 extern "C"{
@@ -16,6 +20,8 @@ uint64_t Lfunc_nmax(Lfunc_t Lf)
 
   if(L->nmax_called)
     return L->M;
+  if(fatal_error(L->supply_ecode))
+    return 0;
 
   int64_t prec=L->wprec;
   arb_t tmp,tmp1;
@@ -26,9 +32,21 @@ uint64_t Lfunc_nmax(Lfunc_t Lf)
   if(verbose){printf("Final Ftwiddle Error set to ");arb_printd(L->ftwiddle_error,10);printf("\n");}
 
   L->dc=sqrt((double) L->conductor);
-  L->M0=ceil(L->dc/100);
+  double M0d=ceil(L->dc/100.0);
+  double Md=L->dc*exp(2*M_PI*(L->hi_i+0.5)*L->one_over_B);
+  if(L->conductor==0 ||
+     !isfinite(L->dc) || !isfinite(M0d) || !isfinite(Md) ||
+     M0d < 0.0 || Md < 1.0 ||
+     M0d >= 18446744073709551616.0 ||
+     Md >= 18446744073709551616.0)
+  {
+    L->supply_ecode|=ERR_M_ERROR;
+    arb_clear(tmp);arb_clear(tmp1);
+    return 0;
+  }
+  L->M0=(uint64_t)M0d;
   if(verbose)printf("M0 set to %" PRIu64 ".\n",L->M0);
-  L->M=L->dc*exp(2*M_PI*(L->hi_i+0.5)*L->one_over_B);
+  L->M=(uint64_t)Md;
   if(verbose)printf("M computed from hi_i = %" PRIu64 "\n",L->M);
 
   /*
@@ -51,23 +69,34 @@ uint64_t Lfunc_nmax(Lfunc_t Lf)
 
   if(L->M>L->allocated_M)
   {
-    //printf("Need more space for Dirichlet coefficients.\n");
-    for(size_t i = 0; i < L->allocated_M; ++i)
-      acb_clear(L->ans[i]);
-
-    while(L->allocated_M < L->M) {
-      L->allocated_M<<=1;
-      if(L->allocated_M == 0) // L->M was huge!
-        L->allocated_M = L->M;
+    uint64_t new_alloc=L->allocated_M;
+    while(new_alloc < L->M) {
+      if(new_alloc > UINT64_MAX/2) {
+        new_alloc = L->M;
+        break;
+      }
+      new_alloc<<=1;
     }
-    L->ans=(acb_t *)realloc(L->ans,sizeof(acb_t)*L->allocated_M);
-    if(!L->ans)
+    if(new_alloc > SIZE_MAX/sizeof(acb_t))
     {
-      printf("Attempt to (re-)allocate memory for Dirichlet coefficients failed. Exiting.\n");
-      exit(0);
+      L->supply_ecode|=ERR_OOM;
+      arb_clear(tmp);arb_clear(tmp1);
+      return 0;
     }
-    for(size_t i = 0; i < L->allocated_M; ++i)
-      acb_init(L->ans[i]);
+    acb_t *new_ans=(acb_t *)malloc(sizeof(acb_t)*(size_t)new_alloc);
+    if(!new_ans)
+    {
+      L->supply_ecode|=ERR_OOM;
+      arb_clear(tmp);arb_clear(tmp1);
+      return 0;
+    }
+    for(uint64_t i = 0; i < new_alloc; ++i)
+      acb_init(new_ans[i]);
+    for(uint64_t i = 0; i < L->allocated_M; ++i)
+      acb_clear(L->ans[i]);
+    free(L->ans);
+    L->ans=new_ans;
+    L->allocated_M=new_alloc;
 
     //printf("re-allocated enough memory for Dirichlet coefficients.\n");
   }
@@ -97,7 +126,7 @@ void use_inv_lpoly(Lfunc *L, uint64_t p, acb_poly_t c, uint64_t prec)
   wf(L, p, c, f, prec); // do the Buthe bit, see buthe.c
   #endif
   // use inverted poly to populate Dirichlet coefficients
-  uint64_t pnn=p*p, pn=p,pow=1;
+  uint64_t pn=p,pow=1;
   while(pn <= L->M) {
     acb_poly_get_coeff_acb(tmp, c, pow);
     uint64_t ptr = pn, count = 1;
@@ -105,14 +134,16 @@ void use_inv_lpoly(Lfunc *L, uint64_t p, acb_poly_t c, uint64_t prec)
       if(count < p) {// its not a higher prime power
         acb_mul(L->ans[ptr-1], L->ans[ptr-1], tmp, prec);
         count++;
-        ptr += pn;
       } else {// it is higher prime power, so skip it
-        ptr += pn;
         count = 1;
       }
+      if(ptr > L->M - pn)
+        break;
+      ptr += pn;
     }
+    if(pn > L->M / p)
+      break;
     pn *= p;
-    pnn *= p;
     pow++;
   }
   acb_clear(tmp);
@@ -145,7 +176,12 @@ void use_lpoly(Lfunc *L, uint64_t p, const acb_poly_t f)
   }
   //if(p<=11){printf("in use_lpoly post-norm with p = %" PRIu64 "\n",p);acb_poly_printd(n_poly,20);printf("\n");}
   uint64_t k=1,pk=p;
-  while(pk<=L->M) {k++;pk*=p;}
+  while(pk<=L->M) {
+    k++;
+    if(pk > L->M / p)
+      break;
+    pk*=p;
+  }
 
   acb_poly_inv_series(inv_poly,n_poly,k,prec);
   //if(p<=11){printf("Inverted poly\n");
@@ -165,11 +201,112 @@ void use_lpoly(Lfunc *L, uint64_t p, const acb_poly_t f)
 
 }
 
+static Lerror_t bad_supply(Lfunc *L)
+{
+  L->supply_ecode|=ERR_BAD_SUPPLY;
+  return ERR_BAD_SUPPLY;
+}
+
+static Lerror_t supply_conflict(Lfunc *L)
+{
+  L->supply_ecode|=ERR_SUPPLY_CONFLICT;
+  return ERR_SUPPLY_CONFLICT;
+}
+
+// Supplying after Lfunc_compute is lifecycle misuse: compute already divided
+// ans by sqrt(n) in place, so a further push/array/raw write would operate on
+// normalised coefficients. Record it fatally (mirrors the Lfunc_compute guard).
+static Lerror_t lifecycle_misuse(Lfunc *L)
+{
+  L->supply_ecode|=ERR_LIFECYCLE;
+  return ERR_LIFECYCLE;
+}
+
+static Lerror_t validate_lpoly(Lfunc *L, const acb_poly_t poly, bool allow_zero)
+{
+  if(!poly)
+    return bad_supply(L);
+  if(acb_poly_is_zero(poly))
+    return allow_zero ? ERR_SUCCESS : bad_supply(L);
+  if(acb_poly_length(poly) > (slong)L->degree + 1)
+    return bad_supply(L);
+  acb_t c0;
+  acb_init(c0);
+  acb_poly_get_coeff_acb(c0,poly,0);
+  bool c0_is_one = acb_is_one(c0);
+  acb_clear(c0);
+  return c0_is_one ? ERR_SUCCESS : bad_supply(L);
+}
+
+static bool ensure_nmax(Lfunc_t Lf, Lfunc *L)
+{
+  if(!L->nmax_called)
+    (void)Lfunc_nmax(Lf);
+  return !fatal_error(L->supply_ecode);
+}
+
 void Lfunc_use_lpoly(Lfunc_t Lf, uint64_t p, const acb_poly_t poly)
 {
   Lfunc *L;
   L=(Lfunc *)Lf;
+  if(L->compute_called) // pushing into already-normalised ans is incoherent
+  {
+    lifecycle_misuse(L); // void return: surfaced by Lfunc_compute
+    return;
+  }
+  if(L->raw_supplied) // can't push factors into raw-a_n overwrite mode
+  {
+    supply_conflict(L); // void return: surfaced by Lfunc_compute
+    return;
+  }
+  if(p<2 || !n_is_prime(p))
+  {
+    bad_supply(L);
+    return;
+  }
+  if(validate_lpoly(L,poly,false))
+  {
+    return;
+  }
+  if(L->factor_route!=0 && L->factor_route!=1)
+  {
+    supply_conflict(L);
+    return;
+  }
+  if(L->factor_route==1 && p<=L->last_factor_p)
+  {
+    supply_conflict(L);
+    return;
+  }
+  L->factor_supplied=true;
+  L->factor_route=1;
+  L->last_factor_p=p;
+  if(!ensure_nmax(Lf,L))
+  {
+    return;
+  }
   use_lpoly(L,p,poly);
+}
+
+// Reduce the working coefficient count to new_M: we either ran out of data at,
+// or were told to stop at, index/prime new_M+1. Also keep M0's direct block
+// inside the reduced coefficient range, and keep buthe_M no larger than new_M.
+// insufficient==true flags an unexpected shortfall (ERR_INSUFF_EULER); an
+// explicit, trusted
+// Lfunc_reduce_nmax passes false (a deliberate reduction is not an error).
+// Returns the warning bit to OR into the caller's accumulator. This is the
+// single funnel for both the callback zero-poly short-circuit and the array
+// length-shortfall paths, so the M/M0/buthe_M clamp lives in exactly one place.
+static Lerror_t shrink_M(Lfunc *L, uint64_t new_M, bool insufficient)
+{
+  L->M=new_M;
+  if(new_M<UINT64_MAX && L->M0>new_M+1)
+    L->M0=new_M+1; // direct block uses coefficients n < M0, so cap it at M
+#ifdef BUTHE
+  if(L->buthe_M>new_M)
+    L->buthe_M=new_M;
+#endif
+  return insufficient ? ERR_INSUFF_EULER : ERR_SUCCESS;
 }
 
 
@@ -180,11 +317,18 @@ Lerror_t Lfunc_use_all_lpolys(Lfunc_t Lf, void (*lpoly_callback) (acb_poly_t lpo
 {
   Lfunc *L;
   L=(Lfunc *)Lf;
-  if(!L->nmax_called)
-  {
-    L->M=Lfunc_nmax(Lf);
-    L->nmax_called=true;
-  }
+  if(!lpoly_callback)
+    return bad_supply(L);
+  if(L->compute_called)
+    return lifecycle_misuse(L);
+  if(L->raw_supplied) // raw a_n overwrote ans; the callback would multiply into it
+    return supply_conflict(L);
+  if(L->factor_route!=0)
+    return supply_conflict(L);
+  L->factor_supplied=true;
+  L->factor_route=2;
+  if(!ensure_nmax(Lf,L))
+    return L->supply_ecode;
 
   acb_poly_t lp;
   acb_poly_init(lp);
@@ -197,12 +341,12 @@ Lerror_t Lfunc_use_all_lpolys(Lfunc_t Lf, void (*lpoly_callback) (acb_poly_t lpo
     lpoly_callback(lp,p,L->degree,L->wprec,param);
     if(acb_poly_is_zero(lp)) // ran out of Euler polys
     {
-      #ifdef BUTHE
-      if(p<L->buthe_M)
-        L->buthe_M=p-1; // this is likely to mean we compute garbage
-      #endif
-      L->M=p-1; // we might get away with this
-      ecode|=ERR_INSUFF_EULER;
+      ecode|=shrink_M(L,p-1,true); // we might get away with this
+      break;
+    }
+    if(validate_lpoly(L,lp,false))
+    {
+      ecode|=ERR_BAD_SUPPLY;
       break;
     }
     use_lpoly(L,p,lp);
@@ -216,18 +360,222 @@ Lerror_t Lfunc_use_all_lpolys(Lfunc_t Lf, void (*lpoly_callback) (acb_poly_t lpo
   return ecode;
 }
 
+// Shared body of the Euler-factor array front-ends: exactly one of fa (acb_poly
+// array) and fz (fmpz_poly array) is non-NULL. We sieve the primes ourselves
+// (exactly as Lfunc_use_all_lpolys) and hand the k-th factor to the shared
+// use_lpoly for the k-th prime, so normalisation, inversion and the
+// multiplicative sieve are not duplicated. An fmpz factor is converted into a
+// single reused scratch acb_poly at working precision before use_lpoly, so
+// Buthe's wf() still sees real per-prime forward and inverse factors. Running
+// out of factors before nmax reduces M and warns, just like the callback
+// zero-poly short-circuit; surplus factors (len > pi(nmax)) are ignored.
+static Lerror_t use_lpolys_array(Lfunc *L, const acb_poly_struct *fa, const fmpz_poly_struct *fz, uint64_t len)
+{
+  if((fa && fz) || (!fa && !fz && len>0))
+    return bad_supply(L);
+  if(L->compute_called)
+    return lifecycle_misuse(L);
+  if(L->raw_supplied) // raw a_n overwrote ans; multiplying factors in is incoherent
+    return supply_conflict(L);
+  if(L->factor_route!=0)
+    return supply_conflict(L);
+  L->factor_supplied=true;
+  L->factor_route=3;
+  if(!ensure_nmax((Lfunc_t)L,L))
+    return L->supply_ecode;
+  acb_poly_t g;
+  acb_poly_init(g); // scratch for the fmpz->acb conversion (unused on the acb path)
+  primesieve_iterator it;
+  primesieve_init(&it);
+  uint64_t p=0, k=0;
+  Lerror_t ecode=ERR_SUCCESS;
+  while((p=primesieve_next_prime(&it)) <= L->M)
+  {
+    if(k>=len) // ran out of supplied factors before nmax
+    {
+      ecode|=shrink_M(L,p-1,true);
+      break;
+    }
+    if(fa) {
+      if(validate_lpoly(L,fa+k,false))
+      {
+        ecode|=ERR_BAD_SUPPLY;
+        break;
+      }
+      use_lpoly(L,p,fa+k);
+    }
+    else
+    {
+      acb_poly_set_fmpz_poly(g,fz+k,L->wprec); // converted at working precision
+      if(validate_lpoly(L,g,false))
+      {
+        ecode|=ERR_BAD_SUPPLY;
+        break;
+      }
+      use_lpoly(L,p,g);
+    }
+    k++;
+  }
+  primesieve_free_iterator(&it);
+  acb_poly_clear(g);
+  return ecode;
+}
+
+Lerror_t Lfunc_use_lpolys_acb(Lfunc_t Lf, const acb_poly_struct *f, uint64_t len)
+{
+  return use_lpolys_array((Lfunc *)Lf, f, NULL, len);
+}
+
+Lerror_t Lfunc_use_lpolys_fmpz(Lfunc_t Lf, const fmpz_poly_struct *f, uint64_t len)
+{
+  return use_lpolys_array((Lfunc *)Lf, NULL, f, len);
+}
+
+// Move one supplied coefficient at index n (1-based) into the analytic
+// normalisation: LFUNC_ALGEBRAIC_NORM multiplies by n^{-normalisation} (the direct
+// analogue of use_lpoly's per-factor p^{-m*normalisation}); LFUNC_ANALYTIC_NORM, the
+// n=1 term, and normalisation 0 need no shift.
+static void apply_input_norm(acb_t z, uint64_t n, int norm_of_input, Lfunc *L)
+{
+  if(norm_of_input==LFUNC_ANALYTIC_NORM || n==1 || L->normalisation==0.0)
+    return;
+  int64_t prec=L->wprec;
+  arb_t logn,f;
+  arb_init(logn);
+  arb_init(f);
+  arb_log_ui(logn,n,prec);
+  arb_set_d(f,-L->normalisation);
+  arb_mul(f,f,logn,prec);
+  arb_exp(f,f,prec);          // n^{-normalisation}
+  acb_mul_arb(z,z,f,prec);
+  arb_clear(logn);
+  arb_clear(f);
+}
+
+// Common fatal entry guards for the raw-a_n front-ends: (1) overwrite mode
+// conflicts with any factor supply or a second raw supply; (2) the norm selector
+// must be explicit and valid; (3) a_1 must be supplied and equal to 1. Also
+// records the code in supply_ecode so Lfunc_compute bails even if the caller
+// ignores the return value.
+static Lerror_t raw_guard(Lfunc *L, uint64_t len, int norm_of_input, bool have_coeffs, bool a1_is_one)
+{
+  if(L->compute_called)
+    return lifecycle_misuse(L);
+  if(L->factor_supplied || L->raw_supplied)
+    return supply_conflict(L);
+  if(norm_of_input!=LFUNC_ALGEBRAIC_NORM && norm_of_input!=LFUNC_ANALYTIC_NORM)
+  {
+    L->supply_ecode|=ERR_BAD_NORM;
+    return ERR_BAD_NORM;
+  }
+  if(len==0)
+  {
+    L->supply_ecode|=ERR_A1_NOT_ONE;
+    return ERR_A1_NOT_ONE;
+  }
+  if(!have_coeffs)
+  {
+    L->supply_ecode|=ERR_BAD_SUPPLY;
+    return ERR_BAD_SUPPLY;
+  }
+  if(!a1_is_one)
+  {
+    L->supply_ecode|=ERR_A1_NOT_ONE;
+    return ERR_A1_NOT_ONE;
+  }
+  return ERR_SUCCESS;
+}
+
+// Sanity-check a supplied analytic coefficient a_n against the degree's
+// Euler-product Ramanujan bound |a_n| <= C*n^alpha (C, alpha set in g.c; the same
+// bound the factor paths satisfy and M_error uses for the tail). Fatal
+// ERR_COEFF_BOUND if |a_n| certainly exceeds it (arb_gt, so only a definite
+// violation fires); catches a wrong normalisation_of_input or packed garbage.
+static Lerror_t check_coeff_bound(Lfunc *L, const acb_t an, uint64_t n)
+{
+  int64_t prec=L->wprec;
+  arb_t absn,bound,t;
+  arb_init(absn);
+  arb_init(bound);
+  arb_init(t);
+  acb_abs(absn,an,prec);
+  arb_log_ui(t,n,prec);
+  arb_mul(t,t,L->alpha,prec);
+  arb_exp(t,t,prec);          // n^alpha
+  arb_mul(bound,L->C,t,prec); // C * n^alpha
+  Lerror_t e = arb_gt(absn,bound) ? ERR_COEFF_BOUND : ERR_SUCCESS;
+  arb_clear(absn);
+  arb_clear(bound);
+  arb_clear(t);
+  return e;
+}
+
+// Shared body of the raw Dirichlet-coefficient front-ends: exactly one of az
+// (fmpz array) and aa (acb array) is non-NULL. The supplied a_n *overwrite*
+// L->ans (the all-ones init), so they cannot be combined with any Euler-factor
+// route. The fmpz form writes each coefficient exactly; the acb form trusts the
+// supplied ball. A short array reduces M and warns; surplus is ignored. In the
+// default TURING build, the RH check can still run from these coefficients; a
+// Buthe-only build lacks the per-prime data Buthe needs. The a_1 == 1 test
+// (fmpz exact equality vs the acb ball containing 1) is the caller's, passed in
+// as a1_is_one.
+static Lerror_t use_dirichlet_coeffs(Lfunc *L, const fmpz *az, acb_srcptr aa, uint64_t len, int norm_of_input, bool have_coeffs, bool a1_is_one)
+{
+  Lerror_t guard=raw_guard(L,len,norm_of_input,have_coeffs,a1_is_one);
+  if(guard)
+    return guard;
+  if(!ensure_nmax((Lfunc_t)L,L))
+    return L->supply_ecode;
+  L->raw_supplied=true;
+  uint64_t use = (len<L->M) ? len : L->M;
+  Lerror_t ecode=ERR_SUCCESS;
+  for(uint64_t n=1;n<=use;n++)
+  {
+    if(az)
+      acb_set_fmpz(L->ans[n-1],az+(n-1)); // exact
+    else
+      acb_set(L->ans[n-1],aa+(n-1)); // trust the supplied ball
+    apply_input_norm(L->ans[n-1],n,norm_of_input,L);
+    ecode|=check_coeff_bound(L,L->ans[n-1],n);
+  }
+  if(ecode)
+    L->supply_ecode|=ecode; // surface a bound violation at compute time too
+  if(len<L->M)
+    ecode|=shrink_M(L,len,true);
+  return ecode;
+}
+
+Lerror_t Lfunc_use_dirichlet_coeffs_fmpz(Lfunc_t Lf, const fmpz *a, uint64_t len, int norm_of_input)
+{
+  Lfunc *L=(Lfunc *)Lf;
+  bool have_coeffs = len==0 || a!=NULL;
+  bool a1_is_one = len>0 && a && fmpz_is_one(a+0);
+  return use_dirichlet_coeffs(L,a,NULL,len,norm_of_input,have_coeffs,a1_is_one);
+}
+
+Lerror_t Lfunc_use_dirichlet_coeffs_acb(Lfunc_t Lf, acb_srcptr a, uint64_t len, int norm_of_input)
+{
+  Lfunc *L=(Lfunc *)Lf;
+  // a_1's ball must contain 1 (certified contract: the ball encloses the truth)
+  bool have_coeffs = len==0 || a!=NULL;
+  bool a1_is_one = len>0 && a &&
+    (arb_contains_si(acb_realref(a+0),1) && arb_contains_zero(acb_imagref(a+0)));
+  return use_dirichlet_coeffs(L,NULL,a,len,norm_of_input,have_coeffs,a1_is_one);
+}
+
 bool Lfunc_reduce_nmax(Lfunc_t LL, uint64_t nmax)
 {
   Lfunc *L=(Lfunc *)LL;
   uint64_t M;
   M=Lfunc_nmax(LL); // what is the current M
+  if(nmax==0) // M=0 leaves no coefficients and divides by zero in M_error
+  {
+    bad_supply(L); // record a fatal error so an ignored false return still bails
+    return false;
+  }
   if(nmax>=M) // I won't let you increase it
     return false;
-  L->M=nmax;
-  #ifdef BUTHE
-  if(L->buthe_M>nmax) // we could be in serious trouble here
-    L->buthe_M=nmax;
-  #endif
+  shrink_M(L,nmax,false); // trusted, explicit reduction: not a shortfall
   return true;
 }
 
