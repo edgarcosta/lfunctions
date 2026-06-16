@@ -144,7 +144,7 @@ objects:
       first_zero_err: 1.0e-15
       taylor: "0.0904903908324296291135897572580154122647328643874476536"
       taylor_err: 1.0e-12
-      tolerate_rh_error: true
+      tolerate_rh_error: false
 
   - label: "587.a"
     kind: genus2
@@ -162,7 +162,7 @@ objects:
       first_zero_err: 1.0e-9
       taylor: "0.11135151106422023731910273620872358675238584539624"
       taylor_err: 1.0e-12
-      tolerate_rh_error: true
+      tolerate_rh_error: false
 
   - label: "3319.a"
     kind: genus2
@@ -180,7 +180,7 @@ objects:
       first_zero_err: 1.0e-15
       taylor: "0.19236316222443534056407562323024291719956910370"
       taylor_err: 1.0e-12
-      tolerate_rh_error: true
+      tolerate_rh_error: false
 
   - label: "25913.a"
     kind: genus2
@@ -198,7 +198,7 @@ objects:
       first_zero_err: 1.0e-9
       taylor: "0.3912140276451479375182012957214634875676714"
       taylor_err: 1.0e-12
-      tolerate_rh_error: true
+      tolerate_rh_error: false
 
   - label: "440509.a"
     kind: genus2
@@ -216,7 +216,7 @@ objects:
       first_zero_err: 1.0e-9
       taylor: "1.12315372441117201344139992729702991863265"
       taylor_err: 1.0e-12
-      tolerate_rh_error: true
+      tolerate_rh_error: false
 
   # ---- genus-2 curves with extra endomorphisms (degree 4) ----
   - label: "294.a"          # split: Jac ~_Q E1 x E2 (distinct); geom_end_alg "Q x Q", ST SU(2)xSU(2)
@@ -235,7 +235,7 @@ objects:
       first_zero_err: 1.0e-9
       taylor: "0.1489689799540566411026646628887640297214854916698568385"
       taylor_err: 1.0e-12
-      tolerate_rh_error: true
+      tolerate_rh_error: false
 
   - label: "448.a"          # CM x non-CM split; geom_end_alg "CM x Q", ST N(U(1)xSU(2))
     kind: genus2
@@ -252,7 +252,7 @@ objects:
       first_zero_err: 1.0e-9
       taylor: "0.2164663601475456895859403663284466809402159513646999589"
       taylor_err: 1.0e-12
-      tolerate_rh_error: true
+      tolerate_rh_error: false
 
   - label: "529.a"          # real multiplication; geom_end_alg "RM", ST SU(2)xSU(2)
     kind: genus2
@@ -270,7 +270,7 @@ objects:
       first_zero_err: 1.0e-15
       taylor: "0.2484318665905996812072503393142383906699109867831601343"
       taylor_err: 1.0e-12
-      tolerate_rh_error: true
+      tolerate_rh_error: false
 
   # ---- known-unsupported: square of an elliptic curve (L = L(E)^2) ----
   # Jac(196.a) ~_Q E^2 with E = 14.a (conductor 14), so L = L(14.a)^2 and every zero
@@ -294,7 +294,7 @@ objects:
       first_zero_err: 1.0e-9
       taylor: "0.109047665190859529223076770287488695296415160221137294"
       taylor_err: 1.0e-12
-      tolerate_rh_error: true
+      tolerate_rh_error: true  # genuine miss (doubled zeros); stays xfail until square support lands
 
   # ---- (3) Six symmetric powers of 11.a (degrees 3,5,6,7,8,9) ----
   # Pari lfunsympow; taylor OMITTED (Pari/library leading-coeff normalisation differs).
@@ -310,7 +310,7 @@ objects:
       epsilon: [1.0, 0.0]
       first_zero: "3.8992814947713447822425023053642116570"
       first_zero_err: 1.0e-15
-      tolerate_rh_error: true
+      tolerate_rh_error: false
 
   - label: "11.a.sym4"
     kind: sympow
@@ -324,7 +324,7 @@ objects:
       epsilon: [1.0, 0.0]
       first_zero: "1.4878126090919550218131577780362869894"
       first_zero_err: 1.0e-15
-      tolerate_rh_error: true
+      tolerate_rh_error: false
 
   - label: "11.a.sym5"
     kind: sympow
@@ -338,7 +338,7 @@ objects:
       epsilon: [-1.0, 0.0]
       first_zero: "1.9640371681288479784191771260430560146"
       first_zero_err: 1.0e-15
-      tolerate_rh_error: true
+      tolerate_rh_error: false
 
   - label: "11.a.sym6"
     kind: sympow
@@ -352,7 +352,7 @@ objects:
       epsilon: [1.0, 0.0]
       first_zero: "0.56499970342744734231864716960944810509"
       first_zero_err: 1.0e-15
-      tolerate_rh_error: true
+      tolerate_rh_error: false
 
   - label: "11.a.sym7"
     kind: sympow
@@ -366,7 +366,7 @@ objects:
       epsilon: [-1.0, 0.0]
       first_zero: "1.0456378625113248438807661996848853248"
       first_zero_err: 1.0e-15
-      tolerate_rh_error: true
+      tolerate_rh_error: false
 
   - label: "11.a.sym8"
     kind: sympow
@@ -380,7 +380,7 @@ objects:
       epsilon: [1.0, 0.0]
       first_zero: "0.51129562620003560384950671702133524278"
       first_zero_err: 1.0e-15
-      tolerate_rh_error: true
+      tolerate_rh_error: false
 
   # ---- (4) degree-8 classical modular form (rational, imprimitive) ----
   # 18.4.c.b: weight-4 newform, cubic character (order 3), quartic Hecke field. Its degree-8
@@ -406,4 +406,4 @@ objects:
       first_zero_err: 1.0e-15
       taylor: "2.221061581"      # central value L(1/2) (rank 0); LMFDB display value, 10 digits
       taylor_err: 1.0e-6
-      tolerate_rh_error: true
+      tolerate_rh_error: false

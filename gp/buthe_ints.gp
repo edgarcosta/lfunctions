@@ -1,6 +1,10 @@
-/* This Pari code computes an approximation to the intregral in W_\infty
-   for Buthe's zero checking algorithm. In due course we should write a
-   rigorous version in 'C' that does this on the fly
+/* No longer compiled into the library: src/buthe_winf.c now computes this
+   integral rigorously on the fly (see buthe_winf_integral), so the captured
+   buthe_ints.out table is no longer #included. Kept as a dev cross-check for
+   the C routine.
+
+   This Pari code computes an approximation to the integral in W_\infty for
+   Buthe's zero-checking algorithm.
 */
 \p400 /* lots of bits of precision please */
 allocatemem(2^30); /* lots of memory too */

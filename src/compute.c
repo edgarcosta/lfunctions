@@ -276,6 +276,17 @@ void final_ifft(Lfunc *L)
   }
 } /* final_ifft */
 
+// BOTH-mode contradiction rule (exposed for testing). DISAGREE iff exactly one
+// verifier reports a HARD over-count (Turing: hi < zeros_found; Buthe: S<0). One
+// side over-counting while the other confirms or reports too-few is a genuine
+// directional contradiction. Both over-counting is agreement (Buthe's fatal
+// ERR_BUT_ERROR already surfaces); both failing-to-certify is no contradiction.
+// (Post the #26 bracket fix a deg>=3 Turing miscount is too-few, so the common
+// Buthe-rescues-Turing case keeps turing_too_many false and is quiet.)
+Lerror_t rh_methods_disagree(bool turing_too_many, bool buthe_overcount) {
+  return (turing_too_many != buthe_overcount) ? ERR_RH_METHODS_DISAGREE : ERR_SUCCESS;
+}
+
 // this is called by the user to compute all the bits of the Lfunc we expect them to want
 // including Lambda(t) for t =0,1/A,2/A,....
 // the zeros up to height 64/degree
@@ -298,6 +309,8 @@ Lerror_t Lfunc_compute(Lfunc_t Lf)
 
   Lfunc *L=(Lfunc *) Lf;
 
+  L->computed = true; // any Lfunc_set_rh_method after this point is rejected
+
   if(verbose) {
     for(int i = 0; i < 100; i++) {
       printf("a[%d] = ", i + 1);
@@ -308,10 +321,8 @@ Lerror_t Lfunc_compute(Lfunc_t Lf)
 
   int64_t prec=L->wprec;
 
-  #ifdef BUTHE
   buthe_Wf_error(L); // add the error for the missing tail
-  if(verbose){printf("Buthe Wf = ");arb_printd(L->buthe_Wf,20);printf("\n");fflush(stdout);}
-  #endif
+  if(verbose){printf("Buthe Wf = ");arb_printd(L->buthe_Wf[0],20);printf("\n");fflush(stdout);}
 
   // when we get here, the normalised L->M dirichlet coefficients are in L->ans[0]..[M-1]
   // use the first M0 of them
@@ -400,14 +411,36 @@ Lerror_t Lfunc_compute(Lfunc_t Lf)
     if(fatal_error(ecode))
       return ecode;
   }
-#ifdef BUTHE
-  ecode|=buthe_check_RH(L);
-#endif
+  // Runtime RH-verifier dispatch. Default is Buthe (LFUNC_RH_BUTHE, set in
+  // Lfunc_init_advanced); callers opt into Turing or BOTH via
+  // Lfunc_set_rh_method. BOTH runs both verifiers: Buthe's verdict is
+  // returned, but ERR_RH_METHODS_DISAGREE is also raised iff exactly one
+  // verifier hard-over-counts (Turing too-many XOR Buthe S<0): a genuine
+  // directional inconsistency, not merely a failure to certify (see
+  // rh_methods_disagree).
+  switch (L->rh_method) {
+  case LFUNC_RH_TURING: {
+    bool tm;
+    ecode |= turing_check_RH(L, prec, &tm); // Turing-selected verdict; too_many unused here
+    (void)tm;
+    break;
+  }
+  case LFUNC_RH_BOTH: {
+    bool turing_too_many = false;
+    Lerror_t turing_e = turing_check_RH(L, prec, &turing_too_many);
+    Lerror_t buthe_e = buthe_check_RH(L);
+    ecode |= buthe_e; // BOTH returns Buthe's verdict
+    (void)turing_e; // verdict is Buthe's; Turing's role is the contradiction guard
+    bool buthe_overcount = (buthe_e & ERR_BUT_ERROR) != 0; // Buthe S = Wf+Winf-Ws* < 0
+    ecode |= rh_methods_disagree(turing_too_many, buthe_overcount);
+    break;
+  }
+  case LFUNC_RH_BUTHE:
+  default:
+    ecode |= buthe_check_RH(L);
+    break;
+  }
 
-#ifdef TURING
-  ecode|=turing_check_RH(L,prec);
-#endif
-  
 #endif
 
   return ecode;

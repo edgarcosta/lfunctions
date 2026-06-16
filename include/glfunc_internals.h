@@ -15,15 +15,9 @@
 #define verbose (false) // compile-time toggle for all diagnostic printf
 #define BAD_64 (1LL<<62) // sentinel: an arb value did not pin to a unique integer
 
-#ifdef BUTHE
-// how many integrals have I precomputed for Buthe's method?
-#define MAX_MUI (100)
-#define MAX_MUI_2 (200) // = 2*MAX_MUI; a Buthe table row holds 2*MAX_MUI_2+1 entries
-#define MAX_MU ((double) MAX_MUI) // largest mu Buthe can handle (MAX_MUI as a double)
-#define MAX_MU_2 ((double) MAX_MUI_2) // MAX_MUI_2 as a double
-#endif
-
 #define MAX_L (10) // maximum differential allowed in upsampling
+
+#define BUTHE_NH 5  // Buthe smoothing-parameter grid size (h stepped high->low)
 
 
 #define COMPUTE_ZEROS // compile-time switch: enable the zero-finding phase
@@ -86,21 +80,18 @@ extern "C"{
     arb_t pre_ftwiddle_error; // conductor-free bound on the truncated Dirichlet-series tail
     arb_t ftwiddle_error; // truncation bound = pre_ftwiddle_error*sqrt(N); added per sample
 
-#ifdef BUTHE
-    arb_t buthe_Wf; // prime/Euler-sum term of Buthe's inequality
-    arb_t buthe_Winf; // archimedean (gamma) term of Buthe's inequality (uses buthe_ints)
+    arb_t buthe_Wf[BUTHE_NH]; // prime/Euler-sum term of Buthe's inequality, one accumulator per grid h
+    arb_t buthe_Winf; // archimedean (gamma) term of Buthe's inequality (computed on the fly via buthe_winf_integral)
     arb_t buthe_Ws; // sum-over-computed-zeros term of Buthe's inequality
     arb_t buthe_b; // height up to which RH is confirmed, b = B/OUTPUT_RATIO
     arb_t buthe_C; // Buthe constant = degree (Lemma 3.4); unused
-    arb_t buthe_h; // Buthe test-function step h = BUTHE_H
-    arb_t buthe_ints[(MAX_R-1)*(2*MAX_MUI_2+1)]; // precomputed gamma-integral table [deg-2][2*mu]
+    arb_t buthe_h; // Buthe smoothing parameter h; set per grid point during the adaptive verdict (buthe_check_RH), so after a compute it holds the last grid h tried, not necessarily BUTHE_H
     uint64_t buthe_M; // prime-power cutoff for the Wf sum = floor(sqrt(#coeffs))
-#endif
+    Lfunc_rh_method rh_method; // which RH verifier Lfunc_compute runs; default LFUNC_RH_BUTHE
+    bool computed;             // set true by Lfunc_compute; gates Lfunc_set_rh_method
 
-#ifdef TURING
     arb_t X; // Turing zero-counting verification height (see eq 4.10)
     arb_t imint; // integral of Im sum_j logGamma((1/2+it+mu_j)/2) over the Turing region
-#endif
     
     arb_t one_over_root_N; // 1/sqrt(N), the N^{s/2} factor base in Lambda
     arb_t sum_ans; // running sum of |a_n|/sqrt(n), n<=M; scales the eq59 tail error
@@ -154,21 +145,29 @@ extern "C"{
   Lerror_t do_pre_iFFT_errors(Lfunc *L);
   bool M_error(arb_t res, arb_t x, Lfunc *L, int64_t prec);
 
-#ifdef BUTHE
+  // from buthe_winf.c
+  // Rigorous Arb enclosure of  I(b,h,mu) = 2 * \int_0^\infty
+  //   e^{-(1/2+mu) t} / (1 - e^{-2 t})
+  //   * ( b/pi - sin(b t)/(pi t cosh(h t / 2)) )  dt
+  // The integrand is regular at t=0 (B has a double zero there, A a simple
+  // pole), so the routine integrates a pole-free rearrangement on [0,eps],
+  // uses Arb's rigorous integrator on [eps,T], and adds a closed-form tail
+  // bound on [T,infty).  res is a verified ball containing the true value.
+  void buthe_winf_integral(arb_t res, const arb_t b, const arb_t h, double mu, slong prec);
+
   // from buthe.c
-  void init_buthe(Lfunc *L, int64_t prec);
+  Lerror_t init_buthe(Lfunc *L, int64_t prec);
   void wf(Lfunc *L, uint64_t p, acb_poly_t fp1, acb_poly_t fp, int64_t prec);
   void buthe_Wf_error(Lfunc *L);
+  void buthe_S_at(arb_t S, Lfunc *L, int i, int64_t prec);
   Lerror_t buthe_check_RH(Lfunc *L);
-#endif
 
-#ifdef TURING
   // from turing.c
-  Lerror_t turing_check_RH(Lfunc *L, int64_t);
-#endif
+  Lerror_t turing_check_RH(Lfunc *L, int64_t, bool *too_many);
   
   // from compute.c
   void lfunc_compute(Lfunc *L);
+  Lerror_t rh_methods_disagree(bool turing_too_many, bool buthe_overcount);
 
   //from upsample.c
   double upsample_error(long double M, long double H, long double h, long double A, double *mus, uint64_t r, uint64_t N, long double T, long double imz, uint64_t l);

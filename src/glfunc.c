@@ -20,12 +20,10 @@ void fprint_errors(FILE *f, Lerror_t ecode) {
     fprintf(f, "Looks like we have no usable data.\n");
   if (ecode & ERR_ZERO_ERROR)
     fprintf(f, "Fatal error looking for zeros.\n");
-#ifdef BUTHE
   if (ecode & ERR_BUT_ERROR)
     fprintf(
         f,
         "Error doing Buthe check. Estimate for Wf+Winf-Ws* must allow >=0.\n");
-#endif
   if (ecode & ERR_UPSAMPLE)
     fprintf(f, "Error computing bounds for upsampling.\n");
   if (ecode & ERR_MU_HALF)
@@ -34,6 +32,12 @@ void fprint_errors(FILE *f, Lerror_t ecode) {
     fprintf(f, "Fatal error in stationary point routine.\n");
   if (ecode & ERR_SPEC_VALUE)
     fprintf(f, "Fatal error in special value routine.\n");
+  if (ecode & ERR_RH_METHODS_DISAGREE)
+    fprintf(f, "Buthe and Turing RH verifiers disagreed (BOTH mode).\n");
+  if (ecode & ERR_BUTHE_PARAMS)
+    fprintf(f, "Buthe parameters out of range (need h < 2*pi*b/5).\n");
+  if (ecode & ERR_BAD_RH_METHOD)
+    fprintf(f, "Lfunc_set_rh_method called with an invalid method or after Lfunc_compute.\n");
   // warnings
   if (ecode & ERR_INSUFF_EULER)
     fprintf(f, "Don't appear to have enough Euler factors.\n");
@@ -176,6 +180,8 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
   L->gprec = Lp->gprec;
   L->self_dual = Lp->self_dual;
   L->rank = Lp->rank;
+  L->rh_method = LFUNC_RH_BUTHE; // default verifier; override via Lfunc_set_rh_method
+  L->computed = false;           // Lfunc_compute sets this; the setter checks it
   L->cache_dir = Lp->cache_dir;
 
   // See Lemma 2 of M_error1.pdf, Lemma 5 of g.pdf
@@ -360,13 +366,9 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
 
   arb_clear(tmp);
 
-#ifdef BUTHE
-  init_buthe(L, L->wprec); // setup stuff for Buthe zero check
-#endif
-#ifdef TURING
+  ecode[0] |= init_buthe(L, L->wprec); // setup stuff for Buthe zero check
   arb_init(L->imint);
   arb_init(L->X);
-#endif
   L->nmax_called = false; // noone has called nmax yet
 
   arb_init(L->Lam_d);
@@ -408,6 +410,17 @@ int64_t Lfunc_wprec(Lfunc_t Lf) {
   Lfunc *L;
   L = (Lfunc *)Lf;
   return L->wprec;
+}
+
+Lerror_t Lfunc_set_rh_method(Lfunc_t Lf, Lfunc_rh_method method) {
+  Lfunc *L = (Lfunc *)Lf;
+  if (L->computed) // too late: the verifier has already run
+    return ERR_BAD_RH_METHOD;
+  if (method != LFUNC_RH_BUTHE && method != LFUNC_RH_TURING &&
+      method != LFUNC_RH_BOTH)
+    return ERR_BAD_RH_METHOD; // unknown method; ignore
+  L->rh_method = method;
+  return ERR_SUCCESS;
 }
 
 #ifdef __cplusplus

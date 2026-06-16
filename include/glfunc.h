@@ -9,12 +9,9 @@
 #define YES (1) // tri-state "yes" (for self_dual / rank)
 #define NO (0) // tri-state "no" (for self_dual / rank)
 
-//#define BUTHE // if defined, verify RH via Buthe's method (off by default)
-#define TURING // if defined, verify RH via Booker/Turing's method (default)
-
 #define MAX_DEGREE (9) // if increasing, need more integrals in buthe.c
 // and probably need to take a good look at g.c
-#define MAX_R MAX_DEGREE // alias for MAX_DEGREE (max degree r); sizes the Buthe tables
+#define MAX_R MAX_DEGREE // alias for MAX_DEGREE (max degree r)
 #define MAX_ZEROS (256) // hard cap on the number of zeros found/stored per side
 #define DEFAULT_TARGET_PREC (100) // default target precision in bits when none is given
 // error codes
@@ -24,9 +21,7 @@
 // fatalities
 #define ERR_NO_DATA (1) // the first two Lambda(t) values contained zero. Totally fatal
 #define ERR_ZERO_ERROR (2) // some unexpected error isolating zeros
-#ifdef BUTHE
-#define ERR_BUT_ERROR (4) // Wf+Winf-Ws* must be negative (we cant find too many zeros)
-#endif
+#define ERR_BUT_ERROR (4) // fatal: Buthe S = Wf+Winf-Ws* < 0 (impossible if zeros correct => too many found)
 #define ERR_OOM (8) // out of memory error
 #define ERR_UPSAMPLE (16) // something bad happened trying to upsample
 #define ERR_MU_HALF (32) // mus should be 1/2 integers
@@ -37,6 +32,11 @@
 #define ERR_BAD_DEGREE ((uint64_t) 1024) //fatal error when the degree is too low or too high
 #define ERR_SPEC_NZ ((uint64_t) 2048) // special value routine requires Im s >= 0.
 #define ERR_G_EXTENT ((uint64_t) 4096) // fatal: G grid does not extend low enough (conductor too large for the fixed grid floor, or a cached grid was reused)
+#define ERR_RH_METHODS_DISAGREE ((uint64_t) 1<<13) // fatal: BOTH mode, Buthe and Turing gave contradictory verdicts
+// (BOTH mode only; set when one verifier confirms RH while the other reports a
+//  hard over-count: Turing hi<zeros_found, or Buthe Wf+Winf-Ws* < 0.)
+#define ERR_BUTHE_PARAMS ((uint64_t) 1<<14) // fatal: Buthe (b,h) violate h < 2*pi*b/5
+#define ERR_BAD_RH_METHOD ((uint64_t) 1<<15) // fatal: Lfunc_set_rh_method misused (bad method, or called after Lfunc_compute)
 
 // warnings
 #define ERR_SOME_DATA ((uint64_t) 1<<32) // We had some sensible data, but not to end of Turing Zone
@@ -57,6 +57,14 @@ extern "C"{
 
   // keep details under wraps
   typedef void *Lfunc_t;
+
+  // RH-completeness verifier selection (see Lfunc_set_rh_method).
+  // LFUNC_RH_BUTHE is the default; the integer values are ABI; do not renumber.
+  typedef enum {
+    LFUNC_RH_BUTHE  = 0, // Buthe's Weil-Barner method (default)
+    LFUNC_RH_TURING = 1, // Booker's generalisation of Turing's method
+    LFUNC_RH_BOTH   = 2  // run both; return Buthe's verdict, flag genuine contradictions
+  } Lfunc_rh_method;
 
   typedef struct{
     uint64_t degree;
@@ -108,6 +116,20 @@ extern "C"{
   // range M implicitly, as in Lfunc_init (see Lfunc_nmax); no Lparams field sets
   // the prime/coefficient count directly.
   Lfunc_t Lfunc_init_advanced(Lparams_t *Lparams, Lerror_t *ecode);
+
+  // Choose the RH-completeness verifier run by Lfunc_compute.
+  // Default (if never called) is LFUNC_RH_BUTHE. Must be called AFTER init and
+  // BEFORE Lfunc_compute; calling it after Lfunc_compute returns
+  // ERR_BAD_RH_METHOD (fatal) and leaves the method unchanged. An out-of-range
+  // method also returns ERR_BAD_RH_METHOD and is ignored. Returns ERR_SUCCESS
+  // otherwise.
+  // Under the default Buthe verifier a hard over-count is fatal (ERR_BUT_ERROR);
+  // a mere failure to certify completeness is the warning ERR_RH_ERROR.
+  // Caveat: Buthe's general inequality includes an extra pole contribution.
+  // The current implementation assumes entire L-functions; do not use it for
+  // zeta/principal-pole objects unless that contribution is added.
+  // (The legacy Turing default only raised the latter.)
+  Lerror_t Lfunc_set_rh_method(Lfunc_t L, Lfunc_rh_method method);
 
   // Largest prime p (equivalently largest index M) for which an Euler factor /
   // coefficient a_n is expected. M is derived from the conductor, not passed in:

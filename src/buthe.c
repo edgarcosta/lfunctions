@@ -4,44 +4,36 @@
 #ifdef __cplusplus
 extern "C"{
 #endif
-#ifdef BUTHE
 
 
   // We use Buthe's method to verify our list of zeros
   // we set h=8
   // and use the zeros up to height 96/r to check the list to height buthe_b=64/r
   // This is probably huge overkill
+  //
+  // Caveat: Buthe's general inequality has an extra pole contribution. This
+  // implementation assumes the library's current scope of entire L-functions;
+  // do not use it for objects with zeta/principal poles unless that term is
+  // added to S.
 
+
+  // Buthe smoothing parameter h.  Was emitted by gp/buthe_ints.gp into
+  // gp/buthe_ints.out alongside the (now removed) archimedean-integral table;
+  // the integrals are computed on the fly in buthe_Winf via buthe_winf_integral,
+  // so we keep only this scalar here.
+#define BUTHE_H (8)
+
+  // Descending grid of Buthe smoothing parameters h. Lower h lowers the
+  // completeness statistic S for high-degree/high-conductor L (sweep: deg 6-9),
+  // at the cost of a larger W_f tail error (so it self-limits for small-M, low-
+  // degree objects). grid[0]=8 is the historical default (deg 2-5 certify there);
+  // h<2*pi*b/5 holds for all grid h at every degree 2-9 (checked in init_buthe).
+  static const double buthe_h_grid[BUTHE_NH] = {8.0, 6.0, 5.0, 4.0, 3.0};
 
   // setup Buthe zero check stuff
-  void init_buthe(Lfunc *L, int64_t prec) {
-    /*
-       buthe_ints.out contains output from buthe_ints.gp
-       each entry is a value of
-       2\int\limits_0^\infty \frac{\exp(-(1/2+\mu_k)t)}{1-\exp(-2t)}\left[\frac{b}{\pi}-\frac{\sin(bt)}{\pi t\cosh(2t)} \dif t
-       where the \mu_k are the (analytic) mus so non-negative 1/2 integers
-       each "row" consists of 2*MAX_MUI_2+1 entries corresponding to \mu=0,0.5,1.0...
-       a row for each degree (and therefore b) from 2
-       The entries are integers which must be multiplied by 2^BUTHE_INT_SHIFT
-       Once the entries in a row get small enough, we pad with zeros.
-       If mu is outside MAX_MU_2 or the relevant entry is zero, use the nearest preceding non-zero entry uinioned with 0.
-       */
-
-#define BUTHE_INT_SHIFT (-20)
-    uint64_t buthe_r_ints [(MAX_R-1)*(2*MAX_MUI_2+1)]=
-#include "../gp/buthe_ints.out"
-
-    arb_t one;
-    arb_init(one);
-    arb_set_ui(one,1);
-    for(uint64_t i=0;i<(MAX_R-1)*(2*MAX_MUI_2+1);i++)
-    {
-      arb_init(L->buthe_ints[i]);
-      arb_set_ui(L->buthe_ints[i],buthe_r_ints[i]);
-      arb_add_error(L->buthe_ints[i],one);
-      arb_mul_2exp_si(L->buthe_ints[i],L->buthe_ints[i],BUTHE_INT_SHIFT);
-    }
-    arb_init(L->buthe_Wf);
+  Lerror_t init_buthe(Lfunc *L, int64_t prec) {
+    for(int i=0;i<BUTHE_NH;i++)
+      arb_init(L->buthe_Wf[i]);
     arb_init(L->buthe_Winf);
     arb_init(L->buthe_Ws);
     arb_init(L->buthe_b); // will confirm RH in [0,b]
@@ -56,7 +48,7 @@ extern "C"{
     // we set buthe_h as big as possible
     // we need b-a>5h/Pi were b-a =512/16/10
     // 
-    arb_set_ui(L->buthe_h,BUTHE_H); // defined in buthe_ints.out
+    arb_set_ui(L->buthe_h,BUTHE_H);
     //printf("Buthe h set to ");arb_printd(L->buthe_h,20);printf("\n");
 
     // check h<pi*2*b/5 will be OK so long as degree <=10
@@ -74,55 +66,62 @@ extern "C"{
     arb_sub(tmp,tmp,L->buthe_h,prec);
     if(!arb_is_positive(tmp))
     {
-      fprintf(stderr,"Buthe h is too large at ");
-      arb_fprintd(stderr,L->buthe_h,20);
-      fprintf(stderr,"for Buthe B = ");
-      arb_fprintd(stderr,L->buthe_b,20);
-      fprintf(stderr,". Exiting.\n");
-      exit(0);
+      arb_clear(tmp);
+      return ERR_BUTHE_PARAMS;
     }
 
     arb_clear(tmp);
-    arb_clear(one);
+    return ERR_SUCCESS;
   }
 
   // the terms making up wf are computed using the coefficients bm
   // whilst processing the Euler Factors. see use_inv_lpoly in coeff.c
   //
   // compute a term for wf
-  // bm is real part of the algebraic coefficient for p^m in -L'/L(s)=sum_{n>1} Lambda(n) b(n)n^{-s}
-  // subtract 2 Re(log(p)bm f(mlog p)/sqrt(p^m) from Wf
-  // Re f(mlog(p))=sin(b mlog(p))/(Pi m log(p) cosh(h mlog(p)/2))
-  // so we want 2 bm sin(b m log(p))/(Pi m cosh(h m log(p)/2))
+  // bm is Re([T^m] T P'(T)/P(T)), where the local factor is 1/P(T).
+  // Thus bm is the negative of the usual coefficient A_m in
+  // -L'/L(s)=sum_{p,m} log(p) A_m p^{-ms}. Buthe's W_f has a leading
+  // minus sign, so the contribution for the symmetric interval [-b,b] is
+  // +2 bm sin(b m log(p))/(pi m sqrt(p^m) cosh(h m log(p)/2)).
   void wf1(Lfunc *L, uint64_t m, uint64_t pm, arb_t bm, int64_t prec)
   {
     if(arb_is_zero(bm)) // nothing to do
       return;
 
-    arb_t s,tmp,tmp1,tmp2,logp,logpm;
+    arb_t s,tmp,tmp1,tmp2,logp,logpm,num,hcur;
     arb_init(s);
     arb_init(tmp);
     arb_init(tmp1);
     arb_init(tmp2);
     arb_init(logp);
     arb_init(logpm);
+    arb_init(num);
+    arb_init(hcur);
 
 
     arb_log_ui(logpm,pm,prec);
 
-    arb_mul(tmp1,logpm,L->buthe_h,prec);
-    arb_mul_2exp_si(tmp1,tmp1,-1);
-    arb_cosh(tmp2,tmp1,prec); // cosh(hm/2 log p)
-    arb_mul(tmp1,tmp2,L->pi,prec);
-    arb_mul_ui(tmp2,tmp1,m,prec); // pi m cosh(.)
+    // h-independent numerator num = 2 bm sin(b m log p) / (sqrt(p^m) pi m).
+    // Each grid h then contributes num / cosh(h m log p / 2) to buthe_Wf[i];
+    // grid[0]=8 reproduces the historical single-h term.
     arb_sqrt_ui(tmp,pm,prec);
-    arb_mul(tmp1,tmp,tmp2,prec); // sqrt(p^m) pi m cosh(.)
+    arb_mul(tmp1,tmp,L->pi,prec);
+    arb_mul_ui(tmp1,tmp1,m,prec); // sqrt(p^m) pi m
     arb_mul(tmp,L->buthe_b,logpm,prec);
     arb_sin(s,tmp,prec);
     arb_mul(tmp,s,bm,prec); // b(p^m) sin(.)
-    arb_div(tmp2,tmp,tmp1,prec);
-    arb_mul_2exp_si(tmp2,tmp2,1);
-    arb_add(L->buthe_Wf,L->buthe_Wf,tmp2,prec);
+    arb_div(num,tmp,tmp1,prec);
+    arb_mul_2exp_si(num,num,1); // 2 bm sin(.) / (sqrt(p^m) pi m)
+
+    for(int i=0;i<BUTHE_NH;i++)
+    {
+      arb_set_d(hcur,buthe_h_grid[i]); // grid h are exact integers, so set_d is exact
+      arb_mul(tmp1,logpm,hcur,prec);
+      arb_mul_2exp_si(tmp1,tmp1,-1);
+      arb_cosh(tmp2,tmp1,prec); // cosh(h m/2 log p)
+      arb_div(tmp1,num,tmp2,prec);
+      arb_add(L->buthe_Wf[i],L->buthe_Wf[i],tmp1,prec);
+    }
 
     arb_clear(s);
     arb_clear(tmp);
@@ -130,6 +129,8 @@ extern "C"{
     arb_clear(tmp2);
     arb_clear(logp);
     arb_clear(logpm);
+    arb_clear(num);
+    arb_clear(hcur);
 
     return;
   }
@@ -174,38 +175,46 @@ extern "C"{
   {
     int64_t prec=L->wprec;
     uint64_t r=L->degree;
-    arb_t tmp,tmp1,tmp2;
+    arb_t logM,tmp,tmp1,tmp2,hcur;
+    arb_init(logM);
     arb_init(tmp);
     arb_init(tmp1);
     arb_init(tmp2);
+    arb_init(hcur);
     if(verbose)
-      {
-	printf("In buthe_Wf_error with M=%lu\n",L->buthe_M);
-	printf("   and h = ");arb_printd(L->buthe_h,20);printf("\n");
-      }
-    
-    arb_log_ui(tmp,L->buthe_M,prec);
-    arb_sub_ui(tmp1,L->buthe_h,2,prec); // h-2 = 6
-    if(verbose) {printf("h-2 = ");arb_printd(tmp1,10);printf("\n");}
-    arb_mul_2exp_si(tmp1,tmp1,-1); // (h-2)/2 = 3
-    arb_mul(tmp2,tmp,tmp1,prec); // (h-2)/2 log M
-    arb_neg(tmp2,tmp2); // (2-h)/2 log M
-    arb_exp(tmp,tmp2,prec); // M^((2-h)/2)
-    if(verbose)
-      {
-	printf("M^((2-h)/2)=");
-	arb_printd(tmp,20);
-	printf("\n");
-      }
-    arb_div(tmp2,tmp,tmp1,prec); // 2M^()/(h-2)
-    arb_mul_2exp_si(tmp2,tmp2,2); // 8 M^()/(h-2)
-    arb_mul_ui(tmp,tmp2,r,prec); // 8 r M^()/(h-2)
-    arb_div(tmp1,tmp,L->pi,prec); // /pi
-    if(verbose){printf("error in Buthe Wf <= ");arb_printd(tmp1,20);printf("\n");}
-    arb_add_error(L->buthe_Wf,tmp1);
+      printf("In buthe_Wf_error with M=%lu\n",L->buthe_M);
+
+    arb_log_ui(logM,L->buthe_M,prec); // h-independent: computed once
+
+    // tail bound 8 r M^((2-h)/2) / ((h-2) pi) per grid h, added to buthe_Wf[i].
+    for(int i=0;i<BUTHE_NH;i++)
+    {
+      arb_set_d(hcur,buthe_h_grid[i]); // grid h exact integers, so set_d is exact
+      if(verbose) {printf("   and h = ");arb_printd(hcur,20);printf("\n");}
+      arb_sub_ui(tmp1,hcur,2,prec); // h-2 = 6
+      if(verbose) {printf("h-2 = ");arb_printd(tmp1,10);printf("\n");}
+      arb_mul_2exp_si(tmp1,tmp1,-1); // (h-2)/2 = 3
+      arb_mul(tmp2,logM,tmp1,prec); // (h-2)/2 log M
+      arb_neg(tmp2,tmp2); // (2-h)/2 log M
+      arb_exp(tmp,tmp2,prec); // M^((2-h)/2)
+      if(verbose)
+        {
+          printf("M^((2-h)/2)=");
+          arb_printd(tmp,20);
+          printf("\n");
+        }
+      arb_div(tmp2,tmp,tmp1,prec); // 2M^()/(h-2)
+      arb_mul_2exp_si(tmp2,tmp2,2); // 8 M^()/(h-2)
+      arb_mul_ui(tmp,tmp2,r,prec); // 8 r M^()/(h-2)
+      arb_div(tmp1,tmp,L->pi,prec); // /pi
+      if(verbose){printf("error in Buthe Wf <= ");arb_printd(tmp1,20);printf("\n");}
+      arb_add_error(L->buthe_Wf[i],tmp1);
+    }
+    arb_clear(logM);
     arb_clear(tmp);
     arb_clear(tmp1);
     arb_clear(tmp2);
+    arb_clear(hcur);
 
   }
 
@@ -307,6 +316,7 @@ extern "C"{
     {
       arb_init(s);
       arb_init(tmp);
+      init=true;
     }
     arb_set_d(s,1.0/4.0+(double)mu/2.0); // all normalised to (1-s)
     arb_digamma(tmp,s,prec);
@@ -337,11 +347,10 @@ extern "C"{
   void buthe_Winf(arb_t res, Lfunc *L, int64_t prec)
   {
     static bool init=false;
-    static arb_t tmp,tmp1,logpi;
+    static arb_t tmp,logpi;
     if(!init) {
       init=true;
       arb_init(tmp);
-      arb_init(tmp1);
       arb_init(logpi);
     }
     arb_log(logpi,L->pi,prec);
@@ -352,89 +361,87 @@ extern "C"{
     arb_div(tmp,L->buthe_b,L->pi,prec);
     arb_mul(res,res,tmp,prec);
     if(verbose) {printf("Winf before integral = ");arb_printd(res,20);printf("\n");}
+    // archimedean integrals: one per Gamma_R factor, computed rigorously on the
+    // fly for the live (b,h) (replaces the old gp/buthe_ints.out static table).
     for(uint64_t k=0;k<L->degree;k++) {
-      uint64_t ptr;
-      bool approx;
-      if(L->mus[k]>MAX_MU)
-      {
-        ptr=(L->degree-1)*(2*MAX_MUI_2+1)-1;
-        approx=true;
-      }
-      else
-      {
-        ptr=(L->degree-2)*(2*MAX_MUI_2+1)+(uint64_t)(2.0*L->mus[k]);
-        approx=arb_is_zero(L->buthe_ints[ptr]);
-      }
-      if(approx)
-      {
-        while(arb_is_zero(L->buthe_ints[ptr])) ptr--;
-        arb_set(tmp,L->buthe_ints[ptr]);
-        arb_zero(tmp1);
-        arb_union(tmp,tmp,tmp1,prec);
-      }
-      else
-        arb_set(tmp,L->buthe_ints[ptr]);
-      //if(verbose){printf("Integral contributing ");arb_printd(buthe_ints[(Lf->r-2)*(2*MAX_MUI_2+1)+(uint64_t)(2.0*Lf->mus[k])],20);printf("\n");}
+      buthe_winf_integral(tmp,L->buthe_b,L->buthe_h,L->mus[k],prec);
+      if(verbose){printf("Integral contributing ");arb_printd(tmp,20);printf("\n");}
       arb_add(res,res,tmp,prec);
     }
     if(verbose) {printf("Winf = ");arb_printd(res,20);printf("\n");}
   }
 
+  // S = Wf[i] + Winf - Ws at grid point i: sets L->buthe_h = buthe_h_grid[i] and
+  // recomputes the h-dependent Ws and Winf. Exposed so the threshold test can
+  // probe S per grid h.
+  void buthe_S_at(arb_t S, Lfunc *L, int i, int64_t prec) {
+    arb_set_d(L->buthe_h, buthe_h_grid[i]);
+    arb_zero(L->buthe_Ws);
+    if (L->self_dual == YES) buthe_Ws_dual(L->buthe_Ws, L, L->zeros[0], prec);
+    else { buthe_Ws_non_dual(L->buthe_Ws, L, L->zeros[0], 0, prec);
+           buthe_Ws_non_dual(L->buthe_Ws, L, L->zeros[1], 1, prec); }
+    buthe_Winf(L->buthe_Winf, L, prec);
+    arb_add(S, L->buthe_Wf[i], L->buthe_Winf, prec);
+    arb_sub(S, S, L->buthe_Ws, prec);
+  }
+
   Lerror_t buthe_check_RH(Lfunc *L)
   {
     static bool init=false;
-    static arb_t sum,two_zeros;
+    static arb_t two_zeros,one_zero;
     if(!init) {
       init=true;
-      arb_init(sum);
       arb_init(two_zeros);
       arb_set_ui(two_zeros,98);
-      arb_div_ui(two_zeros,two_zeros,100,100);
+      arb_div_ui(two_zeros,two_zeros,100,100); // 0.98 pair-threshold (self-dual)
+      arb_init(one_zero);
+      arb_set_ui(one_zero,49);
+      arb_div_ui(one_zero,one_zero,100,100);   // 0.49 single-zero threshold (self_dual != YES)
     }
+    // A missed conjugate pair contributes > 0.98 (self-dual == YES, paired zeros);
+    // a single missed zero contributes > 0.49. When self_dual is NO or DK,
+    // zeros are not guaranteed paired, so the tighter 0.49 bar is required or a
+    // single miss would false-confirm.
+    arb_srcptr threshold = (L->self_dual == YES) ? two_zeros : one_zero;
     int64_t prec=L->wprec;
     if(verbose)
     {printf("Going to use Weil-Barner to confirm list of zeros.\n");fflush(stdout);}
-    arb_zero(L->buthe_Ws);
-    if(L->self_dual==YES)
-      buthe_Ws_dual(L->buthe_Ws,L,L->zeros[0],L->wprec);
-    else // unknown or definately not
-    {
-      buthe_Ws_non_dual(L->buthe_Ws,L,L->zeros[0],0,L->wprec);
-      buthe_Ws_non_dual(L->buthe_Ws,L,L->zeros[1],1,L->wprec);
+
+    // Adaptive sweep over the descending smoothing grid buthe_h_grid[0..BUTHE_NH-1].
+    // S(h) = Wf(h) + Winf(h) - Ws(h); lowering h sharpens the test function and
+    // lowers S for a COMPLETE zero list, while a genuine miss keeps S >= threshold
+    // at every grid h (a missed zero's contribution rises toward 0.5 as h drops).
+    // We certify at the HIGHEST grid h that achieves upper(S) < threshold (that h
+    // has the smallest W_f tail error). Since S is the contribution of missing
+    // zeros under the theorem hypotheses, a rigorous upper(S) < 0 is a hard
+    // over-count at any grid h used by the verifier.
+    arb_t S, Sdiff;
+    arb_init(S); arb_init(Sdiff);
+    Lerror_t verdict = ERR_RH_ERROR; // default: no grid h certified
+    for (int i = 0; i < BUTHE_NH; i++) {
+      buthe_S_at(S, L, i, L->wprec);
+      if(verbose)
+      {
+        printf("h = ");arb_printd(L->buthe_h,20);
+        printf("\nWs = ");arb_printd(L->buthe_Ws,20);
+        printf("\nWinf = ");arb_printd(L->buthe_Winf,20);
+        printf("\nWf = ");arb_printd(L->buthe_Wf[i],20);
+        printf("\nS = ");arb_printd(S,20);printf("\n");
+      }
+      if (arb_is_negative(S)) { // hard over-count at this h
+        if(verbose) printf("Error in Weil-Barner check. Winf+Wf-Ws* must allow >=0. RH not confirmed.\n");
+        verdict = ERR_BUT_ERROR; break;
+      }
+      arb_sub(Sdiff, S, threshold, prec);
+      if (arb_is_negative(Sdiff)) { // upper(S) < threshold => certified at this (highest) h
+        verdict = ERR_SUCCESS; break;
+      }
     }
-
-    buthe_Winf(L->buthe_Winf,L,L->wprec);
-    //if(verbose){printf("Winf = ");arb_printd(L_func.buthe_Winf,20);printf("\n");}
-
-
-    //printf("Random negation of Wf happening.\n");arb_neg(L->buthe_Wf,L->buthe_Wf);
-    arb_add(sum,L->buthe_Wf,L->buthe_Winf,prec);
-    arb_sub(sum,sum,L->buthe_Ws,prec);
-    if(verbose)
-    {
-      printf("Ws = ");arb_printd(L->buthe_Ws,20);
-      printf("\nWinf = ");arb_printd(L->buthe_Winf,20);
-      printf("\nWf = ");arb_printd(L->buthe_Wf,20);
-      printf("\nS = ");arb_printd(sum,20);printf("\n");
-    }
-    if(arb_is_negative(sum))
-    {
-      if(verbose) printf("Error in Weil-Barner check. Winf+Wf-Ws* must allow >=0. RH not confirmed.\n");
-      return ERR_BUT_ERROR;
-    }
-
-    arb_sub(sum,sum,two_zeros,prec);
-
-    if(!arb_is_negative(sum))
-    {
-      if(verbose) printf("Looks like we've missed a some (pairs of) zeros.\n");
-      return ERR_RH_ERROR;
-    }
-    return ERR_SUCCESS;
+    if(verbose && (verdict == ERR_RH_ERROR)) printf("Looks like we've missed some zero(s).\n");
+    arb_clear(S); arb_clear(Sdiff);
+    return verdict;
   }
 
 #ifdef __cplusplus
 }
-#endif
-
 #endif

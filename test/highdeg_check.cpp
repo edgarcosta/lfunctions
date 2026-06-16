@@ -23,12 +23,27 @@
 #include <flint/fmpz_poly.h>
 #include <flint/acb_poly.h>
 #include "glfunc.h"
+#include "glfunc_internals.h"
 #include "sym_power.h"
 
 static int g_fail = 0;
 static void check(bool ok, const char *name, const std::string &detail) {
   printf("  [%s] %s %s\n", ok ? "PASS" : "FAIL", name, detail.c_str());
   if (!ok) g_fail = 1;
+}
+
+static std::string input_label(const char *path) {
+  std::string s(path ? path : "");
+  const size_t pos = s.find_last_of("/\\");
+  s = (pos == std::string::npos) ? s : s.substr(pos + 1);
+  const std::string prefix = "highdeg_";
+  const std::string suffix = ".in";
+  if (s.compare(0, prefix.size(), prefix) == 0)
+    s.erase(0, prefix.size());
+  if (s.size() >= suffix.size() &&
+      s.compare(s.size() - suffix.size(), suffix.size(), suffix) == 0)
+    s.erase(s.size() - suffix.size());
+  return s;
 }
 
 // arb ref from decimal string, widened by absolute error `err`
@@ -168,12 +183,40 @@ int main(int argc, char **argv) {
   ec |= Lfunc_compute(L);
   printf("degree=%lu conductor=%lu nmax=%lu primes=%lu\n", degree, conductor, nmax, count);
 
+  // Invariant (Buthe arXiv:1308.6704, Thm 3.3 + Lemma 3.4): for these entire
+  // L-functions S(h) = Wf + Winf - Ws is the f-hat weighted contribution of the
+  // MISSING zeros, with weight > 0 on the strip, so exact S(h) >= 0 at every
+  // grid h; a rigorously-negative S-ball would be a hard over-count. Recompute
+  // each smoothing-grid point so a failure prints the matching h-dependent terms.
+  {
+    Lfunc *LL = (Lfunc *) L;
+    const int64_t wprec = LL->wprec;
+    const std::string label = input_label(argv[1]);
+    arb_t S; arb_init(S);
+    for (int i = 0; i < BUTHE_NH; i++) {
+      buthe_S_at(S, LL, i, wprec);
+      const bool ok = !arb_is_negative(S);
+      if (!ok) {
+        printf("  [FAIL] buthe-S-nonnegative label=%s degree=%lu conductor=%lu grid=%d\n",
+               label.c_str(), (unsigned long) degree, (unsigned long) conductor, i);
+        printf("    h="); arb_printd(LL->buthe_h, 20);
+        printf(" Wf="); arb_printd(LL->buthe_Wf[i], 20);
+        printf(" Winf="); arb_printd(LL->buthe_Winf, 20);
+        printf(" Ws="); arb_printd(LL->buthe_Ws, 20);
+        printf(" S="); arb_printd(S, 20);
+        printf("\n");
+        g_fail = 1;
+      }
+    }
+    arb_clear(S);
+  }
+
   // (0) no fatal error; RH warning tolerated only when declared
   check(!fatal_error(ec), "no-fatal", "");
   if (!tolerate_rh)
     check((ec & ERR_RH_ERROR) == 0, "rh-confirmed", "ERR_RH_ERROR must be absent");
   else if (ec & ERR_RH_ERROR)
-    printf("  [note] ERR_RH_ERROR present (tolerated for degree>=3; bead lfunctions-0zo)\n");
+    printf("  [note] ERR_RH_ERROR present (tolerated: declared genuine miss, e.g. 196.a doubled zeros)\n");
 
   if (have_expect) {
     // (1) rank
