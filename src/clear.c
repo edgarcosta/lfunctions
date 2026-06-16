@@ -74,6 +74,7 @@ extern "C"{
     
     arb_cclear(L->one_over_root_N);
     arb_cclear(L->sum_ans);
+    arb_cclear(L->moment_sum);
     arb_cclear(L->u_H);
     arb_cclear(L->u_pi_by_H2);
     arb_cclear(L->u_A);
@@ -142,6 +143,35 @@ extern "C"{
 
     arf_cclear(L->arf_A);
     arf_cclear(L->arf_one_over_A);
+
+    if(L->retained_f)
+      {
+        for(uint64_t i=0;i<L->n_retained;i++)
+          acb_poly_clear(&L->retained_f[i]);
+        free(L->retained_f);
+      }
+    if(L->retained_fmpz)
+      {
+        for(uint64_t i=0;i<L->n_retained;i++)
+          if(L->retained_is_exact && L->retained_is_exact[i])
+            fmpz_poly_clear(&L->retained_fmpz[i]);
+        free(L->retained_fmpz);
+      }
+    free(L->retained_is_exact);
+    free(L->retained_p);
+    if(L->cert_roots)
+      {
+        for(uint64_t i=0;i<L->n_cert_roots;i++)
+          fmpz_poly_clear(&L->cert_roots[i]);
+        free(L->cert_roots);
+      }
+    if(L->factors)
+      {
+        for(uint64_t i=0;i<L->n_factors;i++)
+          Lfunc_clear(L->factors[i]);   // recursively clear M
+        free(L->factors);
+      }
+    free(L->factor_mults);
 
     free(L);
   }

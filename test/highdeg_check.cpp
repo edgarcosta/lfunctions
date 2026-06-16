@@ -8,7 +8,10 @@
 //   line 1: degree conductor normalisation self_dual
 //   line 2: mu_0 ... mu_{degree-1}
 //   line 3: EXPECT rank eps_re eps_im z1 z1_err taylor taylor_err tolerate_rh
-//             (taylor == "NA" => skip the leading-Taylor assertion)
+//             expect_power extract_power
+//             (taylor == "NA" => skip the leading-Taylor assertion;
+//              expect_power => assert the power guard rejects with ERR_POWER;
+//              extract_power => opt in to extraction, assert assembled values + factor)
 //   line p: p c0 c1 ... c_degree     (local L-poly coeffs, ascending, decimal strings)
 //
 // With only lines 1-2 present (no EXPECT, no factors) it prints the library's
@@ -66,13 +69,33 @@ int main(int argc, char **argv) {
   std::vector<double> mus(degree);
   for (auto &m : mus) s2 >> m;
 
+  // EXPECT line (optional — absent => nmax query). Parsed BEFORE init so the
+  // extract_powers opt-in can be set on Lparams: factor retention in use_lpoly
+  // and the extraction branch in Lfunc_compute both need the flag set before the
+  // factor-supply loop below.
+  int exp_rank = -1, tolerate_rh = 0, expect_power = 0, extract_power = 0;
+  double eps_re = 0, eps_im = 0, z1_err = 0, taylor_err = 0;
+  std::string z1s, taylors = "NA";
+  bool have_expect = false;
+  std::streampos after_mus = in.tellg();
+  if (std::getline(in, line)) {
+    std::stringstream s3(line);
+    std::string kw; s3 >> kw;
+    if (kw == "EXPECT") {
+      have_expect = true;
+      s3 >> exp_rank >> eps_re >> eps_im >> z1s >> z1_err >> taylors >> taylor_err >> tolerate_rh >> expect_power >> extract_power;
+    } else {
+      in.seekg(after_mus);  // line was a factor; rewind
+    }
+  }
+
   // Public advanced init so self-duality is declared up front instead of poking
   // the opaque handle. Mirrors Lfunc_init's defaults (target_prec=DEFAULT and
   // gprec=0 keep the G-cache active, see src/g.c); Lfunc_init_advanced copies
   // Lp.mus, so the local vector suffices, and cache_dir outlives the Lfunc.
   Lerror_t ec = 0;
   char cache_dir[] = ".";
-  Lparams_t Lp;
+  Lparams_t Lp = {};
   Lp.degree = degree;
   Lp.conductor = conductor;
   Lp.normalisation = norm;
@@ -83,42 +106,27 @@ int main(int argc, char **argv) {
   Lp.self_dual = self_dual ? YES : DK;
   Lp.rank = DK;
   Lp.cache_dir = cache_dir;
+  Lp.extract_powers = extract_power ? YES : NO;
   Lfunc_t L = Lfunc_init_advanced(&Lp, &ec);
   if (fatal_error(ec)) { fprint_errors(stderr, ec); return 1; }
   uint64_t nmax = Lfunc_nmax(L);
 
-  // EXPECT line (optional — absent => nmax query)
-  int exp_rank = -1, tolerate_rh = 0;
-  double eps_re = 0, eps_im = 0, z1_err = 0, taylor_err = 0;
-  std::string z1s, taylors = "NA";
-  bool have_expect = false;
-  std::streampos after_mus = in.tellg();
-  if (std::getline(in, line)) {
-    std::stringstream s3(line);
-    std::string kw; s3 >> kw;
-    if (kw == "EXPECT") {
-      have_expect = true;
-      s3 >> exp_rank >> eps_re >> eps_im >> z1s >> z1_err >> taylors >> taylor_err >> tolerate_rh;
-    } else {
-      in.seekg(after_mus);  // line was a factor; rewind
-    }
-  }
-
-  acb_poly_t poly; acb_poly_init(poly);
-  fmpz_t z; fmpz_init(z);
-  acb_t c; acb_init(c);
-  uint64_t count = 0;
-  while (std::getline(in, line)) {
+	  acb_poly_t poly; acb_poly_init(poly);
+	  fmpz_poly_t zpoly; fmpz_poly_init(zpoly);
+	  fmpz_t z; fmpz_init(z);
+	  uint64_t count = 0;
+	  while (std::getline(in, line)) {
     if (line.empty()) continue;
     std::stringstream ss(line);
     uint64_t p; ss >> p;
     if (p > nmax) continue;
-    std::vector<std::string> toks; std::string tok;
-    while (ss >> tok) toks.push_back(tok);
-    acb_poly_zero(poly);
-    if (form_sympow && toks.size() == 1) {
-      // base a_p only: form the Sym^k good-prime factor here, exact fmpz -> acb
-      fmpz_set_str(z, toks[0].c_str(), 10);
+	    std::vector<std::string> toks; std::string tok;
+	    while (ss >> tok) toks.push_back(tok);
+	    acb_poly_zero(poly);
+	    fmpz_poly_zero(zpoly);
+	    if (form_sympow && toks.size() == 1) {
+	      // base a_p only: form the Sym^k good-prime factor here, exact fmpz
+	      fmpz_set_str(z, toks[0].c_str(), 10);
       // A base a_p must satisfy the Hasse bound a_p^2 <= 4p (checked in fmpz to
       // avoid overflow). A value outside it is not a trace (e.g. a mis-padded bad
       // factor whose leading coefficient landed on a one-token line), so fail
@@ -130,43 +138,52 @@ int main(int argc, char **argv) {
         fmpz_set_ui(fourp, p); fmpz_mul_ui(fourp, fourp, 4); // 4p
         const bool hasse_ok = (fmpz_cmp(aa, fourp) <= 0);
         fmpz_clear(aa); fmpz_clear(fourp);
-        if (!hasse_ok) {
-          fprintf(stderr, "sympow base a_p=%s violates the Hasse bound at p=%lu (corrupt input)\n",
-                  toks[0].c_str(), (unsigned long) p);
-          acb_poly_clear(poly); fmpz_clear(z); acb_clear(c); Lfunc_clear(L);
-          return 2;
-        }
-      }
-      fmpz_poly_t f; fmpz_poly_init(f);
-      sym_power_lpoly(f, fmpz_get_si(z), p, sym_k);
-      const slong d = fmpz_poly_degree(f);
-      for (slong j = 0; j <= d; j++) {
-        fmpz_poly_get_coeff_fmpz(z, f, j);
-        acb_set_fmpz(c, z);
-        acb_poly_set_coeff_acb(poly, j, c);
-      }
-      fmpz_poly_clear(f);
-    } else {
-      // explicit local-factor coefficients (ascending): good ec/genus2/cmf primes
-      // and all bad primes, including sympow's
-      for (uint64_t i = 0; i < toks.size(); i++) {
-        fmpz_set_str(z, toks[i].c_str(), 10);
-        acb_set_fmpz(c, z);
-        acb_poly_set_coeff_acb(poly, i, c);
-      }
-    }
-    Lfunc_use_lpoly(L, p, poly);
-    count++;
-  }
+	        if (!hasse_ok) {
+	          fprintf(stderr, "sympow base a_p=%s violates the Hasse bound at p=%lu (corrupt input)\n",
+	                  toks[0].c_str(), (unsigned long) p);
+	          fmpz_poly_clear(zpoly); acb_poly_clear(poly); fmpz_clear(z); Lfunc_clear(L);
+	          return 2;
+	        }
+	      }
+	      sym_power_lpoly(zpoly, fmpz_get_si(z), p, sym_k);
+	    } else {
+	      // explicit local-factor coefficients (ascending): good ec/genus2/cmf primes
+	      // and all bad primes, including sympow's
+	      for (uint64_t i = 0; i < toks.size(); i++) {
+	        fmpz_set_str(z, toks[i].c_str(), 10);
+	        fmpz_poly_set_coeff_fmpz(zpoly, i, z);
+	      }
+	    }
+	    if (extract_power) {
+	      ec |= Lfunc_use_lpoly_fmpz(L, p, zpoly);
+	    } else {
+	      acb_poly_set_fmpz_poly(poly, zpoly, Lfunc_wprec(L));
+	      Lfunc_use_lpoly(L, p, poly);
+	    }
+	    count++;
+	  }
 
-  if (count == 0) {  // nmax query
-    printf("nmax=%lu\n", nmax);
-    acb_poly_clear(poly); fmpz_clear(z); acb_clear(c); Lfunc_clear(L);
-    return 0;
-  }
+	  if (count == 0) {  // nmax query
+	    printf("nmax=%lu\n", nmax);
+	    fmpz_poly_clear(zpoly); acb_poly_clear(poly); fmpz_clear(z); Lfunc_clear(L);
+	    return 0;
+	  }
 
   ec |= Lfunc_compute(L);
   printf("degree=%lu conductor=%lu nmax=%lu primes=%lu\n", degree, conductor, nmax, count);
+
+  if (expect_power) {
+    // This object has a repeated primitive factor (e.g. L = L(E)^2): the power
+    // guard must reject it up front with ERR_POWER. Assert that and skip the value
+    // checks (it is intentionally not computed). Positive guard regression.
+    uint64_t fatal_bits = ec & 0xFFFFFFFFu;
+    { std::stringstream d; d << "fatal_bits=0x" << std::hex << fatal_bits;
+      check(fatal_bits == ERR_POWER, "power-rejected",
+            "guard must reject with exactly ERR_POWER; " + d.str()); }
+    fprintf(stderr, "ecode: "); fprint_errors(stderr, ec);
+	    fmpz_poly_clear(zpoly); acb_poly_clear(poly); fmpz_clear(z); Lfunc_clear(L);
+    return g_fail;
+  }
 
   // (0) no fatal error; RH warning tolerated only when declared
   check(!fatal_error(ec), "no-fatal", "");
@@ -204,9 +221,17 @@ int main(int argc, char **argv) {
     } else {
       printf("  [skip] taylor (not provided)\n");
     }
+
+    // (5) assembled power: the primitive factor M with multiplicity k is exposed.
+    if (extract_power) {
+      Lfunc_t *fs = NULL; uint64_t *ms = NULL;
+      uint64_t nf = Lfunc_factors(L, &fs, &ms);
+      { std::stringstream d; d << "n_factors=" << nf << (nf? (std::string(" mult=")+std::to_string(ms[0])) : std::string());
+        check(nf == 1 && ms[0] == 2, "factor", d.str()); }
+    }
   }
 
   fprintf(stderr, "ecode: "); fprint_errors(stderr, ec);
-  acb_poly_clear(poly); fmpz_clear(z); acb_clear(c); Lfunc_clear(L);
+	  fmpz_poly_clear(zpoly); acb_poly_clear(poly); fmpz_clear(z); Lfunc_clear(L);
   return g_fail;
 }

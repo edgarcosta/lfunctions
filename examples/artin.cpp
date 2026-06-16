@@ -671,7 +671,23 @@ istream & operator>>(istream & is, artin_rep &o)
           for(size_t i = 0; i < buf.size(); ++i)
             o.mus[i] = buf[i];
           // alg = anal so normalisation = 0.0
-          o.L = Lfunc_init(o.dimension, o.conductor, 0.0, o.mus, &o.ecode);
+          Lparams_t params = {};
+          params.degree = o.dimension;
+          params.conductor = o.conductor;
+          params.normalisation = 0.0;
+          params.mus = o.mus;
+          params.target_prec = DEFAULT_TARGET_PREC; // TODO: target_prec should be tunable
+          params.wprec = 0;
+          params.gprec = 0;
+          params.self_dual = DK;
+          params.rank = DK;
+          params.cache_dir = (char *)".";
+          // Local factors are supplied below through cyclotomic acb embeddings,
+          // so they can trigger the repeated-factor guard but cannot certify
+          // exact power extraction.
+          params.extract_powers = NO;
+
+          o.L = Lfunc_init_advanced(&params, &o.ecode);
           if(fatal_error(o.ecode)) {
             fprint_errors(stderr, o.ecode);
             throw_line("could not init L-function"s);
@@ -739,9 +755,15 @@ ostream& operator<<(ostream &s, artin_rep &AR) {
   // first zeros as balls, the rest as doubles if we have enough precision
   ostream_zeros(s, L, 0);
   s << ":";
-  Lplot_t *Lpp = Lfunc_plot_data(L, 0, 64.0/AR.dimension, 257);
-  s << Lpp;
-  Lfunc_clear_plot(Lpp);
+  if(Lfunc_factors(L, NULL, NULL) == 0) {
+    Lplot_t *Lpp = Lfunc_plot_data(L, 0, 64.0/AR.dimension, 257);
+    if(!Lpp)
+      throw_line("could not compute plot data"s);
+    s << Lpp;
+    Lfunc_clear_plot(Lpp);
+  } else {
+    s << "0:[]";
+  }
   return s;
 }
 

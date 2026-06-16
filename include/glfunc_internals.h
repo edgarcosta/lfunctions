@@ -3,6 +3,7 @@
 
 #include "inttypes.h"
 #include <flint/acb.h>
+#include <flint/fmpz_poly.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <math.h>
@@ -24,6 +25,8 @@
 #endif
 
 #define MAX_L (10) // maximum differential allowed in upsampling
+#define POWER_SQFREE_PROBES (256)     // max full-degree primes tested for squarefree-ness by the power guard
+#define POWER_MOMENT_THRESHOLD (3.5)  // 2nd moment >= this (and no squarefree factor seen) => reject as a repeated-factor L
 
 
 #define COMPUTE_ZEROS // compile-time switch: enable the zero-finding phase
@@ -114,6 +117,25 @@ extern "C"{
 
     bool nmax_called; // true if user/system has called Lfunc_nmax
 
+    // power/repeated-factor guard (see power_guard in coeff.c)
+    int extract_powers;   // copied from Lparams; YES(1) extract & assemble a power L=M^k (else reject)
+    bool seen_sqfree_fulldeg; // a full-degree local factor was proven squarefree => no repeated factor
+    arb_t moment_sum;         // running sum of |a_p|^2 over full-degree (good) primes
+    uint64_t moment_count;    // number of full-degree primes folded into moment_sum
+
+    // power extraction
+    uint64_t *retained_p;          // supplied good/bad primes, in supply order
+    acb_poly_struct *retained_f;   // the raw supplied Euler factors L_p
+    fmpz_poly_struct *retained_fmpz; // exact raw integer Euler factors, initialized only where retained_is_exact[i]
+    bool *retained_is_exact;       // exact fmpz provenance for retained_f[i]
+    uint64_t n_retained, retained_cap; // count and capacity of the retained store
+    Lerror_t retained_error;       // fatal error encountered while retaining factors
+    fmpz_poly_struct *cert_roots;  // exact integer k-th roots of retained_fmpz, same order/count
+    uint64_t n_cert_roots;         // populated by power_extract_prepare, consumed in assembly
+    Lfunc_t *factors;              // owned primitive factors (length n_factors)
+    uint64_t *factor_mults;        // their multiplicities
+    uint64_t n_factors;            // 0 unless this L was assembled from a power
+
     int64_t offset; // FFT bin index of a_1 = calc_m(1); used only for a bounds check
 
     uint64_t u_N; // upsampling kernel half-width = ceil(A^2 h^2/2); kernel = 2*u_N+1 pts
@@ -167,6 +189,12 @@ extern "C"{
   Lerror_t turing_check_RH(Lfunc *L, int64_t);
 #endif
   
+  // from coeff.c
+  Lerror_t power_guard(Lfunc *L);
+  Lerror_t power_extract_prepare(Lfunc *L, uint64_t *k_out); // fix & certify k; ERR_POWER if not a clean power
+  // True iff cond is an exact k-th power; sets *base to the integer k-th root.
+  bool conductor_kth_root(uint64_t cond, uint64_t k, uint64_t *base);
+
   // from compute.c
   void lfunc_compute(Lfunc *L);
 

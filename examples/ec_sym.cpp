@@ -184,7 +184,7 @@ static Lerror_t check_sym_power(int k, uint64_t conductor, double normalisation,
   Lerror_t ecode = 0;
   char cache_dir[] = ".";
 
-  Lparams_t Lp;
+  Lparams_t Lp = {};
   Lp.degree = (uint64_t) (k + 1);
   Lp.conductor = conductor;
   Lp.normalisation = normalisation;

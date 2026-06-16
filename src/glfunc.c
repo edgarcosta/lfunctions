@@ -34,6 +34,10 @@ void fprint_errors(FILE *f, Lerror_t ecode) {
     fprintf(f, "Fatal error in stationary point routine.\n");
   if (ecode & ERR_SPEC_VALUE)
     fprintf(f, "Fatal error in special value routine.\n");
+  if (ecode & ERR_POWER)
+    fprintf(f, "L-function appears to be a perfect power or to have a repeated "
+               "primitive factor (doubled zeros); set Lparams.extract_powers "
+               "= YES and supply exact fmpz Euler factors to extract and assemble.\n");
   // warnings
   if (ecode & ERR_INSUFF_EULER)
     fprintf(f, "Don't appear to have enough Euler factors.\n");
@@ -156,7 +160,7 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
   // we sort the mus so we can name G cache files canonically
   qsort(L->mus, L->degree, sizeof(double), double_comp);
 
-  L->target_prec = Lp->target_prec;
+  L->target_prec = (Lp->target_prec > 0) ? Lp->target_prec : DEFAULT_TARGET_PREC;
   arb_init(L->zero_prec);
   arb_set_ui(L->zero_prec, 1);
   arb_mul_2exp_si(L->zero_prec, L->zero_prec, -L->target_prec - 1);
@@ -176,6 +180,7 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
   L->gprec = Lp->gprec;
   L->self_dual = Lp->self_dual;
   L->rank = Lp->rank;
+  L->extract_powers = Lp->extract_powers;
   L->cache_dir = Lp->cache_dir;
 
   // See Lemma 2 of M_error1.pdf, Lemma 5 of g.pdf
@@ -346,6 +351,15 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
 
   arb_init(L->one_over_root_N);
   arb_init(L->sum_ans);
+  arb_init(L->moment_sum);       // power-guard 2nd-moment accumulator (starts at 0)
+  L->moment_count = 0;
+  L->seen_sqfree_fulldeg = false;
+  L->retained_p = NULL; L->retained_f = NULL;
+  L->retained_fmpz = NULL; L->retained_is_exact = NULL;
+  L->n_retained = 0; L->retained_cap = 0;
+  L->retained_error = ERR_SUCCESS;
+  L->cert_roots = NULL; L->n_cert_roots = 0;
+  L->factors = NULL; L->factor_mults = NULL; L->n_factors = 0;
   acb_init(L->sign);
   acb_init(L->sqrt_sign);
   L->allocated_M = 8192;
@@ -379,7 +393,7 @@ Lfunc_t Lfunc_init_advanced(Lparams_t *Lp, Lerror_t *ecode) {
 
 Lfunc_t Lfunc_init(uint64_t degree, uint64_t conductor, double normalisation,
                    const double *mus, Lerror_t *ecode) {
-  Lparams_t Lp;
+  Lparams_t Lp = {0};
   Lp.degree = degree;
   Lp.conductor = conductor;
   Lp.normalisation = normalisation;
@@ -396,6 +410,7 @@ Lfunc_t Lfunc_init(uint64_t degree, uint64_t conductor, double normalisation,
   Lp.cache_dir = ".";
   Lp.gprec = 0; // We will try to do something sensible
   Lp.wprec = 0; // ditto
+  Lp.extract_powers = NO; // guard on by default
 
   // Lfunc_init_advanced copies Lp.mus into L->mus, so this scratch array is ours
   // to free; otherwise it leaks (Lp is a stack local that goes out of scope).

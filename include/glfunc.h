@@ -3,6 +3,7 @@
 
 #include <inttypes.h>
 #include <flint/acb_poly.h>
+#include <flint/fmpz_poly.h>
 #include <stdbool.h>
 
 #define DK (-1) // tri-state "don't know" (for self_dual / rank)
@@ -37,6 +38,7 @@
 #define ERR_BAD_DEGREE ((uint64_t) 1024) //fatal error when the degree is too low or too high
 #define ERR_SPEC_NZ ((uint64_t) 2048) // special value routine requires Im s >= 0.
 #define ERR_G_EXTENT ((uint64_t) 4096) // fatal: G grid does not extend low enough (conductor too large for the fixed grid floor, or a cached grid was reused)
+#define ERR_POWER ((uint64_t) 1<<13) // fatal: L is a perfect power / has a repeated primitive factor (doubled zeros); set Lparams.extract_powers and supply exact fmpz factors to extract
 
 // warnings
 #define ERR_SOME_DATA ((uint64_t) 1<<32) // We had some sensible data, but not to end of Turing Zone
@@ -58,6 +60,11 @@ extern "C"{
   // keep details under wraps
   typedef void *Lfunc_t;
 
+  // Zero-initialize before field-by-field assignment; zero is the default for
+  // optional fields such as target_prec/gprec/wprec and extract_powers.
+  // Lparams_t is intentionally not a stable ABI/source-compatibility boundary:
+  // callers should rebuild against the matching header, and new fields may be
+  // added without preserving older struct layouts.
   typedef struct{
     uint64_t degree;
     uint64_t conductor;
@@ -69,6 +76,7 @@ extern "C"{
     int self_dual; // -1 = DK, 0 = No, 1 = Yes
     int rank; // -1 = DK
     char *cache_dir;
+    int extract_powers; // if YES(1), extract & assemble a perfect power L=M^k only from exact fmpz Euler factors (else reject with ERR_POWER); default NO(0)
   } Lparams_t;
 
   typedef struct{
@@ -132,10 +140,25 @@ extern "C"{
   // see Lfunc_nmax). The first call here triggers Lfunc_nmax, computing and
   // freezing M if not already done. Setting poly to zero stops the iteration,
   // lowers M to p-1, and flags ERR_INSUFF_EULER.
+  //
+  // acb-supplied factors participate in the repeated-factor/power guard. They
+  // are not exact provenance for extract_powers=YES; a power detected from only
+  // acb factors is rejected with ERR_POWER rather than extracted.
   Lerror_t Lfunc_use_all_lpolys(Lfunc_t L, void (*lpoly_callback) (acb_poly_t lpoly, uint64_t p, int d, int64_t prec, void *parm), void *param);
 
-  // you provide one Euler polynomial at a time
+  // Exact integer-polynomial supply route. This mirrors Lfunc_use_all_lpolys,
+  // but the callback fills an fmpz_poly_t. Leaving it zero is the same
+  // insufficient-supply sentinel. When extract_powers=YES, only factors supplied
+  // through this exact path can certify extraction.
+  Lerror_t Lfunc_use_all_lpolys_fmpz(Lfunc_t L, void (*lpoly_callback)(fmpz_poly_t lpoly, uint64_t p, int d, void *parm), void *param);
+
+  // you provide one Euler polynomial at a time. acb-supplied factors are used for
+  // computation and the repeated-factor guard, but cannot certify extraction.
   void Lfunc_use_lpoly(Lfunc_t L, uint64_t p, const acb_poly_t poly);
+
+  // Exact integer-polynomial single-prime supply. The factor is also converted
+  // to acb internally for the existing computation path.
+  Lerror_t Lfunc_use_lpoly_fmpz(Lfunc_t L, uint64_t p, const fmpz_poly_t poly);
 
   // Once all polys have been provided, do the computation
   Lerror_t Lfunc_compute(Lfunc_t L);
@@ -160,6 +183,13 @@ extern "C"{
   // rank>1 isn't
   int64_t Lfunc_rank(Lfunc_t L);
 
+  // factor accessor: primitive factors of L with multiplicities.
+  // On return, *factors is a borrowed Lfunc_t array owned by L (do NOT clear
+  // entries), and *mults is the matching multiplicity array. Returns the count:
+  // 1 with (M, k) for a pure power L = M^k, 0 if L is primitive / was not
+  // produced by extraction.
+  uint64_t Lfunc_factors(Lfunc_t L, Lfunc_t **factors, uint64_t **mults);
+
   // return the first non-zero Taylor coefficient
   // L^(rank)((w + 1)/2)/rank!
   // where w/2 is the normalization (if algebraic, w = motivic weight)
@@ -170,6 +200,9 @@ extern "C"{
   // covering t=[0,max_t]
   // for L or conjugate L
   // returned as doubles in an Lplot_t structure
+  // NB: returns NULL for an L assembled from a power (extract_powers): such an
+  // L skips the sample-generating pipeline. Obtain the primitive factor via
+  // Lfunc_factors and plot that instead.
   Lplot_t *Lfunc_plot_data(Lfunc_t L, uint64_t side, double max_t, uint64_t n_points);
 
   // reclaim memory from an Lplot_t structure
@@ -180,6 +213,7 @@ extern "C"{
   // from the critical line. Should return something sensible
   // for L(k) and L(0)
   // for re+i*im = (w + 1)/2, use Lfunc_Taylor
+  // For assembled powers, do_dash with lam_p=false returns ERR_SPEC_VALUE.
   Lerror_t Lfunc_special_value_choice(acb_t res, acb_t res_dash, Lfunc_t LL, double re, double im, bool lam_p, bool do_dash);
   Lerror_t Lfunc_special_value(acb_t res, Lfunc_t LL, double re, double im);
 

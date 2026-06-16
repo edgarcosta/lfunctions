@@ -60,6 +60,9 @@ double normalised(Lfunc *L, uint64_t side, uint64_t ptr, double t)
 Lplot_t *Lfunc_plot_data(Lfunc_t LL, uint64_t side, double max_t, uint64_t n_points)
 {
   Lfunc *L=(Lfunc *) LL;
+  if(L->n_factors > 0)
+    return (Lplot_t *) NULL;
+
   Lplot_t *Lp;
   Lp=(Lplot_t *)malloc(sizeof(Lplot_t));
   if(!Lp)
@@ -84,6 +87,14 @@ Lplot_t *Lfunc_plot_data(Lfunc_t LL, uint64_t side, double max_t, uint64_t n_poi
   for(uint64_t i=0;i<Lp->n_points;i++)
     Lp->points[i]=normalised(L,side,i*step,(double)i*Lp->spacing);
   return Lp;
+}
+
+uint64_t Lfunc_factors(Lfunc_t L, Lfunc_t **factors, uint64_t **mults)
+{
+  Lfunc *LL = (Lfunc *) L;
+  if (factors) *factors = LL->factors;
+  if (mults)   *mults   = LL->factor_mults;
+  return LL->n_factors;
 }
 
 arb_srcptr Lfunc_Taylor(Lfunc_t LL)

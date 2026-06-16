@@ -431,6 +431,35 @@ extern "C"{
     
     Lerror_t ecode=ERR_SUCCESS;
     Lfunc *L=(Lfunc *) LL;
+
+    // Assembled power L = M^k: value/derivative follow from L(s) = M(s)^k.
+    // Part B produces exactly one factor; Part C (N*M^k) will generalize this to
+    // a product over n_factors >= 1.
+    if (L->n_factors == 1) {
+      if (do_dash && !lam_p) {
+        // The non-completed L'(s) is not implemented anywhere in the library
+        // -- Lam_dash_to_L_dash is a no-op -- so we must explicitly fail
+        // rather than return mathematically incorrect results.
+        return ERR_SPEC_VALUE;
+      }
+      Lfunc_t Mt = L->factors[0];
+      uint64_t k = L->factor_mults[0];
+      Lfunc *M = (Lfunc *) Mt;
+      acb_t vM, vMd; acb_init(vM); acb_init(vMd);
+      Lerror_t fecode = Lfunc_special_value_choice(vM, do_dash ? vMd : NULL, Mt,
+                                                   alg_res, alg_ims, lam_p, do_dash);
+      acb_pow_ui(res, vM, (ulong)k, M->wprec);              // M(s)^k
+      if (do_dash && res_dash) {                            // k M^{k-1} M'
+        acb_t t; acb_init(t);
+        acb_pow_ui(t, vM, (ulong)(k-1), M->wprec);
+        acb_mul(t, t, vMd, M->wprec);
+        acb_mul_ui(res_dash, t, (ulong)k, M->wprec);
+        acb_clear(t);
+      }
+      acb_clear(vM); acb_clear(vMd);
+      return fecode;
+    }
+
     int64_t prec=L->wprec;
     //printf("Algebraic s = %f + i%f\n",alg_res,alg_ims);
 

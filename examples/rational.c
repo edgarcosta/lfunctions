@@ -19,6 +19,7 @@
  */
 
 #include <flint/acb_poly.h>
+#include <flint/fmpz_poly.h>
 #include <assert.h>
 #include <ctype.h>
 #include <inttypes.h>
@@ -178,7 +179,7 @@ static inline int split(char * str, char delim, char ***array, size_t *length ) 
 
 
 
-void populate_local_factors(Lfunc_rational_t L) {
+Lerror_t populate_local_factors(Lfunc_rational_t L) {
   size_t bound = Lfunc_nmax(L->L);
   // printf("bound = %ld\n", bound);
   size_t size;
@@ -188,21 +189,22 @@ void populate_local_factors(Lfunc_rational_t L) {
   assert(L->size_euler_factors >= size);
 
   size_t d = L->degree;
-  acb_poly_t local_factor;
-  acb_poly_init(local_factor);
-  acb_poly_fit_length(local_factor, d + 1);
+  fmpz_poly_t local_factor;
+  fmpz_poly_init(local_factor);
 
 
   for (size_t i = 0; i < size; ++i) {
-    acb_poly_zero(local_factor);
-    _acb_poly_set_length(local_factor, d + 1);
-    for(size_t j = 0; j <= d; ++j) {
-      acb_set_si(local_factor->coeffs + j, L->euler_factors[i*(d+1) + j]);
-    }
-    Lfunc_use_lpoly(L->L, primes[i], local_factor);
+    fmpz_poly_zero(local_factor);
+    for(size_t j = 0; j <= d; ++j)
+      fmpz_poly_set_coeff_si(local_factor, j, L->euler_factors[i*(d+1) + j]);
+    L->ecode |= Lfunc_use_lpoly_fmpz(L->L, primes[i], local_factor);
+    if(fatal_error(L->ecode))
+      break;
   }
 
-  acb_poly_clear(local_factor);
+  fmpz_poly_clear(local_factor);
+  primesieve_free(primes);
+  return L->ecode;
 }
 
 
@@ -270,7 +272,20 @@ int Lfunc_rational_set_s(Lfunc_rational_t L, char *s) {
     status = atoiii(L->euler_factors, d, L->size_euler_factors, L->degree + 1, tokens[5]);
   }
   if(status != -1) {
-    L->L = Lfunc_init(L->degree, L->conductor, L->weight*0.5, L->mus, &L->ecode);
+    Lparams_t params = {
+      .degree = (uint64_t) L->degree,
+      .conductor = (uint64_t) L->conductor,
+      .normalisation = L->weight * 0.5,
+      .mus = L->mus,
+      .target_prec = DEFAULT_TARGET_PREC, // TODO: target_prec should be tunable
+      .wprec = 0,
+      .gprec = 0,
+      .self_dual = DK,
+      .rank = DK,
+      .cache_dir = (char *)".",
+      .extract_powers = YES
+    };
+    L->L = Lfunc_init_advanced(&params, &L->ecode);
     if(fatal_error(L->ecode)) {
       fprint_errors(stderr, L->ecode);
       status = -1;
@@ -297,6 +312,7 @@ int main(int argc, char** argv) {
   FILE* output = fopen(argv[2], "w");
   if (output == NULL) {
     printf("Could not open file %s.\n", argv[2]);
+    fclose(input);
     return 1;
   }
 
@@ -314,17 +330,33 @@ int main(int argc, char** argv) {
     printf("]\n");
 
 
-    populate_local_factors(L);
+    L->ecode |= populate_local_factors(L);
     if(fatal_error(L->ecode)) {
       fprint_errors(stderr, L->ecode);
+      Lfunc_rational_clear(L);
+      free(line);
+      fclose(output);
+      fclose(input);
       return -1;
     }
     L->ecode|=Lfunc_compute(L->L);
     if(fatal_error(L->ecode)) {
       fprint_errors(stderr, L->ecode);
+      Lfunc_rational_clear(L);
+      free(line);
+      fclose(output);
+      fclose(input);
       return -1;
     }
     printf("Rank = %" PRIu64 "\n", Lfunc_rank(L->L));
+    {
+      Lfunc_t *factors = NULL;
+      uint64_t *mults = NULL;
+      uint64_t nfactors = Lfunc_factors(L->L, &factors, &mults);
+      if(nfactors)
+        printf("Extracted factors = %" PRIu64 ", multiplicity = %" PRIu64 "\n",
+               nfactors, mults[0]);
+    }
     printf("Epsilon = ");acb_printd(Lfunc_sign(L->L),20);printf("\n");
     printf("Leading Taylor coeff = ");arb_printd(Lfunc_Taylor(L->L), 20);printf("\n");
     printf("First zero = ");arb_printd(Lfunc_zeros(L->L, 0), 20);printf("\n");
@@ -332,6 +364,8 @@ int main(int argc, char** argv) {
     // TODO write output to output
     Lfunc_rational_clear(L);
   }
+  free(line);
   fclose(input);
   fclose(output);
+  return 0;
 }

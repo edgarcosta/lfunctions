@@ -60,7 +60,7 @@ static void cleanup_dir(const char *dir) {
 static bool init_is_fatal(uint64_t degree, double normalisation,
                           const double *mus, int64_t wprec,
                           const char *cache_dir, uint64_t *out_nmax) {
-  Lparams_t Lp;
+  Lparams_t Lp = {0};
   Lp.degree = degree;
   Lp.conductor = 1;
   Lp.normalisation = normalisation;
@@ -71,6 +71,7 @@ static bool init_is_fatal(uint64_t degree, double normalisation,
   Lp.cache_dir = (char *)cache_dir;
   Lp.gprec = 0;                          // required for the cache path
   Lp.wprec = wprec;
+  Lp.extract_powers = NO;
 
   Lerror_t ecode = ERR_SUCCESS;
   Lfunc_t L = Lfunc_init_advanced(&Lp, &ecode);
