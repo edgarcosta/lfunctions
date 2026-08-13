@@ -66,8 +66,8 @@ extern "C"{
     int64_t target_prec;
     int64_t wprec;
     int64_t gprec;
-    int self_dual; // -1 = DK, 0 = No, 1 = Yes
-    int rank; // -1 = DK
+    int self_dual; // YES truthfully asserts self-duality and permits omitting side 1; DK and NO search both sides
+    int rank; // DK, or a supplied rank that computation still checks
     char *cache_dir;
   } Lparams_t;
 
@@ -137,7 +137,8 @@ extern "C"{
   // you provide one Euler polynomial at a time
   void Lfunc_use_lpoly(Lfunc_t L, uint64_t p, const acb_poly_t poly);
 
-  // Once all polys have been provided, do the computation
+  // Once all polys have been provided, do the computation. Accumulate this
+  // status with factor-supply statuses before interpreting any result.
   Lerror_t Lfunc_compute(Lfunc_t L);
 
   // what working precision did the computation use
@@ -149,21 +150,22 @@ extern "C"{
   // return the sqrt of sign (chosen to make Lambda(delta)>0
   acb_srcptr Lfunc_sqrt_sign(Lfunc_t L);
 
-  // return the zeros, side = 0,1 for L, conjugate L
-  // if rank =0,1 this list is complete, providing
-  // the error code did not have ERR_RH_ERROR set
-  // otherwise zeros may be missing
+  // Return zeros for L (side 0) or its dual (side 1). After nonfatal compute,
+  // completeness requires truthful metadata, complete Euler supply, certified
+  // rank 0/1, successful required zero searches, and no ERR_RH_ERROR in the
+  // accumulated supply and compute mask. A fatal return makes no such claim.
   arb_srcptr Lfunc_zeros(Lfunc_t L, uint64_t side);
 
-  // return rank
-  // rank=0,1 is rigorous.
-  // rank>1 isn't
+  // Rank 0/1 is rigorous only after successful nonconflicting determination;
+  // rank 1 also needs truthful YES and a strictly negative real sign whose
+  // imaginary ball contains zero. Conflict preserves the supplied value but
+  // invalidates certification. Rank above 1 is not certified.
   int64_t Lfunc_rank(Lfunc_t L);
 
   // return the first non-zero Taylor coefficient
   // L^(rank)((w + 1)/2)/rank!
   // where w/2 is the normalization (if algebraic, w = motivic weight)
-  // same caveats as rank
+  // It has the same certification and legacy conflict-value caveats as rank.
   arb_srcptr Lfunc_Taylor(Lfunc_t L);
 
   // return roughly n_points of exp(i theta(t)) L(k/2+it)

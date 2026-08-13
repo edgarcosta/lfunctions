@@ -170,10 +170,14 @@ int main(int argc, char **argv) {
 
   // (0) no fatal error; RH warning tolerated only when declared
   check(!fatal_error(ec), "no-fatal", "");
-  if (!tolerate_rh)
+  if (have_expect && exp_rank > 1) {
+    check((ec & ERR_RH_ERROR) != 0, "rh-uncertified-rank",
+          "ERR_RH_ERROR must be present when expected rank exceeds 1");
+  } else if (!tolerate_rh) {
     check((ec & ERR_RH_ERROR) == 0, "rh-confirmed", "ERR_RH_ERROR must be absent");
-  else if (ec & ERR_RH_ERROR)
-    printf("  [note] ERR_RH_ERROR present (tolerated for degree>=3; bead lfunctions-0zo)\n");
+  } else if (ec & ERR_RH_ERROR) {
+    printf("  [note] ERR_RH_ERROR present (permitted by fixture)\n");
+  }
 
   if (have_expect) {
     // (1) rank
