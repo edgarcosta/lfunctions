@@ -109,16 +109,17 @@ typedef struct {
 | {c:member}`target_prec <Lparams_t.target_prec>` | precision the results are refined to | {c:macro}`DEFAULT_TARGET_PREC` (100 bits) |
 | {c:member}`wprec <Lparams_t.wprec>` | internal working precision | derived from `target_prec` |
 | {c:member}`gprec <Lparams_t.gprec>` | precision of the gamma-factor product | derived from the working precision |
-| {c:member}`self_dual <Lparams_t.self_dual>` | whether the L-function equals its dual | `DK`: the library decides |
+| {c:member}`self_dual <Lparams_t.self_dual>` | whether the L-function equals its dual | `DK`: compute both sides without deciding self-duality |
 | {c:member}`rank <Lparams_t.rank>` | analytic rank, if already known | `DK`: the library determines it |
 | {c:member}`cache_dir <Lparams_t.cache_dir>` | where to read/write cached G data | current directory; see [The G-data cache](#g-data-cache) |
 
 The tri-state fields use the macros {c:macro}`DK` (-1, "don't know"),
-{c:macro}`YES` (1), and {c:macro}`NO` (0). Setting `self_dual = YES` when you
-know the L-function is self-dual (every elliptic curve over Q, for instance)
-lets the library skip computing the dual side. Supplying a known `rank` lets it
-skip the rank search; if the computed rank then disagrees with what you
-supplied, you get the {c:macro}`ERR_CONFLICT_RANK` warning.
+{c:macro}`YES` (1), and {c:macro}`NO` (0). `self_dual = YES` is a truthful
+caller assertion that lets the library skip the dual-side zero search.
+`self_dual = NO` and `DK` both compute the two sides; `DK` does not ask the
+library to decide self-duality. A supplied `rank` does not skip rank search.
+The library checks it, and disagreement sets
+{c:macro}`ERR_CONFLICT_RANK`.
 
 Leaving a numeric knob at 0 asks the library to choose it. There is no need to
 set `target_prec`, `wprec`, or `gprec` unless you have a specific reason;
@@ -141,7 +142,10 @@ upsampling, the zero search, the RH check, and the rank determination) and
 returns an accumulated {c:type}`Lerror_t`. OR it into your accumulator and
 check {c:func}`fatal_error` before reading any result. After it returns,
 {c:func}`Lfunc_wprec` reports the working precision the computation actually
-used.
+used. Preserve the status from Euler-factor supply too: completeness depends
+on the combined mask, including {c:macro}`ERR_INSUFF_EULER`. A fatal zero
+search returns before the Turing check; it makes no completeness claim and
+does not require {c:macro}`ERR_RH_ERROR` solely because it is fatal.
 
 ### 4. Query
 
@@ -296,10 +300,14 @@ them; copy out (`arb_set` / `acb_set`) anything you need to outlive the object.
 ### Rank: `Lfunc_rank`
 
 {c:func}`Lfunc_rank` returns the analytic rank (order of vanishing at the
-central point) as an `int64_t`. A returned rank of 0 or 1 is rigorous; a value
-greater than 1 is not certified. If the rank could not be determined you get
-the {c:macro}`ERR_NO_RANK` warning, and if it disagrees with a rank you supplied
-through {c:struct}`Lparams_t` you get {c:macro}`ERR_CONFLICT_RANK`.
+central point) as an `int64_t`. Rank 0 or 1 is rigorous only after successful,
+nonconflicting rank determination. Rank 1 additionally requires truthful
+`self_dual = YES`, a strictly negative real part of the computed sign, and an
+imaginary sign ball containing zero. A value greater than 1 is not certified.
+{c:macro}`ERR_NO_RANK` means determination failed;
+{c:macro}`ERR_CONFLICT_RANK` means the computed rank disagreed with the
+supplied one. On conflict the accessor retains the supplied value for legacy
+compatibility, but that value is not certified.
 
 ### Root number: `Lfunc_sign` and `Lfunc_sqrt_sign`
 
@@ -322,9 +330,9 @@ chosen so that `Lambda` is positive at the central point.
 {c:func}`Lfunc_Taylor` returns the first non-zero Taylor coefficient at the
 central point, that is `L^{(rank)}((w + 1)/2) / rank!`, where `w/2` is the
 normalisation (when the input is algebraic, `w` is the motivic weight). It
-carries the same rigour caveat as the rank: rigorous for rank 0 or 1. To
-evaluate the L-function exactly at the central point, use this rather than
-{c:func}`Lfunc_special_value`.
+carries the same rank-0/1, forced-odd rank-1, and legacy conflict-value caveats
+as {c:func}`Lfunc_rank`. To evaluate the L-function exactly at the central
+point, use this rather than {c:func}`Lfunc_special_value`.
 
 ### Zeros: `Lfunc_zeros`
 
@@ -335,11 +343,13 @@ arb_srcptr Lfunc_zeros(Lfunc_t L, uint64_t side);
 Returns the array of imaginary parts of the zeros on the critical line, as
 borrowed `arb_t` balls. `side = 0` gives the zeros of `L`; `side = 1` gives
 those of the dual L-function (for a self-dual L-function the two agree). When
-the rank is 0 or 1 and the RH check succeeded (no {c:macro}`ERR_RH_ERROR`
-warning), the list is complete up to the height reached; otherwise some zeros
-may be missing. At most {c:macro}`MAX_ZEROS` (256) zeros are stored per side.
-If the zeros could not be refined to the target precision you get the
-{c:macro}`ERR_ZERO_PREC` warning.
+computation completes nonfatally, the list is complete up to the height
+reached only if metadata is truthful, Euler supply was complete, rank 0 or 1
+was certified, every required zero search succeeded, and the accumulated
+supply and compute mask has no {c:macro}`ERR_RH_ERROR`. `YES` requires side 0;
+`NO` and `DK` require both sides. Otherwise zeros may be missing. At most
+{c:macro}`MAX_ZEROS` (256) zeros are stored per side. If the zeros could not be
+refined to the target precision you get {c:macro}`ERR_ZERO_PREC`.
 
 ### Special values: `Lfunc_special_value`
 
@@ -386,7 +396,8 @@ Every API entry point that can fail returns an {c:type}`Lerror_t`, a 64-bit
 bitfield. The convention is:
 
 - **The lower 32 bits are fatal**; if any is set the computation cannot
-  continue and the results are invalid.
+  continue and no completeness claim is available. A fatal zero search returns
+  before Turing and need not add {c:macro}`ERR_RH_ERROR` solely for fatality.
 - **The upper 32 bits are warnings**; the computation produced output, but with
   a caveat (degraded precision, an unverified rank, an incomplete zero list).
 
@@ -432,7 +443,7 @@ flag to the given `FILE *`. {c:macro}`ERR_SUCCESS` (0) is the clean state.
 | --- | --- |
 | {c:macro}`ERR_SOME_DATA` | had sensible data, but not all the way through the Turing zone |
 | {c:macro}`ERR_ZERO_PREC` | could not isolate zeros to the target precision |
-| {c:macro}`ERR_RH_ERROR` | the RH check on the computed zeros failed |
+| {c:macro}`ERR_RH_ERROR` | the computed data did not certify RH completeness; it does not assert RH is false |
 | {c:macro}`ERR_INSUFF_EULER` | ran out of Euler factors before the expected bound |
 | {c:macro}`ERR_NO_RANK` | could not determine the rank |
 | {c:macro}`ERR_CONFLICT_RANK` | the computed rank disagreed with the supplied one |

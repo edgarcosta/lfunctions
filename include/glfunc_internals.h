@@ -164,14 +164,26 @@ extern "C"{
 
 #ifdef TURING
   typedef enum {
+    TURING_COUNT_UNCERTIFIED = -2,
     TURING_COUNT_TOO_MANY = -1,
     TURING_COUNT_CONFIRMED = 0,
     TURING_COUNT_TOO_FEW = 1
   } turing_count_status_t;
 
+  typedef struct {
+    uint64_t central_zeros;
+    bool certified;
+  } turing_count_evidence_t;
+
   // from turing.c
-  turing_count_status_t turing_count_status(const arb_t tcount, uint64_t zeros_found, int64_t prec);
-  Lerror_t turing_check_RH(Lfunc *L, int64_t);
+  turing_count_evidence_t turing_make_count_evidence(
+      int post_rank, Lerror_t rank_status, int self_dual, const acb_t sign,
+      Lerror_t side0_status, Lerror_t side1_status);
+  turing_count_status_t turing_count_status_with_evidence(
+      turing_count_evidence_t evidence, const arb_t tcount,
+      uint64_t zeros_found, int64_t prec);
+  Lerror_t turing_check_RH(Lfunc *L, turing_count_evidence_t evidence,
+                          int64_t prec);
 #endif
   
   // from compute.c

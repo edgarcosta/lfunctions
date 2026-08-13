@@ -120,6 +120,8 @@ int main(void)
                       sign, &rank);
   assert(!fatal_error(seed));
   assert(rank == 0);
+  assert(arb_is_positive(acb_realref(sign)));
+  assert(arb_contains_zero(acb_imagref(sign)));
   assert((seed & (ERR_INSUFF_EULER | ERR_NO_RANK | ERR_CONFLICT_RANK |
                   ERR_SOME_DATA | ERR_ZERO_PREC | ERR_DBL_ZERO)) == 0);
 

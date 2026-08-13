@@ -6,9 +6,8 @@
 // see Artin’s Conjecture, Turing’s Method, and the Riemann Hypothesis
 // B is hard wired to 512 in g.c so height is 64/degree
 
-// Note that RH is only verifiable for rank <=1
-// This code will trust larger values of rank and will
-// try to verify RH on the assumption rank is correct.
+// Zero completeness uses only a certified central multiplicity of 0 or 1.
+// Computed ranks above 1 remain available but cannot certify completeness.
 
 #include "glfunc_internals.h"
 
@@ -279,8 +278,9 @@ bool turing_int(arb_t res, arb_t t0, arb_t h, Lfunc *L, uint64_t *count,
   return true;
 }
 
-// computes Turing's integral into res and returns # zeros actually found.
-uint64_t turing_count(arb_t res, Lfunc *L, int64_t prec) {
+// Computes Turing's integral and returns the certified lower-bound count.
+uint64_t turing_count(arb_t res, Lfunc *L, uint64_t central_zeros,
+                      int64_t prec) {
   static bool init = false;
   static arb_t tint, tmp, tmp1, h, t0, sint, pi, rlogpi, t0hbit;
   if (!init) {
@@ -337,8 +337,7 @@ uint64_t turing_count(arb_t res, Lfunc *L, int64_t prec) {
     zeros_found += conj_zeros_found;
     arb_add(tint, tint, tmp, prec);
   }
-  zeros_found +=
-      L->rank; // not rigorous if rank > 1 unless it can be proven otherwise
+  zeros_found += central_zeros;
   if (verbose) {
     printf("Turing int [*] = ");
     arb_printd(tint, 20);
@@ -371,7 +370,33 @@ uint64_t turing_count(arb_t res, Lfunc *L, int64_t prec) {
   return zeros_found;
 }
 
-turing_count_status_t turing_count_status(const arb_t tcount, uint64_t zeros_found, int64_t prec) {
+turing_count_evidence_t turing_make_count_evidence(
+    int post_rank, Lerror_t rank_status, int self_dual, const acb_t sign,
+    Lerror_t side0_status, Lerror_t side1_status) {
+  turing_count_evidence_t evidence = {0, false};
+  bool valid_duality = self_dual == YES || self_dual == NO || self_dual == DK;
+  bool valid_sides = side0_status == ERR_SUCCESS &&
+                     (self_dual == YES || side1_status == ERR_SUCCESS);
+  if(rank_status != ERR_SUCCESS || !valid_duality || !valid_sides ||
+     (post_rank != 0 && post_rank != 1))
+    return evidence;
+
+  bool forced_odd = self_dual == YES &&
+                    arb_is_negative(acb_realref(sign)) &&
+                    arb_contains_zero(acb_imagref(sign));
+  if(post_rank == 0) {
+    evidence.certified = !forced_odd;
+    return evidence;
+  }
+  if(forced_odd) {
+    evidence.central_zeros = 1;
+    evidence.certified = true;
+  }
+  return evidence;
+}
+
+static turing_count_status_t turing_count_status(
+    const arb_t tcount, uint64_t zeros_found, int64_t prec) {
   arb_t tmp;
   arb_init(tmp);
 
@@ -391,7 +416,19 @@ turing_count_status_t turing_count_status(const arb_t tcount, uint64_t zeros_fou
   return TURING_COUNT_CONFIRMED;
 }
 
-Lerror_t turing_check_RH(Lfunc *L, int64_t prec) {
+turing_count_status_t turing_count_status_with_evidence(
+    turing_count_evidence_t evidence, const arb_t tcount,
+    uint64_t zeros_found, int64_t prec) {
+  if(!evidence.certified)
+    return TURING_COUNT_UNCERTIFIED;
+  return turing_count_status(tcount, zeros_found, prec);
+}
+
+Lerror_t turing_check_RH(Lfunc *L, turing_count_evidence_t evidence,
+                         int64_t prec) {
+  if(!evidence.certified)
+    return ERR_RH_ERROR;
+
   static bool init = false;
   static arb_t tmp, sigma, a, b, t0, h, tcount;
   if (!init) {
@@ -443,7 +480,8 @@ Lerror_t turing_check_RH(Lfunc *L, int64_t prec) {
     printf("\n");
   }
 
-  uint64_t zeros_found = turing_count(tcount, L, prec);
+  uint64_t zeros_found = turing_count(
+      tcount, L, evidence.central_zeros, prec);
   if (verbose) {
     printf("Turing Integral returned ");
     arb_printd(tcount, 20);
@@ -455,37 +493,16 @@ Lerror_t turing_check_RH(Lfunc *L, int64_t prec) {
   if (verbose)
     printf("We found %lu zeros.\n", zeros_found);
 
-  // tcount is a rigorous interval [lo,hi] for the (real, integer) zero count
-  // N(t0) up to the Turing height t0.  zeros_found is the number of zeros we
-  // actually isolated below t0; each is a rigorous sign change of the
-  // real-valued Z-function and hence a genuine zero on the critical line, so
-  //                         zeros_found <= N(t0)
-  // ALWAYS holds.  RH/zero-completeness up to t0 is confirmed iff
-  // N(t0) == zeros_found, i.e. iff we did not miss any zero.
-  //
-  // Therefore:
-  //   - "too many" is a genuine inconsistency (a spurious/extra zero or a bug)
-  //     ONLY when the analytic UPPER bound drops below the count we found,
-  //     i.e. hi < zeros_found.  The earlier test used the analytic LOWER bound
-  //     (lo > zeros_found-1); since a loose lower bound is consistent with the
-  //     rigorous fact zeros_found <= N(t0), that test raised a false alarm and
-  //     fired ERR_RH_ERROR for every L-function whose tcount interval was wider
-  //     than +-1 (which it is for degree >= 3, where the Turing window is small
-  //     relative to the degree-proportional S(t) bound -- see the note below).
-  //   - completeness is confirmed when hi < zeros_found+1 (so the only integer
-  //     N(t0) in [lo,hi] that is >= zeros_found is zeros_found itself); else we
-  //     cannot rule out a missed zero ("too few").
-  //
-  // NOTE: confirming completeness still requires the half-width of tcount to be
-  // below 1.  That half-width is dominated by the rigorous bound on
-  // int S(t) dt (St_int), whose leading term grows like the degree r while the
-  // Turing window h = B/TURING_RATIO = 32/r shrinks with r; the ratio therefore
-  // degrades like r^2 and exceeds 1 for r >= 3 with the current grid scaling
-  // (B = 512/r, fixed outside this file).  Widening the window is required to
-  // confirm completeness at high degree; the fix here removes the false "too
-  // many" alarm and reports the honest "too few" when the bound is too wide.
+  // Evidence proves zeros_found <= N, while Turing proves N <= hi.
+  // Missing-only stationary coverage or capacity can reduce zeros_found, and
+  // omitted Turing-window terms only raise hi. Thus hi < zeros_found + 1
+  // proves equality because N is an integer.
 
-  switch (turing_count_status(tcount, zeros_found, prec)) {
+  switch (turing_count_status_with_evidence(
+      evidence, tcount, zeros_found, prec)) {
+  case TURING_COUNT_UNCERTIFIED:
+    fprintf(stderr, "Zero count is uncertified.\n");
+    return ERR_RH_ERROR;
   case TURING_COUNT_TOO_MANY:
     fprintf(stderr, "Found too many zeros.\n");
     return ERR_RH_ERROR;

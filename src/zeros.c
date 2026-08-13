@@ -174,7 +174,8 @@ Lerror_t stat_point(arb_t z1, arb_t z2, uint64_t m, Lfunc *L, uint64_t side, uin
 
     arb_add(t12, t1, t2, prec);
     arb_mul_2exp_si(t12, t12, -1);
-    upsample_stride(f12, t12, L, side, prec);
+    if(!upsample_stride(f12, t12, L, side, prec))
+      return ecode|ERR_STAT_POINT;
     //printf("right middle = ");arb_printd(f12, 20);printf("\n");
     sign_t s12=sign(f12);
     if(s12==UNK)
@@ -190,7 +191,7 @@ Lerror_t stat_point(arb_t z1, arb_t z2, uint64_t m, Lfunc *L, uint64_t side, uin
       ecode|=isolate_zero(z1, t1, t12, f1, f12, s, L, side, prec);
       if(fatal_error(ecode))
         return ecode;
-      isolate_zero(z2, t12, t2, f12, f2, s12, L, side, prec);
+      ecode|=isolate_zero(z2, t12, t2, f12, f2, s12, L, side, prec);
       return ecode;
     }
     left=direction(f1, f12, prec);
@@ -305,8 +306,9 @@ Lerror_t find_zeros(Lfunc *L, uint64_t side)
     if(this_dir!=last_dir) { // change in direction
       if(((last_dir==UP)&&(this_sign==NEG))||((last_dir==DOWN)&&(this_sign==POS))) {
         if(verbose) printf("Stationary point detected.\n");
-        ecode|=stat_point(z1, z2, n-1, L, side, prec, n<=L->fft_NN/OUTPUT_RATIO);
-        if(fatal_error(ecode))
+        Lerror_t stat_status=stat_point(z1, z2, n-1, L, side, prec, n<=L->fft_NN/OUTPUT_RATIO);
+        ecode|=stat_status;
+        if(stat_status!=ERR_SUCCESS)
           return ecode;
         if(verbose)
         {

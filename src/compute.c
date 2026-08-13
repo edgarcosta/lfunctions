@@ -308,6 +308,13 @@ Lerror_t Lfunc_compute(Lfunc_t Lf)
 
   int64_t prec=L->wprec;
 
+#ifdef TURING
+  int post_rank=DK;
+  Lerror_t rank_status=ERR_NO_RANK;
+  Lerror_t side0_status=ERR_NO_DATA;
+  Lerror_t side1_status=ERR_NO_DATA;
+#endif
+
   #ifdef BUTHE
   buthe_Wf_error(L); // add the error for the missing tail
   if(verbose){printf("Buthe Wf = ");arb_printd(L->buthe_Wf,20);printf("\n");fflush(stdout);}
@@ -378,7 +385,13 @@ Lerror_t Lfunc_compute(Lfunc_t Lf)
   copy(L);
 
 #ifdef COMPUTE_RANK
+#ifdef TURING
+  rank_status=do_rank(L);
+  post_rank=L->rank;
+  ecode|=rank_status;
+#else
   ecode|=do_rank(L);
+#endif
   if(fatal_error(ecode))
     return ecode;
 #endif
@@ -391,21 +404,38 @@ Lerror_t Lfunc_compute(Lfunc_t Lf)
   for(int i = 2; i <= L->rank; i++)
     arb_div_ui(L->L_d,L->L_d,i,L->wprec);
 
+#ifdef TURING
+  side0_status=find_zeros(L,0);
+  ecode|=side0_status;
+  if(fatal_error(side0_status))
+    return ecode;
+#else
   ecode|=find_zeros(L,0);
   if(fatal_error(ecode))
     return ecode;
-  if(L->self_dual!=YES) // don't know or definately not
+#endif
+  if(L->self_dual!=YES) // don't know or definitely not
   {
+#ifdef TURING
+    side1_status=find_zeros(L,1);
+    ecode|=side1_status;
+    if(fatal_error(side1_status))
+      return ecode;
+#else
     ecode|=find_zeros(L,1);
     if(fatal_error(ecode))
       return ecode;
+#endif
   }
 #ifdef BUTHE
   ecode|=buthe_check_RH(L);
 #endif
 
 #ifdef TURING
-  ecode|=turing_check_RH(L,prec);
+  turing_count_evidence_t evidence=turing_make_count_evidence(
+      post_rank,rank_status,L->self_dual,L->sign,
+      side0_status,side1_status);
+  ecode|=turing_check_RH(L,evidence,prec);
 #endif
   
 #endif
