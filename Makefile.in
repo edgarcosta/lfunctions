@@ -58,6 +58,8 @@ build/%.o: %.c $(HEADERS) | build_dirs
 build/%.o: %.cpp $(HEADERS) | build_dirs
 	$(CXX) $(CXXFLAGS) $(INCS) -c $< -o $@;
 
+build/test/zero_search_propagation_test.o: src/zeros.c
+
 $(TESTS) : %.exe : %.o $(OBJS)
 	$(CXX) $(CXXFLAGS) $(INCS) $^ -o $@ $(LIBS) $(RPATH_FLAGS)
 

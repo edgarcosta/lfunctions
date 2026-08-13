@@ -56,7 +56,7 @@ objects:
       first_zero_err: 1.0e-15
       taylor: "0.75931650028842677023019260789484245311"
       taylor_err: 1.0e-12
-      tolerate_rh_error: false
+      tolerate_rh_error: true
 
   - label: "5077.a1"
     kind: ec
@@ -72,7 +72,7 @@ objects:
       first_zero_err: 1.0e-15
       taylor: "1.7318499001193006897919750850614576885"
       taylor_err: 1.0e-12
-      tolerate_rh_error: false
+      tolerate_rh_error: true
 
   - label: "234446.a1"
     kind: ec
@@ -89,7 +89,7 @@ objects:
       first_zero_err: 1.0e-9
       taylor: "8.9438473959008890464175916832904152377"
       taylor_err: 1.0e-12
-      tolerate_rh_error: false
+      tolerate_rh_error: true
 
   - label: "19047851.a1"
     kind: ec
@@ -105,7 +105,7 @@ objects:
       first_zero_err: 1.0e-15
       taylor: "30.285687553864516827653775999631857179"
       taylor_err: 1.0e-12
-      tolerate_rh_error: false
+      tolerate_rh_error: true
 
   # 399998.a1: extra large-conductor degree-2 object (rank 1, not a new rank). nmax ~14800
   # vs 1669 for the largest hardcoded example (5077.a1), so it stresses lpdata good-factor

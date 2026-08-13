@@ -92,7 +92,8 @@ following the schema in section A: a unique filename-safe `label`, the `kind`
 the `conductor`, the hardcoded `bad_factors` (from the LMFDB, never from
 `lpdata`), and the `expected` block (rank, epsilon, first zero and its error,
 optional Taylor coefficient, and `tolerate_rh_error`, which **must** be `true`
-for degree >= 3). `gen.py` derives degree / normalisation / `mus` / `self_dual`
+for degree >= 3 or expected rank above 1). `gen.py` derives degree /
+normalisation / `mus` / `self_dual`
 from `kind` (+ `sym` for `sympow`), so do not store those. Then generate the base
 fixture for the new object with `make highdeg-data LABEL=<label>` (using
 `LPDATA=.../lpdata2` for a `genus2` object) and commit `<label>.base`.
@@ -117,7 +118,7 @@ objects:
       taylor_err: 1.0e-12            #   include for ec/genus2 (LMFDB-golden, matches Lfunc_Taylor);
                                      #   OMIT for sympow (Pari/library leading-coeff normalisation
                                      #   differs) -> driver skips assertion 4 when taylor absent.
-      tolerate_rh_error: false       # MUST be true for degree>=3 (see bead lfunctions-0zo)
+      tolerate_rh_error: false       # true for degree >= 3 or expected rank above 1
 ```
 `gen.py` DERIVES degree/normalisation/mus/self_dual from kind+sym (do NOT store them):
 - ec     : degree 2, norm 0.5, mus [0,1], self_dual 1
@@ -153,8 +154,11 @@ factor. Without the marker every line is an explicit factor (ec / genus2 / cmf).
 2. `acb_abs(Lfunc_sign(L))` overlaps 1  AND  `Lfunc_sign(L)` overlaps `(eps_re,eps_im)` widened by 1e-9
 3. `Lfunc_zeros(L,0)[0]` overlaps `[z1 +- z1_err]`
 4. `Lfunc_Taylor(L)` overlaps `[taylor +- taylor_err]`
-5. fatal_error(ecode) must be false; if `tolerate_rh==0` also require `(ecode & ERR_RH_ERROR)==0`;
-   if `tolerate_rh==1`, ignore ERR_RH_ERROR but no OTHER warning may be treated as failure.
+5. `fatal_error(ecode)` must be false. When `rank > 1`, require
+   `(ecode & ERR_RH_ERROR) != 0`. Otherwise, if `tolerate_rh==0`, require RH
+   absent; if `tolerate_rh==1`, permit RH without treating another warning as
+   success. The rank-above-1 assertion covers `389.a1`, `5077.a1`,
+   `234446.a1`, `19047851.a1`, `3319.a`, `25913.a`, and `440509.a`.
 Set `((Lfunc*)L)->self_dual = YES` when self_dual==1 (glfunc_internals.h). Coeffs via fmpz (int64 overflows for Sym^5+). Scrub `g_*` before each run.
 
 ## D. good-factor backends (in `gen.py`)
